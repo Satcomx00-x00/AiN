@@ -1,0 +1,13 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "popup",
+  "description": "The shortcut popup: read settings and clipboard history, copy, paste, hide itself.",
+  "windows": ["popup"],
+  "permissions": [
+    "core:event:default",
+    "settings:allow-get",
+    "clipboard:default",
+    "popup:allow-hide",
+    "popup:allow-paste"
+  ]
+}

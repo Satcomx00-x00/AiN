@@ -1,0 +1,15 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "overlay",
+  "description": "The capture overlay: read the capture, copy or save the annotated image, hide itself.",
+  "windows": [
+    "overlay"
+  ],
+  "permissions": [
+    "core:event:default",
+    "settings:allow-get",
+    "screen:default",
+    "clipboard:allow-copy-image",
+    "popup:allow-hide"
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "name": "widget",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "test": "vitest run",
+    "typecheck": "tsc",
+    "tauri": "tauri",
+    "commitlint": "commitlint --edit"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2",
+    "zod": "^4"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^21.2.3",
+    "@commitlint/config-conventional": "^21.2.3",
+    "@tauri-apps/cli": "^2",
+    "typescript": "^5",
+    "vite": "^7",
+    "vitest": "^3"
+  }
+}
