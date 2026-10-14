@@ -1,0 +1,122 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  BUN_VERSION: "1.3.14"
+
+defaults:
+  run:
+    shell: bash
+    working-directory: widget-island
+
+jobs:
+  commitlint:
+    name: Commit messages
+    # Inside workflow_call the event is the caller's (e.g. workflow_dispatch): nothing to lint then.
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - run: bun install --frozen-lockfile
+      - name: Lint pull request commits
+        if: github.event_name == 'pull_request'
+        run: bunx commitlint --from "${{ github.event.pull_request.base.sha }}" --to "${{ github.event.pull_request.head.sha }}" --verbose
+      - name: Lint pull request title (used as the squash-merge message)
+        if: github.event_name == 'pull_request'
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: printf '%s\n' "$TITLE" | bunx commitlint --verbose
+      - name: Lint pushed commits
+        if: github.event_name == 'push'
+        env:
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.event.after }}
+        run: |
+          if git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            bunx commitlint --from "$BEFORE" --to "$AFTER" --verbose
+          else
+            bunx commitlint --last --verbose
+          fi
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+      - run: bun run test
+      - run: bun run build
+
+  rust-fmt:
+    name: Rust format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - run: cargo fmt --manifest-path src-tauri/Cargo.toml --all --check
+
+  rust:
+    name: Rust (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux x64
+            os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+          - name: Windows x64
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+          - name: macOS x64
+            os: macos-15-intel
+            target: x86_64-apple-darwin
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install Linux system dependencies
+        if: runner.os == 'Linux'
+        working-directory: .
+        run: ./.github/scripts/linux-deps.sh
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: widget-island/src-tauri -> target
+      # tauri::generate_context! embeds ../dist, so the frontend must exist before compiling.
+      - run: bun install --frozen-lockfile
+      - run: bun run build
+      - name: Clippy
+        working-directory: widget-island/src-tauri
+        run: cargo clippy --locked --all-targets --target ${{ matrix.target }} -- -D warnings
+      - name: Tests
+        working-directory: widget-island/src-tauri
+        run: cargo test --locked --target ${{ matrix.target }}
