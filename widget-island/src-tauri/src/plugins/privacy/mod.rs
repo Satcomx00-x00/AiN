@@ -1,5 +1,8 @@
 //! Which apps are using the microphone or the camera right now.
 
+// Only Windows has a backend; elsewhere the commands report `Unsupported` and the rest goes unused.
+#![cfg_attr(not(windows), allow(dead_code, unused_imports))]
+
 #[cfg(windows)]
 mod windows;
 
@@ -14,7 +17,6 @@ use tauri::{
 use super::live::Live;
 
 pub const EVENT: &str = "privacy:state";
-#[cfg_attr(not(windows), allow(dead_code))]
 const POLL: Duration = Duration::from_secs(1);
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]

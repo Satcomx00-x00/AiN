@@ -50,7 +50,8 @@
       },
       "rpm": {
         "depends": [
-          "gtk-layer-shell"
+          "gtk-layer-shell",
+          "libayatana-appindicator-gtk3"
         ]
       }
     },

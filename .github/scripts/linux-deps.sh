@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# System libraries needed to build the Tauri app on Debian/Ubuntu (x64).
+# System libraries needed to build the Tauri app on Debian/Ubuntu (x64). Needs Ubuntu 24.04+:
+# xcap binds PipeWire 1.x headers, which 22.04 does not ship.
 set -euo pipefail
 
 sudo apt-get update
@@ -14,6 +15,7 @@ sudo apt-get install -y --no-install-recommends \
   libayatana-appindicator3-dev \
   librsvg2-dev \
   libssl-dev \
+  libasound2-dev \
   libxdo-dev \
   libdbus-1-dev \
   libpipewire-0.3-dev \

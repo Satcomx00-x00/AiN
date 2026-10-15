@@ -1,6 +1,9 @@
 //! Volume: the default output (for the pop-up on volume keys), plus a mixer of every source —
 //! active output devices and the apps playing on them — each with its level and mute.
 
+// Only Windows has a backend; elsewhere the commands report `Unsupported` and the rest goes unused.
+#![cfg_attr(not(windows), allow(dead_code, unused_imports))]
+
 #[cfg(windows)]
 mod windows;
 
@@ -18,13 +21,10 @@ use crate::Res;
 pub const EVENT: &str = "volume:state";
 pub const SOURCES_EVENT: &str = "volume:sources";
 /// Fast enough that the collapsed pill reacts to volume keys right away.
-#[cfg_attr(not(windows), allow(dead_code))]
 const POLL: Duration = Duration::from_millis(100);
 /// Polls between checks for a new default output device (~2 s).
-#[cfg_attr(not(windows), allow(dead_code))]
 const DEVICE_CHECK_EVERY: u32 = 20;
 /// Polls between mixer refreshes (~1 s); enumerating every session is heavier than one volume read.
-#[cfg_attr(not(windows), allow(dead_code))]
 const SOURCES_EVERY: u32 = 10;
 
 #[derive(Debug, Clone, PartialEq, Serialize)]

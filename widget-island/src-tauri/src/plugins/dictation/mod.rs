@@ -6,6 +6,9 @@
 //! A worker thread owns the microphone stream. While listening it feeds 16 kHz audio to a
 //! decoder thread in 30 s chunks, so long dictations are mostly transcribed by the time they end.
 
+// Only Windows has a backend; elsewhere the commands report `Unsupported` and the rest goes unused.
+#![cfg_attr(not(windows), allow(dead_code, unused_imports))]
+
 mod chunk;
 mod model;
 #[cfg(windows)]
@@ -75,13 +78,10 @@ pub const EVENT: &str = "dictation:state";
 pub const MODEL_EVENT: &str = "dictation:model";
 /// The command whose shortcut drives dictation.
 const COMMAND: &str = "dictation.toggle";
-#[cfg_attr(not(windows), allow(dead_code))]
 const TICK: Duration = Duration::from_millis(50);
 /// A forgotten dictation stops by itself.
-#[cfg_attr(not(windows), allow(dead_code))]
 const MAX_SECONDS: f32 = 300.0;
 /// The model takes about 1 GB of memory; it is let go after this long unused.
-#[cfg_attr(not(windows), allow(dead_code))]
 const KEEP_WARM: Duration = Duration::from_secs(10 * 60);
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
@@ -124,10 +124,8 @@ struct Shared {
     /// Loaded on first use, kept warm, dropped after `KEEP_WARM`.
     #[cfg(windows)]
     recognizer: Mutex<Option<Arc<sherpa_onnx::OfflineRecognizer>>>,
-    #[cfg_attr(not(windows), allow(dead_code))]
     last_used: Mutex<Instant>,
     /// Bumped by every start and cancel, so a stale decoder's result is thrown away.
-    #[cfg_attr(not(windows), allow(dead_code))]
     session: AtomicU64,
     stop_download: AtomicBool,
     downloading: AtomicBool,
@@ -146,7 +144,12 @@ impl Shared {
 
     fn info(place: &Place, status: ModelStatus) -> ModelInfo {
         let choice = place.choice();
-        ModelInfo { model: choice.model.id, dir: choice.dir().to_string_lossy().into_owned(), installed: model::installed_in(&place.base), status }
+        ModelInfo {
+            model: choice.model.id,
+            dir: choice.dir().to_string_lossy().into_owned(),
+            installed: model::installed_in(&place.base),
+            status,
+        }
     }
 
     fn publish_model<R: Runtime>(&self, app: &AppHandle<R>, status: ModelStatus) {
@@ -410,7 +413,11 @@ mod engine {
         let current = || shared.session.load(Ordering::SeqCst) == id;
         let recognizer = match recognizer(&shared) {
             Ok(r) => r,
-            Err(message) => return if current() { shared.publish(&app, Phase::Error { message }) },
+            Err(message) => {
+                return if current() {
+                    shared.publish(&app, Phase::Error { message })
+                };
+            }
         };
         let mut parts = Vec::new();
         for samples in chunks {
@@ -578,7 +585,12 @@ mod tests {
 
     #[test]
     fn model_info_flattens_the_status() {
-        let info = ModelInfo { model: "whisper-small", dir: "D:\\Models".into(), installed: vec!["parakeet-v3"], status: ModelStatus::Downloading { received: 1, total: 2 } };
+        let info = ModelInfo {
+            model: "whisper-small",
+            dir: "D:\\Models".into(),
+            installed: vec!["parakeet-v3"],
+            status: ModelStatus::Downloading { received: 1, total: 2 },
+        };
         assert_eq!(
             serde_json::to_value(info).unwrap(),
             serde_json::json!({ "model": "whisper-small", "dir": "D:\\Models", "installed": ["parakeet-v3"], "state": "downloading", "received": 1, "total": 2 })
