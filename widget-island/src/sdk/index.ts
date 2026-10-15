@@ -1,0 +1,26 @@
+/**
+ * The island's plugin API. Built-in features import these modules directly; a plugin from the
+ * plugins folder receives the same things as one object, since it is loaded on its own:
+ *
+ * ```js
+ * export default (island) => island.definePlugin({ id: "hello", … });
+ * ```
+ *
+ * Bump `version` on any change that could break such a plugin.
+ */
+import * as chart from "./chart";
+import * as color from "./color";
+import * as dom from "./dom";
+import { choice, folder, list, number, toggle } from "./options";
+import { definePlugin } from "./plugin";
+
+export const sdk = Object.freeze({
+  version: 1,
+  definePlugin,
+  options: Object.freeze({ toggle, number, choice, list, folder }),
+  dom: Object.freeze({ ...dom }),
+  chart: Object.freeze({ ...chart }),
+  color: Object.freeze({ ...color }),
+});
+
+export type Sdk = typeof sdk;
