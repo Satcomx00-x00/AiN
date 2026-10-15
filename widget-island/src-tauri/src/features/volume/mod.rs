@@ -17,10 +17,12 @@ use tauri::{AppHandle, Manager, State, Wry, plugin::TauriPlugin};
 use tauri_specta::Event;
 
 use super::{live::Live, worker::Worker};
-use crate::Res;
+use crate::{Error, Res};
 
 /// Fast enough that the collapsed pill reacts to volume keys right away.
 const POLL: Duration = Duration::from_millis(100);
+/// Whether this platform has a backend at all; without one, changes say so instead of doing nothing.
+const SUPPORTED: bool = cfg!(any(windows, target_os = "linux"));
 /// Polls between checks for a new default output device (~2 s).
 const DEVICE_CHECK_EVERY: u32 = 20;
 /// Polls between mixer refreshes (~1 s); enumerating every session is heavier than one volume read.
@@ -165,16 +167,23 @@ fn sources(volume: State<'_, Volume>) -> Vec<Source> {
     volume.shared.sources.get()
 }
 
+fn send(volume: &Volume, command: Command) -> Res<()> {
+    if !SUPPORTED {
+        return Err(Error::Unsupported);
+    }
+    volume.worker.send(command)
+}
+
 #[tauri::command]
 #[specta::specta]
 fn set_level(volume: State<'_, Volume>, source: Option<String>, level: f32) -> Res<()> {
-    volume.worker.send(Command { source, change: Change::Level(level.clamp(0.0, 1.0)) })
+    send(&volume, Command { source, change: Change::Level(level.clamp(0.0, 1.0)) })
 }
 
 #[tauri::command]
 #[specta::specta]
 fn set_muted(volume: State<'_, Volume>, source: Option<String>, muted: bool) -> Res<()> {
-    volume.worker.send(Command { source, change: Change::Muted(muted) })
+    send(&volume, Command { source, change: Change::Muted(muted) })
 }
 
 fn spawn(app: AppHandle, shared: Arc<Shared>) -> std::io::Result<Worker<Command>> {

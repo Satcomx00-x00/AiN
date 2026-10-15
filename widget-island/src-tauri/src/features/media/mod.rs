@@ -17,9 +17,11 @@ use tauri::{AppHandle, Manager, State, Wry, plugin::TauriPlugin};
 use tauri_specta::Event;
 
 use super::{live::Live, worker::Worker};
-use crate::Res;
+use crate::{Error, Res};
 
 const POLL: Duration = Duration::from_secs(1);
+/// Whether this platform has a backend at all; without one, controls say so instead of doing nothing.
+const SUPPORTED: bool = cfg!(any(windows, target_os = "linux"));
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
@@ -125,6 +127,9 @@ fn artwork(media: State<'_, Media>) -> Option<String> {
 #[tauri::command]
 #[specta::specta]
 fn control(media: State<'_, Media>, action: Control) -> Res<()> {
+    if !SUPPORTED {
+        return Err(Error::Unsupported);
+    }
     media.worker.send(action)
 }
 

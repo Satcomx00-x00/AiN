@@ -10,18 +10,11 @@ use std::{
 
 use crate::{Error, Res};
 
-pub struct Worker<C>(Option<Sender<C>>);
+pub struct Worker<C>(Sender<C>);
 
 impl<C> Worker<C> {
-    /// A worker for a platform without a backend: every command fails with `Unsupported`.
-    #[cfg_attr(windows, allow(dead_code))]
-    pub fn unsupported() -> Self {
-        Self(None)
-    }
-
     pub fn send(&self, command: C) -> Res<()> {
-        let tx = self.0.as_ref().ok_or(Error::Unsupported)?;
-        tx.send(command).map_err(|_| Error::WorkerGone)
+        self.0.send(command).map_err(|_| Error::WorkerGone)
     }
 }
 
@@ -57,7 +50,7 @@ pub fn spawn<S, C: Send + 'static>(
             step(&mut state, command);
         }
     })?;
-    Ok(Worker(Some(tx)))
+    Ok(Worker(tx))
 }
 
 #[cfg(test)]
@@ -93,10 +86,5 @@ mod tests {
         for _ in 0..3 {
             seen.recv_timeout(Duration::from_secs(1)).expect("idle step after the handle was dropped");
         }
-    }
-
-    #[test]
-    fn unsupported_rejects_commands() {
-        assert!(matches!(Worker::<()>::unsupported().send(()), Err(Error::Unsupported)));
     }
 }
