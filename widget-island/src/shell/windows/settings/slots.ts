@@ -17,7 +17,7 @@ export function move<T>(list: readonly T[], from: number, to: number): T[] {
 
 export interface SlotListOptions {
   readonly title: string;
-  readonly hint: string;
+  readonly hint?: string;
   readonly ids: readonly string[];
   /** Plugins that may be placed here. */
   readonly candidates: readonly AnyPlugin[];
@@ -77,7 +77,7 @@ export function slotList({ title, hint, ids, candidates, onChange }: SlotListOpt
   return h(
     "section",
     { class: "card slot" },
-    h("div", { class: "card-head" }, h("div", {}, h("h2", {}, title), h("p", {}, hint))),
+    h("div", { class: "card-head" }, h("div", {}, h("h2", {}, title), ...(hint ? [h("p", {}, hint)] : []))),
     ids.length ? list : h("p", { class: "slot-empty" }, "Nothing here yet."),
     h("div", { class: "slot-foot" }, add),
   );

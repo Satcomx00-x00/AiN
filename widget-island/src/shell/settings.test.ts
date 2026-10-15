@@ -222,3 +222,12 @@ describe("settings targets", async () => {
     expect(parseTarget("secret:x", sections)).toBeNull();
   });
 });
+
+describe("text options", async () => {
+  const { text, resolve: resolveOptions } = await import("../sdk/options");
+  it("keep a trimmed string, or the default", () => {
+    const fields = { mic: text("Microphone") };
+    expect(resolveOptions(fields, { mic: "  wasapi:{a} " })).toEqual({ mic: "wasapi:{a}" });
+    expect(resolveOptions(fields, { mic: 3 })).toEqual({ mic: "" });
+  });
+});

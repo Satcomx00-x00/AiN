@@ -50,6 +50,7 @@ const KINDS: Record<Field["kind"], (v: unknown) => boolean> = {
   choice: (v) => typeof v === "string",
   list: (v) => Array.isArray(v) && v.every((x) => typeof x === "string"),
   folder: (v) => typeof v === "string",
+  text: (v) => typeof v === "string",
 };
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);

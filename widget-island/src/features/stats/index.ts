@@ -33,7 +33,7 @@ const meter = (label: string) => {
 export const stats = definePlugin({
   id: "stats",
   label: "Stats",
-  description: "CPU, memory and network; a live load graph on the pill.",
+  description: "CPU, memory and network.",
   icon: `<path d="M2 12.5l3.5-4 3 2.5 5.5-7"/>`,
   slots: ["glance", "tab"],
   options: {

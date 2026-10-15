@@ -32,16 +32,11 @@ export const privacyGlance = (usage: Usage | null): Glance | null => {
 export const privacy = definePlugin({
   id: "privacy",
   label: "Mic & camera",
-  description: "Which apps are using your microphone (orange) or camera (green) right now.",
+  description: "Apps using the microphone or camera.",
   icon: SHIELD,
   slots: ["glance", "tab"],
   options: {
-    ignore: list(
-      "Ignore these apps",
-      [],
-      "App name, e.g. SteelSeriesSonar",
-      "Background services that always hold the mic would otherwise keep the indicator on.",
-    ),
+    ignore: list("Ignored apps", [], "App name"),
   },
   setup({ privacy: port }: { privacy: PrivacyPort }, host) {
     let raw: Usage | null = null;

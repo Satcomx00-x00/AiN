@@ -48,12 +48,12 @@ interface Row {
 export const volume = definePlugin({
   id: "volume",
   label: "Volume",
-  description: "A mixer for your outputs and apps — pin the ones you want to adjust — plus a pop-up on volume changes.",
+  description: "Volume mixer for outputs and apps.",
   icon: SPEAKER,
   slots: ["glance", "tab"],
   options: {
-    popup: toggle("Pop up on volume changes", true, "Briefly widens the pill into a level bar, like the system pop-up."),
-    pinned: list("Pinned sources", [], "Device or app name", "Shown in the Volume tab, in this order. Pin them from the tab's source list."),
+    popup: toggle("Pop-up on volume changes", true),
+    pinned: list("Pinned sources", [], "Device or app name"),
   },
   setup({ volume: port }: { volume: VolumePort }, host) {
     let out: Output | null = null;

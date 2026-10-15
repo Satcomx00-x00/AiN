@@ -291,5 +291,11 @@ export function optionControl(
       return field(f.label, f.hint, chips(value as readonly string[], f.placeholder, onChange, f.label), true);
     case "folder":
       return field(f.label, f.hint, folderControl(value as string, f.placeholder, pickFolder, onChange, f.label), true);
+    case "text": {
+      const input = h("input", { class: "path-input", type: "text", spellcheck: "false", placeholder: f.placeholder ?? "", "aria-label": f.label });
+      input.value = value as string;
+      input.addEventListener("change", () => onChange(input.value.trim()));
+      return field(f.label, f.hint, input, true);
+    }
   }
 }

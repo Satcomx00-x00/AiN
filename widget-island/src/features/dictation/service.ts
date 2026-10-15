@@ -1,7 +1,7 @@
 import { follow, num } from "../../sdk/follow";
-import { type Command, type Delivery, type ModelInfo, type Phase as WirePhase, type Status, commands, events } from "./bindings";
+import { type Command, type Delivery, type Microphone, type ModelInfo, type Phase as WirePhase, type Status, commands, events } from "./bindings";
 
-export type { Delivery, ModelInfo, Status as ModelStatus };
+export type { Delivery, Microphone, ModelInfo, Status as ModelStatus };
 export type Control = Command;
 
 /** What dictation is doing; while listening, the input level (0–1) and whole seconds so far. */
@@ -16,6 +16,8 @@ export interface DictationPort {
   watchModel(onChange: (status: ModelInfo) => void): Promise<() => void>;
   /** Shows the model's folder in the file manager. */
   openFolder(): Promise<void>;
+  /** The microphones connected now. */
+  microphones(): Promise<Microphone[]>;
   control(command: Control): Promise<void>;
   /** Starts downloading the chosen model; progress arrives through `watchModel`. */
   download(): Promise<void>;
@@ -27,6 +29,7 @@ export const tauriDictation: DictationPort = {
   watch: (onChange) => follow(events.phaseChanged, commands.state, (p) => onChange(phase(p))),
   watchModel: (onChange) => follow(events.modelChanged, commands.modelStatus, onChange),
   openFolder: async () => void (await commands.openModelDir()),
+  microphones: () => commands.microphones(),
   control: async (command) => void (await commands.control(command)),
   download: async () => void (await commands.downloadModel()),
   remove: async () => void (await commands.deleteModel()),

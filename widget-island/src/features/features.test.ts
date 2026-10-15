@@ -231,14 +231,14 @@ describe("dictation", async () => {
 
   it("tells Settings what can be done with the model in each state", () => {
     expect(modelSetup({ ...at, state: "missing", size: 375e6 })).toEqual({
-      detail: "99 languages, a good balance. Not downloaded yet.",
+      detail: "Not downloaded",
       action: "download",
       label: "Download · 375 MB",
       progress: null,
     });
     expect(modelSetup({ ...at, state: "downloading", received: 1, total: 4 })).toMatchObject({ action: "stop", progress: 0.25 });
     expect(modelSetup({ ...at, state: "downloading", received: 0, total: 0 }).progress).toBe(0);
-    expect(modelSetup({ ...at, state: "ready" })).toMatchObject({ detail: "Downloaded, in D:/Models/whisper-small-int8", action: "remove" });
+    expect(modelSetup({ ...at, state: "ready" })).toMatchObject({ detail: "Downloaded", action: "remove" });
     expect(modelSetup({ ...at, state: "error", message: "offline" })).toMatchObject({ detail: "Download failed: offline", action: "download", label: "Retry" });
   });
 
@@ -266,5 +266,22 @@ describe("what plugins from the plugins folder may use", async () => {
   it("never offers what reads the user's clipboard, screen or speech", () => {
     expect(extensionRules.services).toEqual(["stats", "media", "volume", "privacy"]);
     for (const secret of ["clipboard", "capture", "dictation"]) expect(extensionRules.services).not.toContain(secret);
+  });
+});
+
+describe("microphone choice", async () => {
+  const { micOptions } = await import("./dictation");
+  const mics = [{ id: "a", name: "Headset" }];
+
+  it("offers the system default first, then each microphone by name", () =>
+    expect(micOptions(mics, "").map((o) => [o.value, o.label])).toEqual([
+      ["", "System default"],
+      ["a", "Headset"],
+    ]));
+
+  it("keeps an unplugged choice visible, saying the default is used meanwhile", () => {
+    const options = micOptions(mics, "gone");
+    expect(options.at(-1)).toEqual({ value: "gone", label: "Disconnected microphone", detail: "The system default is used meanwhile" });
+    expect(micOptions(mics, "a")).toHaveLength(2);
   });
 });

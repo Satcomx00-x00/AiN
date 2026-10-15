@@ -1,9 +1,9 @@
 import { button, h, icon } from "../../sdk/dom";
-import { choice, folder, toggle } from "../../sdk/options";
+import { choice, folder, text, toggle } from "../../sdk/options";
 import { type Glance, definePlugin } from "../../sdk/plugin";
 import { type SelectOption, select } from "../../sdk/select";
 import type { ClipboardPort } from "../clipboard/service";
-import type { DictationPort, ModelInfo, Phase } from "./service";
+import type { DictationPort, Microphone, ModelInfo, Phase } from "./service";
 import { DEFAULT_MODEL, MODELS, modelById } from "./models";
 
 const MIC = `<rect x="5.75" y="1.75" width="4.5" height="8" rx="2.25"/><path d="M3.25 7.5a4.75 4.75 0 0 0 9.5 0M8 12.25v2"/>`;
@@ -56,16 +56,25 @@ export function modelLine(info: ModelInfo): { title: string; detail: string; pro
 export const modelOptions = (installed: readonly string[]): SelectOption[] =>
   MODELS.map((m) => ({ value: m.id, label: m.name, detail: m.about, meta: `${m.mb} MB`, badge: installed.includes(m.id) ? "Downloaded" : undefined }));
 
+/** The microphones to choose from: the system's default first, and the chosen one even if it's unplugged. */
+export function micOptions(mics: readonly Microphone[], chosen: string): SelectOption[] {
+  const known = mics.some((m) => m.id === chosen);
+  return [
+    { value: "", label: "System default" },
+    ...mics.map((m) => ({ value: m.id, label: m.name })),
+    ...(chosen && !known ? [{ value: chosen, label: "Disconnected microphone", detail: "The system default is used meanwhile" }] : []),
+  ];
+}
+
 /** What Settings says about the chosen model, and what its button does there. */
 export function modelSetup(info: ModelInfo): { detail: string; action: "download" | "stop" | "remove"; label: string; progress: number | null } {
-  const { about } = modelById(info.model);
   switch (info.state) {
     case "missing":
-      return { detail: `${about}. Not downloaded yet.`, action: "download", label: `Download · ${mb(info.size)}`, progress: null };
+      return { detail: "Not downloaded", action: "download", label: `Download · ${mb(info.size)}`, progress: null };
     case "downloading":
       return { detail: `Downloading… ${mb(info.received)} of ${mb(info.total)}`, action: "stop", label: "Stop", progress: progressOf(info.received, info.total) };
     case "ready":
-      return { detail: `Downloaded, in ${info.dir}`, action: "remove", label: "Remove", progress: null };
+      return { detail: "Downloaded", action: "remove", label: "Remove", progress: null };
     case "error":
       return { detail: `Download failed: ${info.message}`, action: "download", label: "Retry", progress: null };
   }
@@ -94,47 +103,34 @@ export function statusText(phase: Phase): string {
 export const dictation = definePlugin({
   id: "dictation",
   label: "Dictation",
-  description: "Speak and your words are typed where the cursor is. Local speech recognition (Parakeet, Whisper…), nothing sent online.",
+  description: "Speech to text, on this computer.",
   icon: MIC,
   slots: ["glance", "tab"],
   options: {
-    mode: choice(
-      "Shortcut",
-      "toggle",
-      [
-        ["toggle", "Press to start, press again to stop"],
-        ["hold", "Hold to talk"],
-      ],
-      "With hold to talk, dictation stops as soon as you release the keys.",
-    ),
-    // Drawn by the settings panel below, which shows which models are downloaded.
-    model: {
-      ...choice(
-        "Speech model",
-        DEFAULT_MODEL,
-        MODELS.map((m) => [m.id, m.name] as const),
-      ),
-      inPanel: true,
-    },
-    modelDir: folder(
-      "Model folder",
-      "Default: the app's data folder",
-      "Where the speech models are stored, each in its own subfolder. After changing it, download the models again or move their subfolders there.",
-    ),
-    trailingSpace: toggle("Add a space after the text", true, "So the next sentence doesn't stick to this one."),
+    mode: choice("Shortcut", "toggle", [
+      ["toggle", "Press to start and stop"],
+      ["hold", "Hold to talk"],
+    ]),
+    // These two are drawn by the settings panel, which knows the microphones and the downloads.
+    microphone: { ...text("Microphone"), inPanel: true },
+    model: { ...choice("Speech model", DEFAULT_MODEL, MODELS.map((m) => [m.id, m.name] as const)), inPanel: true },
+    modelDir: folder("Model folder", "Default folder"),
+    trailingSpace: toggle("Space after the text", true),
   },
   commands: [
     {
       id: "toggle",
       label: "Dictate",
-      description: "Listens to the microphone, then types what you said where the cursor is.",
+      description: "Types what you say where the cursor is.",
       shortcut: "Ctrl+Alt+KeyD",
       surface: "action",
     },
   ],
-  // Choosing, downloading and storing the model happen here, in Settings; the island only dictates.
+  // Choosing the microphone and the model, and downloading the model, happen here in Settings.
   settingsPanel(root, { dictation: port }: { dictation: DictationPort }, host) {
     let model: ModelInfo | null = null;
+    let mics: Microphone[] = [];
+    const mic = select(micOptions([], host.options().microphone), host.options().microphone, (id) => host.setOptions({ microphone: id }), "Microphone");
     const picker = select(modelOptions([]), host.options().model, (id) => host.setOptions({ model: id }), "Speech model");
     const detail = h("div", { class: "field-hint" });
     const bar = h("div", { class: "progress" }, h("i"));
@@ -144,20 +140,22 @@ export const dictation = definePlugin({
       run?.catch((e: unknown) => (detail.textContent = String(e)));
     }, { class: "secondary" });
     const folder = button("Show folder", () => void port.openFolder().catch(() => {}), { class: "secondary" });
+    const row = (label: string, control: HTMLElement) => h("div", { class: "field wide" }, h("div", {}, h("div", { class: "field-label" }, label)), control);
     root.append(
-      h(
-        "div",
-        { class: "field wide" },
-        h(
-          "div",
-          {},
-          h("div", { class: "field-label" }, "Speech model"),
-          h("div", { class: "field-hint" }, "Recognized on this computer. Models you've downloaded stay, so switching back is instant."),
-        ),
-        picker.el,
-      ),
+      row("Microphone", mic.el),
+      row("Speech model", picker.el),
       h("div", { class: "field" }, h("div", {}, h("div", { class: "field-label" }, "Model files"), detail, bar), h("div", { class: "recorder" }, folder, action)),
     );
+    // Microphones come and go: look again whenever the window comes back to the front.
+    const listMics = () =>
+      port.microphones().then((next) => {
+        mics = next;
+        const chosen = host.options().microphone;
+        mic.setOptions(micOptions(mics, chosen));
+        mic.set(chosen);
+      }, () => {});
+    void listMics();
+    window.addEventListener("focus", listMics);
     const draw = () => {
       if (!model) return;
       picker.setOptions(modelOptions(model.installed));
@@ -174,7 +172,10 @@ export const dictation = definePlugin({
       model = next;
       draw();
     });
-    return () => void watching.then((stop) => stop(), () => {});
+    return () => {
+      window.removeEventListener("focus", listMics);
+      void watching.then((stop) => stop(), () => {});
+    };
   },
   setup({ dictation: port, clipboard }: { dictation: DictationPort; clipboard: ClipboardPort }, host) {
     let phase: Phase = { phase: "idle" };

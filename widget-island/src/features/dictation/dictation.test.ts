@@ -23,6 +23,10 @@ function fakePort() {
       return stop;
     }),
     openFolder: vi.fn(async () => {}),
+    microphones: vi.fn(async () => [
+      { id: "wasapi:{a}", name: "Headset" },
+      { id: "wasapi:{b}", name: "Webcam mic" },
+    ]),
     control: vi.fn(async () => {}),
     download: vi.fn(async () => {}),
     remove: vi.fn(async () => {}),
@@ -78,25 +82,48 @@ describe("in Settings", () => {
     const { port, stop, model } = fakePort();
     const root = document.createElement("div");
     document.body.replaceChildren(root);
-    const host = { options: () => ({ model: "whisper-small" }) as never, setOptions: vi.fn() };
+    let microphone = "";
+    const host = { options: () => ({ model: "whisper-small", microphone }) as never, setOptions: vi.fn() };
+    const useMic = (id: string) => (microphone = id);
     const cleanup = dictation.settingsPanel?.(root, { dictation: port } as never, host);
-    return { root, port, stop, model, cleanup, host };
+    return { root, port, stop, model, cleanup, host, useMic };
   };
 
   it("lists the models in a drop-down, marking the downloaded ones", async () => {
     const { root, model } = mount();
     await tick();
     model({ ...at, installed: ["parakeet-v3", "whisper-small"], state: "ready" });
-    const trigger = root.querySelector<HTMLButtonElement>(".ui-select-trigger")!;
+    const trigger = root.querySelectorAll<HTMLElement>(".ui-select")[1]!.querySelector<HTMLButtonElement>(".ui-select-trigger")!;
     expect(trigger.textContent).toContain("Whisper small");
     trigger.click();
     const downloaded = [...root.querySelectorAll("[role=option]")].filter((o) => o.textContent?.includes("Downloaded")).map((o) => o.querySelector(".ui-select-label")?.firstChild?.textContent);
     expect(downloaded).toEqual(["Parakeet TDT v3", "Whisper small"]);
   });
 
+  it("lists the microphones, the system's default first, and saves the one picked", async () => {
+    const { root, host } = mount();
+    await tick();
+    const [mics] = root.querySelectorAll<HTMLElement>(".ui-select");
+    mics!.querySelector<HTMLButtonElement>(".ui-select-trigger")!.click();
+    const names = [...mics!.querySelectorAll("[role=option] .ui-select-label")].map((o) => o.textContent);
+    expect(names).toEqual(["System default", "Headset", "Webcam mic"]);
+    mics!.querySelectorAll<HTMLElement>("[role=option]")[2]?.click();
+    expect(host.setOptions).toHaveBeenCalledWith({ microphone: "wasapi:{b}" });
+  });
+
+  it("keeps showing a chosen microphone that is unplugged", async () => {
+    const { port, root, useMic } = mount();
+    useMic("wasapi:{gone}");
+    window.dispatchEvent(new Event("focus"));
+    await tick();
+    expect(port.microphones).toHaveBeenCalledTimes(2);
+    expect(root.querySelector(".ui-select-trigger")?.textContent).toContain("Disconnected microphone");
+  });
+
   it("saves the model picked in the list as the option", async () => {
     const { root, host } = mount();
-    root.querySelector<HTMLButtonElement>(".ui-select-trigger")!.click();
+    const models = root.querySelectorAll<HTMLElement>(".ui-select")[1]!;
+    models.querySelector<HTMLButtonElement>(".ui-select-trigger")!.click();
     const parakeet = [...root.querySelectorAll<HTMLElement>("[role=option]")].find((o) => o.textContent?.startsWith("Parakeet TDT v3"));
     parakeet?.click();
     expect(host.setOptions).toHaveBeenCalledWith({ model: "parakeet-v3" });
@@ -115,7 +142,7 @@ describe("in Settings", () => {
     model({ ...at, state: "ready" });
     named(root, "Remove")?.click();
     expect(port.remove).toHaveBeenCalledTimes(2);
-    expect(root.textContent).toContain("Downloaded, in D:/Models/whisper-small-int8");
+    expect(root.querySelector(".field-hint")?.getAttribute("title")).toBe("D:/Models/whisper-small-int8");
   });
 
   it("shows the model folder", async () => {
@@ -124,12 +151,14 @@ describe("in Settings", () => {
     expect(port.openFolder).toHaveBeenCalledOnce();
   });
 
-  it("stops watching the model when the card goes away", async () => {
-    const { stop, cleanup } = mount();
+  it("stops watching the model and the window when the card goes away", async () => {
+    const { stop, cleanup, port } = mount();
     expect(typeof cleanup).toBe("function");
     (cleanup as () => void)();
     await tick();
     expect(stop).toHaveBeenCalledOnce();
+    window.dispatchEvent(new Event("focus"));
+    expect(port.microphones).toHaveBeenCalledOnce();
   });
 });
 
@@ -137,6 +166,8 @@ describe("its settings", () => {
   it("keep the model choice and folder as options of the Settings card", () => {
     expect(dictation.options?.model.kind).toBe("choice");
     expect(dictation.options?.model.inPanel).toBe(true);
+    expect(dictation.options?.microphone.inPanel).toBe(true);
+    expect(dictation.options?.microphone.default).toBe("");
     expect(dictation.options?.modelDir.kind).toBe("folder");
   });
 });

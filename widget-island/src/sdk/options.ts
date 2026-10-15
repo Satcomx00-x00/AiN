@@ -42,7 +42,13 @@ export interface FolderField extends Base<string> {
   readonly placeholder?: string | undefined;
 }
 
-export type Field = ToggleField | NumberField | ChoiceField | ListField | FolderField;
+/** Free text, e.g. an id another control picks; "" for none. */
+export interface TextField extends Base<string> {
+  readonly kind: "text";
+  readonly placeholder?: string | undefined;
+}
+
+export type Field = ToggleField | NumberField | ChoiceField | ListField | FolderField | TextField;
 export type Fields = Readonly<Record<string, Field>>;
 export type Values<F extends Fields> = { readonly [K in keyof F]: F[K]["default"] };
 
@@ -73,6 +79,8 @@ export const list = (label: string, value: readonly string[], placeholder?: stri
 
 export const folder = (label: string, placeholder?: string, hint?: string): FolderField => ({ kind: "folder", label, default: "", placeholder, hint });
 
+export const text = (label: string, value = "", placeholder?: string, hint?: string): TextField => ({ kind: "text", label, default: value, placeholder, hint });
+
 /** A stored value if it fits the field, otherwise the field's default. */
 export function valueOf(field: Field, raw: unknown): Field["default"] {
   switch (field.kind) {
@@ -84,6 +92,8 @@ export function valueOf(field: Field, raw: unknown): Field["default"] {
       return typeof raw === "string" && field.choices.some((c) => c.value === raw) ? raw : field.default;
     case "list":
       return Array.isArray(raw) ? [...new Set(raw.filter((x): x is string => typeof x === "string").map((x) => x.trim()).filter(Boolean))] : field.default;
+    case "text":
+      return typeof raw === "string" ? raw.trim() : field.default;
     case "folder":
       return typeof raw === "string" ? raw.trim() : field.default;
   }

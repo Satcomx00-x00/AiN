@@ -29,12 +29,12 @@ export const clip = (text: string, max: number): string => (text.length > max ? 
 export const media = definePlugin({
   id: "media",
   label: "Now playing",
-  description: "Whatever plays through Windows' media controls — Spotify, browsers, players — with controls.",
+  description: "What's playing, with controls.",
   icon: NOTE,
   slots: ["glance", "tab"],
   options: {
-    wide: toggle("Expand the pill while playing", true, "Shows the cover and more of the title, like a live activity."),
-    tint: toggle("Tint the island with the album art", true),
+    wide: toggle("Expand the pill while playing", true),
+    tint: toggle("Tint with the album art", true),
   },
   setup({ media: port }: { media: MediaPort }, host) {
     let track: Track | null = null;

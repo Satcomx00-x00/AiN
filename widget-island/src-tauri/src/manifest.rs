@@ -28,7 +28,7 @@ macro_rules! manifest {
             features {
                 clipboard: features::clipboard { typed: [history, copy, clear], raw: [copy_image], events: [] }
                 dictation: features::dictation {
-                    typed: [state, model_status, control, download_model, delete_model, open_model_dir],
+                    typed: [state, model_status, microphones, control, download_model, delete_model, open_model_dir],
                     raw: [],
                     events: [PhaseChanged, ModelChanged]
                 }

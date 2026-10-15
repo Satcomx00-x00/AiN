@@ -15,16 +15,16 @@ type Row = { li: HTMLLIElement; meta: HTMLSpanElement; at: number; copied: boole
 export const clipboard = definePlugin({
   id: "clipboard",
   label: "Clipboard",
-  description: "Your recent copied texts, one click to copy again. Kept in memory only.",
+  description: "Recently copied text, kept in memory only.",
   slots: ["tab"],
   options: {
-    paste: toggle("Paste after choosing from the shortcut", true, "Otherwise the choice is only copied, ready for Ctrl+V."),
+    paste: toggle("Paste after choosing", true),
   },
   commands: [
     {
       id: "history",
       label: "Clipboard history",
-      description: "Pick something you copied and paste it where you were typing.",
+      description: "Pick a copied text and paste it.",
       // Win+B itself belongs to Windows (it focuses the tray), so the default adds Shift.
       shortcut: "Super+Shift+KeyB",
       popup: picker,

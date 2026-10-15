@@ -11,14 +11,14 @@
 import * as chart from "./chart";
 import * as color from "./color";
 import * as dom from "./dom";
-import { choice, folder, list, number, toggle } from "./options";
+import { choice, folder, list, number, text, toggle } from "./options";
 import { definePlugin } from "./plugin";
 import { select } from "./select";
 
 export const sdk = Object.freeze({
   version: 1,
   definePlugin,
-  options: Object.freeze({ toggle, number, choice, list, folder }),
+  options: Object.freeze({ toggle, number, choice, list, folder, text }),
   dom: Object.freeze({ ...dom }),
   chart: Object.freeze({ ...chart }),
   color: Object.freeze({ ...color }),

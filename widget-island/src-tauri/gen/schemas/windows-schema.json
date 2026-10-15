@@ -2409,10 +2409,10 @@
           "markdownDescription": "Denies the save command without any pre-configured scope."
         },
         {
-          "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-state`\n- `allow-model-status`\n- `allow-control`\n- `allow-download-model`\n- `allow-delete-model`\n- `allow-open-model-dir`",
+          "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-state`\n- `allow-model-status`\n- `allow-microphones`\n- `allow-control`\n- `allow-download-model`\n- `allow-delete-model`\n- `allow-open-model-dir`",
           "type": "string",
           "const": "dictation:default",
-          "markdownDescription": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-state`\n- `allow-model-status`\n- `allow-control`\n- `allow-download-model`\n- `allow-delete-model`\n- `allow-open-model-dir`"
+          "markdownDescription": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-state`\n- `allow-model-status`\n- `allow-microphones`\n- `allow-control`\n- `allow-download-model`\n- `allow-delete-model`\n- `allow-open-model-dir`"
         },
         {
           "description": "Enables the control command without any pre-configured scope.",
@@ -2431,6 +2431,12 @@
           "type": "string",
           "const": "dictation:allow-download-model",
           "markdownDescription": "Enables the download_model command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the microphones command without any pre-configured scope.",
+          "type": "string",
+          "const": "dictation:allow-microphones",
+          "markdownDescription": "Enables the microphones command without any pre-configured scope."
         },
         {
           "description": "Enables the model_status command without any pre-configured scope.",
@@ -2467,6 +2473,12 @@
           "type": "string",
           "const": "dictation:deny-download-model",
           "markdownDescription": "Denies the download_model command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the microphones command without any pre-configured scope.",
+          "type": "string",
+          "const": "dictation:deny-microphones",
+          "markdownDescription": "Denies the microphones command without any pre-configured scope."
         },
         {
           "description": "Denies the model_status command without any pre-configured scope.",

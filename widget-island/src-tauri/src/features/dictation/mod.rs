@@ -59,6 +59,19 @@ pub struct ModelInfo {
     status: ModelStatus,
 }
 
+/// A microphone dictation can listen to.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
+pub struct Microphone {
+    /// Stable across runs and reboots: what the "microphone" option stores.
+    pub id: String,
+    pub name: String,
+}
+
+/// The microphone the settings pick, or `None` for the system's default one.
+pub fn chosen_microphone(settings: &Value) -> Option<String> {
+    settings::option(settings, FEATURE, "microphone").and_then(Value::as_str).filter(|id| !id.is_empty()).map(str::to_string)
+}
+
 /// How the text reached the user.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "lowercase")]
@@ -219,6 +232,13 @@ fn deliver(app: &AppHandle, text: &str) -> Delivery {
 #[specta::specta]
 fn state(dictation: State<'_, Dictation>) -> Phase {
     dictation.shared.phase.get()
+}
+
+/// The microphones connected now. Async: listing devices can take a moment.
+#[tauri::command]
+#[specta::specta]
+async fn microphones() -> Vec<Microphone> {
+    engine::microphones()
 }
 
 #[tauri::command]
@@ -387,6 +407,14 @@ mod tests {
         let settings = serde_json::json!({ "options": { "dictation": { "model": "whisper-base", "modelDir": chosen.to_str() } } });
         assert_eq!(Place::read(&settings, &default).dir(), chosen.join("whisper-base-int8"));
         assert_eq!(Place::read(&serde_json::json!({}), &default).dir(), default.join("parakeet-tdt-0.6b-v3-int8"));
+    }
+
+    #[test]
+    fn reads_the_chosen_microphone() {
+        let with = |id: &str| serde_json::json!({ "options": { "dictation": { "microphone": id } } });
+        assert_eq!(chosen_microphone(&with("wasapi:{0.0.1}")).as_deref(), Some("wasapi:{0.0.1}"));
+        assert_eq!(chosen_microphone(&with("")), None, "empty means the system's default");
+        assert_eq!(chosen_microphone(&serde_json::json!({})), None);
     }
 
     #[test]

@@ -113,8 +113,8 @@ const setOption = (id: string, key: string, value: unknown) =>
 
 // ---------- sections ----------
 
-function header(title: string, lead: string) {
-  return [h("h1", {}, title), h("p", { class: "lead" }, lead)];
+function header(title: string, lead?: string) {
+  return [h("h1", {}, title), ...(lead ? [h("p", { class: "lead" }, lead)] : [])];
 }
 
 function general(): Node[] {
@@ -126,24 +126,24 @@ function general(): Node[] {
   }, "Launch at login");
   store.autostart().then((on) => autostart.setAttribute("aria-checked", String(on)), () => (autostart.disabled = true));
   return [
-    ...header("General", "How the island behaves. Changes apply right away."),
+    ...header("General"),
     h(
       "section",
       { class: "card" },
-      field("Launch at login", "Start the island when you sign in.", autostart),
+      field("Launch at login", undefined, autostart),
       field(
         "Quit Island",
-        "Closes the island, its windows and the tray icon, and stops everything it runs in the background. Start it again from the Start menu (or your apps).",
+        undefined,
         button("Quit", () => void store.quit().catch((e: unknown) => setStatus("error", `Couldn't quit: ${String(e)}`)), { class: "secondary danger" }),
       ),
       field(
-        "Open after hovering",
-        "How long the pointer rests on the pill before it opens. Higher avoids accidental opens near the top of the screen.",
+        "Open delay",
+        undefined,
         rangeControl(settings.general.openDelay, { ...DELAY_RANGE, unit: "ms" }, (v) => setGeneral({ openDelay: v }), "Open delay"),
       ),
       field(
-        "Close after leaving",
-        "Grace time before it folds back once the pointer leaves.",
+        "Close delay",
+        undefined,
         rangeControl(settings.general.closeDelay, { ...DELAY_RANGE, unit: "ms" }, (v) => setGeneral({ closeDelay: v }), "Close delay"),
       ),
     ),
@@ -153,18 +153,18 @@ function general(): Node[] {
 function appearance(): Node[] {
   const theme = themeById(settings.general.theme);
   return [
-    ...header("Appearance", "Colors and shape of the island. Choosing a theme below sets every color at once; fine-tune them here. Changes apply right away."),
+    ...header("Appearance"),
     h(
       "section",
       { class: "card" },
       field(
         "Pill color",
-        "The background of the pill and the open island. Click the swatch for the palette, or type a hex code. On a light color the text turns dark.",
+        undefined,
         colorPicker(settings.general.pillColor, theme.bg, (v) => setGeneral({ pillColor: v }), "Pill color"),
       ),
       field(
         "Accent color",
-        "Buttons, progress bars and highlights, in the island and in this window.",
+        undefined,
         colorPicker(settings.general.accentColor, theme.accent, (v) => setGeneral({ accentColor: v }), "Accent color"),
       ),
     ),
@@ -173,12 +173,12 @@ function appearance(): Node[] {
       { class: "card" },
       field(
         "Pill width",
-        "How wide the folded pill is. The open island never gets narrower than its panel.",
+        undefined,
         rangeControl(settings.general.pillWidth, { ...WIDTH_RANGE, unit: "px" }, (v) => setGeneral({ pillWidth: v }), "Pill width"),
       ),
       field(
         "Corner curve",
-        "How round the bottom corners are: 100 % is a full pill, 0 % square corners.",
+        undefined,
         rangeControl(settings.general.pillCurve, { ...CURVE_RANGE, unit: "%" }, (v) => setGeneral({ pillCurve: v }), "Corner curve"),
       ),
     ),
@@ -187,7 +187,7 @@ function appearance(): Node[] {
       { class: "card" },
       field(
         "Theme",
-        `${theme.name}. A theme sets the pill and accent colors, the text, and the status colors (done, warning, recording…).`,
+        theme.name,
         themeGrid(THEMES, theme.id, (th) => setGeneral({ theme: th.id, pillColor: th.bg, accentColor: th.accent }, true)),
         true,
       ),
@@ -199,27 +199,26 @@ function layout(): Node[] {
   const { glance, tabs } = settings.layout;
   const glanceable = plugins.filter((p) => p.slots.includes("glance"));
   return [
-    ...header("Layout", "Choose what shows where. Drag to reorder, or use the arrows."),
+    ...header("Layout", "Drag to reorder."),
     h(
       "div",
       { class: "slots" },
       slotList({
         title: "Left of the pill",
-        hint: "The first widget with something to show wins.",
+        hint: "In priority order.",
         ids: glance.left,
         candidates: glanceable,
         onChange: (left) => setLayout({ ...settings.layout, glance: { ...glance, left } }),
       }),
       slotList({
         title: "Right of the pill",
-        hint: "In priority order: the first with something to show wins.",
+        hint: "In priority order.",
         ids: glance.right,
         candidates: glanceable,
         onChange: (right) => setLayout({ ...settings.layout, glance: { ...glance, right } }),
       }),
       slotList({
         title: "Tabs",
-        hint: "Shown when the island opens, in this order.",
         ids: tabs,
         candidates: plugins.filter((p) => p.slots.includes("tab")),
         onChange: (next) => setLayout({ ...settings.layout, tabs: next }),
@@ -271,7 +270,7 @@ function recorder(entry: Entry): HTMLElement {
 
 function shortcuts(): Node[] {
   return [
-    ...header("Shortcuts", "The island is also a multi-tool: these work anywhere, even when the island is folded."),
+    ...header("Shortcuts"),
     entries.length
       ? h(
           "section",
@@ -284,8 +283,8 @@ function shortcuts(): Node[] {
             return row;
           }),
         )
-      : h("p", { class: "lead" }, "No widget offers shortcuts yet."),
-    h("p", { class: "note" }, "Shortcuts using Win with a single letter (like Win+B or Win+V) are reserved by Windows; add Shift or Alt."),
+      : h("p", { class: "lead" }, "No shortcuts."),
+    h("p", { class: "note" }, "Win + a single letter is reserved by Windows: add Shift or Alt."),
   ];
 }
 
@@ -310,7 +309,7 @@ async function pickFolder(current: string): Promise<string | null> {
 
 function widgets(): Node[] {
   return [
-    ...header("Widgets", "Each widget's own options."),
+    ...header("Widgets"),
     ...plugins.map((p) => {
       const fields = standardFields(p.options ?? {});
       const { before, after } = aroundPanel(p.options ?? {});
@@ -341,7 +340,7 @@ function widgets(): Node[] {
           h(
             "span",
             { class: "badge", "data-placed": String(placesOf(p.id).length > 0) },
-            placesOf(p.id).join(" · ") || "Not placed — add it in Layout",
+            placesOf(p.id).join(" · ") || "Not placed",
           ),
         ),
         ...before.map(control),
@@ -398,7 +397,7 @@ function pluginsSection(): Node[] {
         ? `${row.plugin.description}${row.needs.length ? ` Uses: ${row.needs.join(", ")}.` : ""}`
         : row.on
           ? "Loading…"
-          : "Off. Its code doesn't run until you turn it on.";
+          : "Off";
     const card = h(
       "section",
       { class: "card" },
@@ -414,13 +413,9 @@ function pluginsSection(): Node[] {
     return card;
   });
   return [
-    ...header("Plugins", "Widgets made by others: JavaScript files in your plugins folder. Turn one on to load it."),
-    h(
-      "p",
-      { class: "note" },
-      "A plugin runs inside the island with its permissions, like an app you install: only turn on plugins you trust. After changing a plugin's file, restart Island.",
-    ),
-    ...(list.length ? list : [h("p", { class: "lead" }, "No plugins yet. Put a .js file (or a folder with an index.js) in the plugins folder.")]),
+    ...header("Plugins"),
+    h("p", { class: "note" }, "Plugins run with the island's permissions: only turn on those you trust."),
+    ...(list.length ? list : [h("p", { class: "lead" }, "No plugins. Add .js files to the plugins folder.")]),
     h(
       "div",
       { class: "actions" },
@@ -433,10 +428,10 @@ function pluginsSection(): Node[] {
 
 function about(): Node[] {
   let armed = false;
-  const reset = button("Reset all settings", () => {
+  const reset = button("Reset", () => {
     if (!armed) {
       armed = true;
-      reset.textContent = "Click again to reset everything";
+      reset.textContent = "Click again to confirm";
       reset.classList.add("danger");
       return;
     }
@@ -444,13 +439,7 @@ function about(): Node[] {
   }, { class: "secondary" });
   return [
     ...header("About", "Island — a Dynamic Island for your desktop."),
-    h(
-      "section",
-      { class: "card" },
-      field("Saving", "Settings save automatically and apply to the island instantly.", h("span", {})),
-      field("Open this window", "Right-click the pill, or use the tray icon.", h("span", {})),
-      field("Reset", "Restores the default layout, delays and every widget option.", reset),
-    ),
+    h("section", { class: "card" }, field("Reset all settings", undefined, reset)),
   ];
 }
 

@@ -9,6 +9,8 @@ import * as __TAURI_EVENT from "@tauri-apps/api/event";
 export const commands = {
 	state: () => __TAURI_INVOKE<Phase>("plugin:dictation|state"),
 	modelStatus: () => __TAURI_INVOKE<ModelInfo>("plugin:dictation|model_status"),
+	/**  The microphones connected now. Async: listing devices can take a moment. */
+	microphones: () => __TAURI_INVOKE<Microphone[]>("plugin:dictation|microphones"),
 	control: (command: Command) => __TAURI_INVOKE<null>("plugin:dictation|control", { command }),
 	/**  Starts downloading the model in the background; progress arrives as `ModelChanged` events. */
 	downloadModel: () => __TAURI_INVOKE<null>("plugin:dictation|download_model"),
@@ -33,6 +35,13 @@ export type Delivery =
 "typed" | 
 /**  Put on the clipboard, to paste. */
 "copied";
+
+/**  A microphone dictation can listen to. */
+export type Microphone = {
+	/**  Stable across runs and reboots: what the "microphone" option stores. */
+	id: string,
+	name: string,
+};
 
 /**  The speech model's status, sent as it changes (and as it downloads). */
 export type ModelChanged = ModelInfo;

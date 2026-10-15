@@ -10,17 +10,17 @@ const CAMERA = `<path d="M2.5 5.5a1 1 0 0 1 1-1h2l1-1.5h3l1 1.5h2a1 1 0 0 1 1 1v
 export const screenshot = definePlugin({
   id: "screenshot",
   label: "Screenshot",
-  description: "Capture the screen, draw on it with crayons, then Ctrl+C to copy or Ctrl+S to save.",
+  description: "Capture and annotate the screen.",
   icon: CAMERA,
   slots: [],
   options: {
-    closeAfterCopy: toggle("Close after copying", true, "Ctrl+C copies the image and closes the editor."),
+    closeAfterCopy: toggle("Close after copying", true),
   },
   commands: [
     {
       id: "capture",
       label: "Annotate a screenshot",
-      description: "Freezes the screen under the pointer so you can draw on it, select an area and copy it.",
+      description: "Ctrl+C to copy, Ctrl+S to save.",
       // Win+Shift+S belongs to the Windows Snipping Tool.
       shortcut: "Super+Alt+KeyS",
       surface: "screen",

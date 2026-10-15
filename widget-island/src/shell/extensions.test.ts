@@ -65,6 +65,7 @@ describe("check", () => {
       c: sdk.options.choice("C", "a", [["a", "A"]]),
       l: sdk.options.list("L", ["x"]),
       f: sdk.options.folder("F"),
+      t: sdk.options.text("T"),
     };
     expect(typeof check({ ...valid(), options }, rules)).toBe("object");
   });

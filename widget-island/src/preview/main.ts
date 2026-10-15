@@ -143,6 +143,7 @@ const fake: Services = {
     },
     control: async () => {},
     openFolder: async () => {},
+    microphones: async () => [{ id: "wasapi:{1}", name: "Microphone (USB Headset)" }],
     download: async () => {},
     remove: async () => {},
   },

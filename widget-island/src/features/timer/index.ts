@@ -82,7 +82,7 @@ export const glanceOf = (s: TimerState, now: number): Glance | null => {
 export const timer = definePlugin({
   id: "timer",
   label: "Timer",
-  description: "A countdown with presets; shows on the pill while it runs.",
+  description: "A countdown.",
   icon: `<circle cx="8" cy="9" r="5.25"/><path d="M8 9V6.5M6.5 1.75h3M12.25 4.25l1-1"/>`,
   slots: ["glance", "tab"],
   options: {
