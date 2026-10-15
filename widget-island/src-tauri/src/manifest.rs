@@ -15,7 +15,7 @@ macro_rules! manifest {
     ($then:ident) => {
         $then! {
             shell {
-                island: shell::island { typed: [info, layout], raw: [], events: [] }
+                island: shell::island { typed: [info, layout, auto_hide], raw: [], events: [Revealed] }
                 popup: shell::popup {
                     typed: [bind, failures, open, hide, paste],
                     raw: [],

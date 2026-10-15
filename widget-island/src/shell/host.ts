@@ -18,6 +18,9 @@ import type { Island, Size, WindowPort } from "./window";
 /** The island as the settings shape it: the chosen width, unless a hardware notch dictates it. */
 export const shaped = (i: Island, general: Settings["general"]): Island => (i.hasNotch ? i : { ...i, width: general.pillWidth });
 
+/** How long the open island takes to fold back (its 0.5 s size transition), in ms. */
+const CLOSING = 500;
+
 /** Lucide's "settings" cog (ISC), drawn on a 24 grid and scaled into our 16 px icons. */
 const GEAR = `<g transform="scale(0.6667)" stroke-width="2.25"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></g>`;
 
@@ -104,6 +107,7 @@ export async function mount<S>(
 
   el.dataset.notch = String(i.hasNotch);
   el.dataset.open = "false";
+  el.dataset.hidden = "false";
   el.style.setProperty("--ear", `${EAR}px`);
   el.style.setProperty("--glance-h", `${i.height}px`);
   el.style.setProperty("--panel-h", `${EXPANDED.height}px`);
@@ -183,7 +187,19 @@ export async function mount<S>(
     });
   };
 
-  const configure = (next: Settings, nextCatalogue?: readonly Plugin<S, Fields>[], nextGreetings?: readonly Greeting[]) => {
+  // Hidden until the cursor rests at the top center; once shown, it hides again when the island
+  // has had time to close after the cursor left. Sent only when it changes.
+  let rule = "";
+  const autoHide = () => {
+    const { autoHide: on, revealDelay, closeDelay } = settings.general;
+    const dwell = on ? revealDelay : null;
+    const grace = closeDelay + CLOSING;
+    if (`${dwell}/${grace}` === rule) return;
+    rule = `${dwell}/${grace}`;
+    win.autoHide(dwell, grace).catch((e: unknown) => console.error("[island] could not set auto-hide", e));
+  };
+
+  const configure = (next: Settings,nextCatalogue?: readonly Plugin<S, Fields>[], nextGreetings?: readonly Greeting[]) => {
     // Picking another startup animation in Settings plays it, as a preview.
     const replay = started && next.general.greeting !== settings.general.greeting;
     settings = next;
@@ -194,6 +210,7 @@ export async function mount<S>(
     const resized = nextShape.width !== i.width;
     i = nextShape;
     reshape();
+    if (started) autoHide();
     if (resized) {
       const s = sizeFor(open, i, wide);
       apply(s);
@@ -245,13 +262,19 @@ export async function mount<S>(
     () => ({ open: settings.general.openDelay, close: settings.general.closeDelay }),
   );
 
+  await win.onReveal((shown) => {
+    el.dataset.hidden = String(!shown);
+    if (!shown) hover.set(false);
+  });
+
   apply(sizeFor(false, i));
   await win.layout(canvas, frame(sizeFor(false, i)));
 
   beat.start();
-  // The startup animation plays first; hovering waits for it.
+  // The startup animation plays first; hovering (and auto-hiding) waits for it.
   void greet(el, sizeFor(false, i), greetings, settings.general.greeting, !reducedMotion()).then(() => {
     started = ready = true;
+    autoHide();
     el.addEventListener("pointerenter", hover.enter);
     el.addEventListener("pointerleave", hover.leave);
     el.addEventListener("click", () => hover.set(true));

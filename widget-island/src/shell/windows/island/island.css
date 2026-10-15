@@ -80,7 +80,16 @@ body {
     height 0.5s var(--settle),
     border-radius 0.5s var(--settle),
     box-shadow 0.5s var(--settle),
-    --ambient 0.9s ease;
+    --ambient 0.9s ease,
+    opacity 0.3s ease,
+    translate 0.3s var(--settle);
+}
+
+/* Auto-hide: tucked away above the screen edge until the cursor rests on its spot. */
+#island[data-hidden="true"] {
+  opacity: 0;
+  translate: 0 -100%;
+  pointer-events: none;
 }
 
 /* Live activities widen with a little bounce, like the Dynamic Island. */

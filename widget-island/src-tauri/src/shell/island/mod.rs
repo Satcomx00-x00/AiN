@@ -3,14 +3,18 @@
 mod hit;
 mod window;
 
-use std::sync::{Arc, RwLock};
+use std::{
+    sync::{Arc, RwLock},
+    time::Duration,
+};
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use specta::Type;
 use tauri::{LogicalSize, Manager, State, Window, Wry, plugin::TauriPlugin};
+use tauri_specta::Event;
 
 use crate::Res;
-use hit::HitArea;
+use hit::{AutoHide, HitArea};
 pub use window::Island;
 
 const LABEL: &str = "widget";
@@ -45,8 +49,29 @@ async fn layout(window: Window, hit: State<'_, Arc<HitArea>>, canvas: Size, regi
     }
     let placed = hit.ensure_canvas(window::clamp(canvas.width, canvas.height), |c| window::place(&window, c))?;
     hit.set_region(hit::region_rect(placed, region, hit::MARGIN));
-    hit.ensure_tracking(|area| hit::track(window.clone(), area))?;
+    hit.ensure_tracking(|area| {
+        let w = window.clone();
+        hit::track(window.clone(), area, move |shown| {
+            if let Err(e) = Revealed(shown).emit(&w) {
+                eprintln!("island: failed to report the pill shown or hidden: {e}");
+            }
+        })
+    })?;
     Ok(())
+}
+
+/// The pill was shown (true) or hidden (false) by the auto-hide rule.
+#[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
+pub struct Revealed(pub bool);
+
+/// Hides the pill until the cursor rests at the top center for `dwell` ms; once shown, it hides
+/// again `grace` ms after the cursor leaves. `dwell: null` keeps it shown. No effect on Wayland,
+/// which can't report the cursor.
+#[tauri::command]
+#[specta::specta]
+fn auto_hide(hit: State<'_, Arc<HitArea>>, dwell: Option<u32>, grace: u32) {
+    let ms = |v: u32| Duration::from_millis(v.into());
+    hit.set_auto_hide(dwell.map(|d| AutoHide { dwell: ms(d), grace: ms(grace) }));
 }
 
 fn prepare(w: &Window) -> Res<()> {
