@@ -1,6 +1,9 @@
 //! A background thread that owns OS objects (COM/WinRT ones can't cross threads), polls them on
 //! an interval and accepts commands over a channel. Commands run on the next wake-up, right away.
 
+// Only Windows has a backend; elsewhere the commands report `Unsupported` and the rest goes unused.
+#![cfg_attr(not(windows), allow(dead_code, unused_imports))]
+
 use std::{
     io,
     sync::mpsc::{self, RecvTimeoutError, Sender},

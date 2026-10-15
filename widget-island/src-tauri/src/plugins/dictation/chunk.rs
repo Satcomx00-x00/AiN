@@ -53,7 +53,12 @@ impl Chunker {
     /// Offline models decode a whole chunk at once; long dictations are split into pieces `chunk_seconds` long.
     pub fn new(rate: u32, chunk_seconds: f32) -> Self {
         let samples = |seconds: f32| (seconds * rate as f32).round() as usize;
-        Self { buffered: Vec::new(), limit: samples(chunk_seconds).max(1), search: samples(SEARCH_SECONDS), window: samples(WINDOW_SECONDS).max(1) }
+        Self {
+            buffered: Vec::new(),
+            limit: samples(chunk_seconds).max(1),
+            search: samples(SEARCH_SECONDS),
+            window: samples(WINDOW_SECONDS).max(1),
+        }
     }
 
     /// Adds samples; returns the chunks that are now full.

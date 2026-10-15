@@ -175,7 +175,6 @@ impl Model {
     }
 
     /// The path of its `i`th file in `dir`.
-    #[cfg_attr(not(windows), allow(dead_code))]
     pub fn path(&self, dir: &Path, i: usize) -> String {
         dir.join(self.files[i].name).to_string_lossy().into_owned()
     }

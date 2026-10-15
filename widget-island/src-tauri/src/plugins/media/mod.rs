@@ -1,5 +1,8 @@
 //! Now playing: whatever the OS media controls report (Spotify, browsers, players), with controls.
 
+// Only Windows has a backend; elsewhere the commands report `Unsupported` and the rest goes unused.
+#![cfg_attr(not(windows), allow(dead_code, unused_imports))]
+
 #[cfg(windows)]
 mod windows;
 
@@ -15,7 +18,6 @@ use super::{live::Live, worker::Worker};
 use crate::Res;
 
 pub const EVENT: &str = "media:state";
-#[cfg_attr(not(windows), allow(dead_code))]
 const POLL: Duration = Duration::from_secs(1);
 /// Spotify wins when several sessions are equally relevant.
 const PREFERRED: &str = "Spotify";
