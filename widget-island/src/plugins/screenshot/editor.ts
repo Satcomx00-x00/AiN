@@ -3,12 +3,15 @@ import type { PopupContext, PopupView } from "../../core/plugin";
 import type { ClipboardPort } from "../clipboard/api";
 import type { ScreenPort } from "./api";
 
-export type Tool = "pen" | "marker" | "rect" | "ellipse" | "select";
+export type Tool = "pen" | "marker" | "rect" | "ellipse";
 type Point = readonly [number, number];
+
+/** First choose what to capture, then annotate it. */
+type Phase = "select" | "edit";
 
 /** Something drawn: a freehand path, or a shape spanning its first and last point. */
 export interface Stroke {
-  readonly tool: Exclude<Tool, "select">;
+  readonly tool: Tool;
   readonly color: string;
   /** In image pixels. */
   readonly width: number;
@@ -40,6 +43,11 @@ const MARKER_ALPHA = 0.35;
 const MARKER_SCALE = 3;
 /** Shapes smaller than this (image pixels) are a click, not a drag, and are dropped. */
 const MIN_SHAPE = 3;
+/** A selection smaller than this (image pixels) counts as a click: capture the whole screen. */
+const MIN_AREA = 8;
+/** Room kept around the crop while editing: toolbar above, breathing space around. */
+const EDIT_TOP = 76;
+const EDIT_MARGIN = 32;
 const TOAST_MS = 1600;
 
 /** Where a shape's dragged corner lands; with `square`, its sides are made equal (a square or a circle). */
@@ -55,6 +63,16 @@ export function rectFrom(a: Point, b: Point, width: number, height: number): Rec
   const clamp = (v: number, max: number) => Math.min(Math.max(v, 0), max);
   const [x1, y1, x2, y2] = [clamp(a[0], width), clamp(a[1], height), clamp(b[0], width), clamp(b[1], height)];
   return { x: Math.round(Math.min(x1, x2)), y: Math.round(Math.min(y1, y2)), w: Math.round(Math.abs(x2 - x1)), h: Math.round(Math.abs(y2 - y1)) };
+}
+
+/** The selection to crop to, or null for the whole screen when it's too small to be a drag. */
+export const chosenArea = (area: Rect | null): Rect | null => (area && area.w >= MIN_AREA && area.h >= MIN_AREA ? area : null);
+
+/** CSS size that shows an image at its real size, shrunk (never enlarged) to fit the room available. */
+export function fitSize(width: number, height: number, dpr: number, room: { w: number; h: number }): { w: number; h: number } {
+  const [w, hgt] = [width / dpr, height / dpr];
+  const k = Math.min(1, room.w / w, room.h / hgt);
+  return { w: Math.round(w * k), h: Math.round(hgt * k) };
 }
 
 /** "Screenshot 2026-10-14 at 23.05.07.png" in local time. */
@@ -105,7 +123,7 @@ const ICONS = {
   marker: `<path d="M4 11.5l6.5-6.5 2 2L6 13.5H4z"/><path d="M2.5 14h11"/>`,
   rect: `<rect x="2.5" y="3.5" width="11" height="9" rx="1.5"/>`,
   ellipse: `<ellipse cx="8" cy="8" rx="5.75" ry="4.75"/>`,
-  select: `<path d="M2.5 5V2.5H5M11 2.5h2.5V5M13.5 11v2.5H11M5 13.5H2.5V11"/>`,
+  reselect: `<path d="M2.5 5V2.5H5M11 2.5h2.5V5M13.5 11v2.5H11M5 13.5H2.5V11"/>`,
   undo: `<path d="M5.5 4L2.5 7l3 3"/><path d="M2.5 7H10a3.5 3.5 0 0 1 0 7H8"/>`,
   clear: `<path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.75 9h5.5l.75-9"/>`,
   copy: `<rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5V3.5a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"/>`,
@@ -115,8 +133,13 @@ const ICONS = {
 
 type Ctx = PopupContext<{ screen: ScreenPort; clipboard: ClipboardPort }, { closeAfterCopy: boolean }>;
 
-/** The capture editor: draw with crayons, optionally select an area, then Ctrl+C copies the result. */
+/**
+ * The capture tool. First the frozen screen: drag to choose an area (a click takes everything);
+ * releasing the mouse opens the editor on that area to draw on it, then Ctrl+C copies the result.
+ */
 export function editor(root: HTMLElement, ctx: Ctx): PopupView {
+  let phase: Phase = "select";
+  let full: ImageData | null = null;
   let tool: Tool = "pen";
   let color: string = CRAYONS[0][1];
   let size: number = SIZES[1];
@@ -129,12 +152,15 @@ export function editor(root: HTMLElement, ctx: Ctx): PopupView {
 
   const base = h("canvas", { class: "ed-base" });
   const ink = h("canvas", { class: "ed-ink" });
+  const sheet = h("div", { class: "ed-sheet" }, base, ink);
+  const dim = h("div", { class: "ed-dim", "aria-hidden": "true" });
   const selection = h("div", { class: "ed-area", hidden: "" }, h("span", { class: "ed-area-size" }));
-  const stage = h("div", { class: "ed-stage", "data-tool": tool }, base, ink, selection);
+  const hint = h("div", { class: "ed-hint", role: "status" }, "Drag to capture an area · Click for the whole screen · Esc to cancel");
+  const stage = h("div", { class: "ed-stage", "data-phase": phase }, sheet, dim, selection, hint);
   const toast = h("div", { class: "ed-toast", role: "status", "aria-live": "polite" });
   const empty = h("p", { class: "ed-empty", hidden: "" }, "No capture to edit.");
 
-  /** Image pixels per CSS pixel (the display's scale), so strokes look the same on any monitor. */
+  /** Image pixels per CSS pixel, so strokes look the same whatever the zoom. */
   const scale = () => (base.clientWidth ? base.width / base.clientWidth : 1);
   const toImage = (e: PointerEvent): Point => {
     const r = base.getBoundingClientRect();
@@ -153,6 +179,8 @@ export function editor(root: HTMLElement, ctx: Ctx): PopupView {
 
   const showArea = () => {
     selection.hidden = !area || area.w < 2 || area.h < 2;
+    // Before a drag the whole screen is dimmed; during one, everything but the area is.
+    dim.hidden = phase !== "select" || !selection.hidden;
     if (!area || selection.hidden) return;
     const k = scale();
     Object.assign(selection.style, { left: `${area.x / k}px`, top: `${area.y / k}px`, width: `${area.w / k}px`, height: `${area.h / k}px` });
@@ -167,19 +195,65 @@ export function editor(root: HTMLElement, ctx: Ctx): PopupView {
     toastTimer = setTimeout(() => (toast.dataset.on = "false"), TOAST_MS);
   };
 
-  /** The screenshot with the drawings, cut to the selected area if there is one. */
+  const paintImage = (image: ImageData) => {
+    base.width = ink.width = image.width;
+    base.height = ink.height = image.height;
+    base.getContext("2d")?.putImageData(image, 0, 0);
+    schedule();
+  };
+
+  // ---------- phases ----------
+
+  /** The frozen full screen, waiting for an area. */
+  const startSelect = () => {
+    if (!full) return;
+    phase = "select";
+    stage.dataset.phase = phase;
+    bar.hidden = true;
+    hint.hidden = false;
+    strokes = [];
+    drawing = null;
+    area = null;
+    anchor = null;
+    sheet.style.width = sheet.style.height = "";
+    paintImage(full);
+    showArea();
+  };
+
+  /** Crops to `r` (null keeps the whole screen) and opens the editor on it, centered. */
+  const startEdit = (r: Rect | null) => {
+    if (!full) return;
+    const image = r ? base.getContext("2d")?.getImageData(r.x, r.y, r.w, r.h) : full;
+    if (!image) return;
+    phase = "edit";
+    stage.dataset.phase = phase;
+    area = null;
+    anchor = null;
+    hint.hidden = true;
+    bar.hidden = false;
+    paintImage(image);
+    const fit = fitSize(image.width, image.height, devicePixelRatio, { w: innerWidth - 2 * EDIT_MARGIN, h: innerHeight - EDIT_TOP - EDIT_MARGIN });
+    sheet.style.width = `${fit.w}px`;
+    sheet.style.height = `${fit.h}px`;
+    showArea();
+    setTool(tool);
+  };
+
+  // ---------- output ----------
+
+  /** The edited image with its drawings. */
   const compose = (): HTMLCanvasElement => {
-    const r = area && area.w >= 2 && area.h >= 2 ? area : { x: 0, y: 0, w: base.width, h: base.height };
     const out = h("canvas");
-    out.width = r.w;
-    out.height = r.h;
+    out.width = base.width;
+    out.height = base.height;
     const c = out.getContext("2d");
-    c?.drawImage(base, -r.x, -r.y);
-    c?.drawImage(ink, -r.x, -r.y);
+    c?.drawImage(base, 0, 0);
+    c?.drawImage(ink, 0, 0);
     return out;
   };
 
   const copy = async () => {
+    if (phase !== "edit") return;
     const out = compose();
     const image = out.getContext("2d")?.getImageData(0, 0, out.width, out.height);
     if (!image) return;
@@ -193,6 +267,7 @@ export function editor(root: HTMLElement, ctx: Ctx): PopupView {
   };
 
   const save = async () => {
+    if (phase !== "edit") return;
     const blob = await new Promise<Blob | null>((done) => compose().toBlob(done, "image/png"));
     if (!blob) return;
     try {
@@ -205,8 +280,6 @@ export function editor(root: HTMLElement, ctx: Ctx): PopupView {
 
   const clear = () => {
     strokes = [];
-    area = null;
-    showArea();
     schedule();
   };
 
@@ -222,9 +295,8 @@ export function editor(root: HTMLElement, ctx: Ctx): PopupView {
     marker: "Highlighter (H)",
     rect: "Rectangle (R) — hold Shift for a square",
     ellipse: "Ellipse (O) — hold Shift for a circle",
-    select: "Select an area (A)",
   };
-  const toolButtons = (["pen", "marker", "rect", "ellipse", "select"] as const).map((t) =>
+  const toolButtons = (["pen", "marker", "rect", "ellipse"] as const).map((t) =>
     button(icon(ICONS[t]), () => setTool(t), { class: "ed-btn", "data-tool": t, "aria-label": TOOL_NAMES[t], title: TOOL_NAMES[t] }),
   );
   const swatches = CRAYONS.map(([name, value], i) => {
@@ -248,10 +320,8 @@ export function editor(root: HTMLElement, ctx: Ctx): PopupView {
     tool = t;
     paint();
   };
-  // Picking a crayon means you want to draw.
   const setColor = (c: string) => {
     color = c;
-    if (tool === "select") tool = "pen";
     paint();
   };
   const setSize = (s: number) => {
@@ -261,7 +331,7 @@ export function editor(root: HTMLElement, ctx: Ctx): PopupView {
 
   const bar = h(
     "div",
-    { class: "ed-bar", role: "toolbar", "aria-label": "Annotate" },
+    { class: "ed-bar", role: "toolbar", "aria-label": "Annotate", hidden: "" },
     ...toolButtons,
     h("span", { class: "ed-sep" }),
     ...swatches,
@@ -269,7 +339,8 @@ export function editor(root: HTMLElement, ctx: Ctx): PopupView {
     ...sizeButtons,
     h("span", { class: "ed-sep" }),
     button(icon(ICONS.undo), undo, { class: "ed-btn", "aria-label": "Undo (Ctrl+Z)", title: "Undo (Ctrl+Z)" }),
-    button(icon(ICONS.clear), clear, { class: "ed-btn", "aria-label": "Clear", title: "Clear" }),
+    button(icon(ICONS.clear), clear, { class: "ed-btn", "aria-label": "Clear drawings", title: "Clear drawings" }),
+    button(icon(ICONS.reselect), startSelect, { class: "ed-btn", "aria-label": "New selection (N)", title: "New selection (N)" }),
     h("span", { class: "ed-sep" }),
     button(h("span", { class: "ed-act" }, icon(ICONS.copy), "Copy"), () => void copy(), { class: "ed-primary", title: "Copy (Ctrl+C)" }),
     button(icon(ICONS.save), () => void save(), { class: "ed-btn", "aria-label": "Save as PNG (Ctrl+S)", title: "Save as PNG (Ctrl+S)" }),
@@ -279,13 +350,14 @@ export function editor(root: HTMLElement, ctx: Ctx): PopupView {
   root.append(stage, bar, toast, empty);
   paint();
 
-  // ---------- drawing ----------
+  // ---------- pointer ----------
 
   stage.addEventListener("pointerdown", (e) => {
     if (e.button !== 0) return;
+    if (phase === "edit" && e.target !== base && e.target !== ink) return; // the backdrop isn't the picture
     stage.setPointerCapture(e.pointerId);
     const p = toImage(e);
-    if (tool === "select") {
+    if (phase === "select") {
       anchor = p;
       area = rectFrom(p, p, base.width, base.height);
       showArea();
@@ -311,15 +383,24 @@ export function editor(root: HTMLElement, ctx: Ctx): PopupView {
     }
   });
   const end = () => {
+    // Releasing the selection opens the editor on it.
+    if (phase === "select" && anchor) return void startEdit(chosenArea(area));
     const [a, b] = [drawing?.points[0], drawing?.points[drawing.points.length - 1]];
     const tooSmall = drawing && isShape(drawing.tool) && (!a || !b || Math.max(Math.abs(b[0] - a[0]), Math.abs(b[1] - a[1])) < MIN_SHAPE);
     if (drawing && !tooSmall) strokes = [...strokes, drawing];
     drawing = null;
-    anchor = null;
     schedule();
   };
   stage.addEventListener("pointerup", end);
-  stage.addEventListener("pointercancel", end);
+  stage.addEventListener("pointercancel", () => {
+    anchor = null;
+    area = null;
+    drawing = null;
+    showArea();
+    schedule();
+  });
+
+  // ---------- keys ----------
 
   // Captured on the document so it runs before the host's Esc-to-close.
   document.addEventListener(
@@ -327,17 +408,21 @@ export function editor(root: HTMLElement, ctx: Ctx): PopupView {
     (e) => {
       const mod = e.ctrlKey || e.metaKey;
       const digit = /^Digit([1-8])$/.exec(e.code)?.[1];
-      if (mod && e.code === "KeyC") void copy();
+      if (phase === "select") {
+        if (e.key === "Enter") startEdit(null);
+        else if (e.key === "Escape" && anchor) {
+          anchor = null;
+          area = null;
+          showArea();
+        } else return;
+      } else if (mod && e.code === "KeyC") void copy();
       else if (mod && e.code === "KeyS") void save();
       else if (mod && e.code === "KeyZ") undo();
-      else if (e.key === "Escape" && area) {
-        area = null;
-        showArea();
-      } else if (!mod && e.code === "KeyP") setTool("pen");
+      else if (!mod && e.code === "KeyP") setTool("pen");
       else if (!mod && e.code === "KeyH") setTool("marker");
       else if (!mod && e.code === "KeyR") setTool("rect");
       else if (!mod && e.code === "KeyO") setTool("ellipse");
-      else if (!mod && e.code === "KeyA") setTool("select");
+      else if (!mod && e.code === "KeyN") startSelect();
       else if (!mod && digit) setColor(CRAYONS[Number(digit) - 1]?.[1] ?? color);
       else return;
       e.preventDefault();
@@ -347,21 +432,15 @@ export function editor(root: HTMLElement, ctx: Ctx): PopupView {
 
   return {
     show() {
-      strokes = [];
-      drawing = null;
-      area = null;
-      showArea();
-      setTool("pen");
+      full = null;
       toast.dataset.on = "false";
       ctx.services.screen.latest().then(
         (image) => {
           empty.hidden = !!image;
           stage.hidden = !image;
           if (!image) return;
-          base.width = ink.width = image.width;
-          base.height = ink.height = image.height;
-          base.getContext("2d")?.putImageData(image, 0, 0);
-          schedule();
+          full = image;
+          startSelect();
         },
         () => (empty.hidden = false),
       );

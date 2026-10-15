@@ -83,7 +83,19 @@ describe("shortcut settings", () => {
 });
 
 describe("screenshot", async () => {
-  const { fileName, rectFrom, shapeEnd } = await import("../plugins/screenshot/editor");
+  const { chosenArea, fileName, fitSize, rectFrom, shapeEnd } = await import("../plugins/screenshot/editor");
+
+  it("a drag picks an area; a click (tiny area) means the whole screen", () => {
+    expect(chosenArea({ x: 10, y: 10, w: 200, h: 120 })).toEqual({ x: 10, y: 10, w: 200, h: 120 });
+    expect(chosenArea({ x: 10, y: 10, w: 3, h: 2 })).toBeNull();
+    expect(chosenArea(null)).toBeNull();
+  });
+
+  it("shows the crop at its real size, shrinking only when it doesn't fit", () => {
+    expect(fitSize(800, 400, 1, { w: 1800, h: 900 })).toEqual({ w: 800, h: 400 });
+    expect(fitSize(1600, 800, 2, { w: 1800, h: 900 })).toEqual({ w: 800, h: 400 });
+    expect(fitSize(1920, 1080, 1, { w: 960, h: 900 })).toEqual({ w: 960, h: 540 });
+  });
 
   it("leaves a shape's corner alone without Shift", () => expect(shapeEnd([10, 10], [50, 30], false)).toEqual([50, 30]));
 

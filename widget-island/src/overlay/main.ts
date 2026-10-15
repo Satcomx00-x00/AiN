@@ -45,34 +45,39 @@ hostCommands({
   store: inTauri ? tauriSettings : memorySettings(),
 });
 
-/** Preview only (`?demo`): scribble with simulated pointer input, to see the editor in use. */
-async function demo() {
-  await new Promise((r) => setTimeout(r, 300));
+/**
+ * Preview only. `?demo`: drag an area, release to edit it, then scribble on it.
+ * `?demo=select`: stop mid-drag, to see the selection step.
+ */
+async function demo(mode: string) {
+  const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  await wait(300);
   const stage = document.querySelector<HTMLElement>(".ed-stage");
   if (!stage) return;
-  const press = (key: string) => document.dispatchEvent(new KeyboardEvent("keydown", { key, code: key.length === 1 ? `Key${key.toUpperCase()}` : key }));
-  const draw = (points: [number, number][]) => {
-    const at = ([x, y]: [number, number], type: string) =>
-      stage.dispatchEvent(new PointerEvent(type, { clientX: innerWidth * x, clientY: innerHeight * y, button: 0, pointerId: 1, bubbles: true }));
+  // Like a real pointer, the event goes to whatever is under it (the picture, or the backdrop).
+  const at = ([x, y]: [number, number], type: string) => {
+    const [cx, cy] = [innerWidth * x, innerHeight * y];
+    (document.elementFromPoint(cx, cy) ?? stage).dispatchEvent(new PointerEvent(type, { clientX: cx, clientY: cy, button: 0, pointerId: 1, bubbles: true }));
+  };
+  const key = (code: string) => document.dispatchEvent(new KeyboardEvent("keydown", { code, key: code.replace(/^Key|^Digit/, "").toLowerCase() }));
+  const draw = (points: [number, number][], release = true) => {
     const [first, ...rest] = points;
     if (!first) return;
     at(first, "pointerdown");
     for (const p of rest) at(p, "pointermove");
-    at(rest[rest.length - 1] ?? first, "pointerup");
+    if (release) at(rest[rest.length - 1] ?? first, "pointerup");
   };
+  if (mode === "select") return draw([[0.16, 0.26], [0.5, 0.5], [0.71, 0.76]], false);
+  draw([[0.16, 0.26], [0.5, 0.5], [0.71, 0.76]]);
+  await wait(100);
   const circle = (cx: number, cy: number, r: number): [number, number][] =>
     Array.from({ length: 40 }, (_, i) => [cx + (r * Math.cos((i / 39) * Math.PI * 2)) / 1.6, cy + r * Math.sin((i / 39) * Math.PI * 2)]);
-  draw(circle(0.43, 0.42, 0.07));
-  document.dispatchEvent(new KeyboardEvent("keydown", { code: "Digit5", key: "5" }));
-  draw([[0.62, 0.62], [0.55, 0.55], [0.48, 0.47]]);
-  press("h");
-  document.dispatchEvent(new KeyboardEvent("keydown", { code: "Digit3", key: "3" }));
-  draw([[0.21, 0.52], [0.4, 0.52], [0.6, 0.52]]);
-  press("r");
-  document.dispatchEvent(new KeyboardEvent("keydown", { code: "Digit4", key: "4" }));
-  draw([[0.2, 0.6], [0.32, 0.66], [0.38, 0.69]]);
-  press("o");
-  document.dispatchEvent(new KeyboardEvent("keydown", { code: "Digit6", key: "6" }));
-  draw([[0.5, 0.6], [0.58, 0.66], [0.62, 0.69]]);
+  draw(circle(0.45, 0.4, 0.08));
+  key("Digit5");
+  draw([[0.68, 0.7], [0.6, 0.6], [0.52, 0.5]]);
+  key("KeyR");
+  key("Digit4");
+  draw([[0.24, 0.6], [0.34, 0.68], [0.4, 0.72]]);
 }
-if (!inTauri && new URLSearchParams(location.search).has("demo")) void demo();
+const mode = new URLSearchParams(location.search).get("demo");
+if (!inTauri && mode !== null) void demo(mode);
