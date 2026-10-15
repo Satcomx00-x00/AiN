@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 
-const { check, confine, fileRows, isolate, loadExtensions } = await import("./extensions");
+const { check, checkGreeting, confine, confineGreeting, fileRows, idOf, isolate, loadExtensions } = await import("./extensions");
 const { sdk } = await import("../sdk");
 
 const rules = { taken: new Set(["clock", "media"]), services: ["media", "stats"] };
@@ -121,6 +121,30 @@ describe("loadExtensions", () => {
     expect(out.map((e) => e.problem)).toEqual([null, `the id "pomodoro" is already used`]);
   });
 
+  it("takes a definition with play and no setup as a startup animation", async () => {
+    const play = vi.fn();
+    const out = await loadExtensions([file("w.js", "w")], rules, modules({ w: { default: (api: typeof sdk) => api.defineGreeting({ id: "wave", label: "Wave", play }) } }));
+    expect(out[0]).toMatchObject({ file: "w.js", plugin: null, needs: [], problem: null, greeting: { id: "wave", label: "Wave" } });
+    expect(idOf(out[0]!)).toBe("wave");
+    const stage = {} as never;
+    await out[0]!.greeting!.play(stage);
+    expect(play).toHaveBeenCalledWith(stage);
+  });
+
+  it("shares ids between plugins and startup animations", async () => {
+    const out = await loadExtensions(
+      [file("a.js", "a"), file("b.js", "b")],
+      rules,
+      modules({ a: { default: () => ({ id: "pomodoro", label: "P", play() {} }) }, b: { default: () => valid() } }),
+    );
+    expect(out.map((e) => e.problem)).toEqual([null, `the id "pomodoro" is already used`]);
+  });
+
+  it("checks a definition with both play and setup as a plugin", async () => {
+    const out = await loadExtensions([file("a.js", "a")], rules, modules({ a: { default: () => ({ ...valid(), play() {} }) } }));
+    expect(out[0]).toMatchObject({ greeting: null, plugin: { id: "pomodoro" } });
+  });
+
   it("doesn't change the ids the caller reserved", async () => {
     const taken = new Set(["clock"]);
     await loadExtensions([file("a.js", "a")], { ...rules, taken }, modules({ a: { default: () => valid() } }));
@@ -183,7 +207,11 @@ describe("isolate", () => {
 
 describe("fileRows", () => {
   const plugin = { ...valid() } as never;
-  const loaded = new Map([["a.js", { file: "a.js", plugin, needs: ["media"], problem: null }]]);
+  const greeting = { id: "wave", label: "Wave", play: () => {} };
+  const loaded = new Map([
+    ["a.js", { file: "a.js", plugin, greeting: null, needs: ["media"], problem: null }],
+    ["w.js", { file: "w.js", plugin: null, greeting, needs: [], problem: null }],
+  ]);
 
   it("lists files by name, with details only for those turned on", () => {
     const rows = fileRows([{ file: "b.js" }, { file: "a.js" }], ["a.js"], loaded);
@@ -198,7 +226,59 @@ describe("fileRows", () => {
   });
 
   it("keeps a file that is on but gone, saying so", () => {
-    expect(fileRows([], ["a.js"], loaded)).toEqual([{ file: "a.js", on: true, plugin: null, needs: ["media"], problem: "No longer in the plugins folder" }]);
+    expect(fileRows([], ["a.js"], loaded)).toEqual([{ file: "a.js", on: true, plugin: null, greeting: null, needs: ["media"], problem: "No longer in the plugins folder" }]);
+  });
+
+  it("shows a startup animation's file like a plugin's, only while on and present", () => {
+    expect(fileRows([{ file: "w.js" }], ["w.js"], loaded)[0]).toMatchObject({ plugin: null, greeting, problem: null });
+    expect(fileRows([{ file: "w.js" }], [], loaded)[0]?.greeting).toBeNull();
+    expect(fileRows([], ["w.js"], loaded)[0]?.greeting).toBeNull();
+  });
+});
+
+describe("checkGreeting", () => {
+  const ok = () => ({ id: "wave", label: "Wave", play: () => {} });
+
+  it("keeps only what the island uses", () => {
+    expect(Object.keys(checkGreeting({ ...ok(), extra: 1 }, new Set()) as object).sort()).toEqual(["id", "label", "play"]);
+  });
+
+  it.each([
+    ["a bad id", { id: "Wave" }, "id must be"],
+    ["a taken id", { id: "hello" }, `"hello" is already used`],
+    ["no label", { label: "" }, "label must be"],
+    ["a 41-character label", { label: "x".repeat(41) }, "label must be"],
+    ["a play that isn't a function", { play: "wave" }, "play must be a function"],
+  ])("refuses %s", (_, patch, problem) => {
+    expect(checkGreeting({ ...ok(), ...patch }, new Set(["hello"]))).toContain(problem);
+  });
+
+  it("is refused under a built-in animation's id by the island's rules", async () => {
+    const { extensionRules } = await import("../features");
+    for (const id of ["hello", "boing", "sparkle", "typewriter"]) expect(extensionRules.taken.has(id)).toBe(true);
+  });
+});
+
+describe("confineGreeting", () => {
+  it("reports a failing animation instead of throwing, sync or async", async () => {
+    const log = vi.fn();
+    const sync = confineGreeting({ id: "a", label: "A", play: () => { throw new Error("boom"); } }, log);
+    const async = confineGreeting({ id: "b", label: "B", play: () => Promise.reject(new Error("bang")) }, log);
+    await expect(sync.play({} as never)).resolves.toBeUndefined();
+    await expect(async.play({} as never)).resolves.toBeUndefined();
+    expect(log.mock.calls.map(([m]) => m)).toEqual([expect.stringContaining(`"a" failed: Error: boom`), expect.stringContaining(`"b" failed: Error: bang`)]);
+  });
+
+  it("waits for the animation it wraps", async () => {
+    let finish: () => void = () => {};
+    const wrapped = confineGreeting({ id: "a", label: "A", play: () => new Promise<void>((r) => (finish = r)) }, vi.fn());
+    let over = false;
+    const done = Promise.resolve(wrapped.play({} as never)).then(() => (over = true));
+    await Promise.resolve();
+    expect(over).toBe(false);
+    finish();
+    await done;
+    expect(over).toBe(true);
   });
 });
 

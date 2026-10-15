@@ -8,7 +8,8 @@ import { type Fields, resolve } from "../sdk/options";
 import { type Layout, type Placement, pickFrom, place, placedIds } from "./placement";
 import type { AnyPlugin, Host, Mounted, Plugin } from "../sdk/plugin";
 import { POWER, armedButton } from "./quit";
-import { hello } from "./hello";
+import type { Greeting } from "../sdk/greeting";
+import { greet } from "./greet";
 import { ticker } from "./scheduler";
 import type { Settings } from "./settings";
 import { type Tabs, tabs } from "./tabs";
@@ -52,12 +53,24 @@ export function load<S>(
 /** Each placed plugin once, wherever it appears. */
 const placedOnce = (p: Placement): Mounted[] => [...new Set([...p.left, ...p.right, ...p.tabs])];
 
+/** What the island can do beyond showing plugins. */
+export interface Extras {
+  /** Opens Settings, at `target` ("widgets:<plugin id>") when given. */
+  readonly openSettings?: (target?: string) => void;
+  readonly saveOptions?: (pluginId: string, patch: Readonly<Record<string, unknown>>) => void;
+  /** Quits the whole app. */
+  readonly quit?: () => void;
+  /** Startup animations to choose from (settings.general.greeting), the default first. */
+  readonly greetings?: readonly Greeting[];
+}
+
 export interface IslandHandle<S = never> {
   /**
    * Applies new settings live: layout, delays and plugin options. Plugins keep their state.
-   * `catalogue`, when given, replaces the plugins available (e.g. once more are loaded).
+   * `catalogue`, when given, replaces the plugins available (e.g. once more are loaded), and
+   * `greetings` the startup animations.
    */
-  configure(settings: Settings, catalogue?: readonly Plugin<S, Fields>[]): void;
+  configure(settings: Settings, catalogue?: readonly Plugin<S, Fields>[], greetings?: readonly Greeting[]): void;
 }
 
 /** The island shell: places plugins per the settings, runs the 1 s beat and the open/close choreography. */
@@ -67,12 +80,10 @@ export async function mount<S>(
   services: S,
   win: WindowPort,
   initial: Settings,
-  /** Opens Settings, at `target` ("widgets:<plugin id>") when given. */
-  openSettings?: (target?: string) => void,
-  saveOptions?: (pluginId: string, patch: Readonly<Record<string, unknown>>) => void,
-  /** Quits the whole app. */
-  quit?: () => void,
+  extras: Extras = {},
 ): Promise<IslandHandle<S>> {
+  const { openSettings, saveOptions, quit } = extras;
+  let greetings = extras.greetings ?? [];
   const hardware = await win.island();
   let plugins = catalogue;
   let settings = initial;
@@ -106,6 +117,10 @@ export async function mount<S>(
   };
   reshape();
   let open = false;
+  /** Set once the startup animation is over. */
+  let started = false;
+  /** False while a startup animation plays: the pill doesn't open meanwhile. */
+  let ready = false;
   // A glance may widen the collapsed pill into a live activity (music, a volume change…).
   let wide = false;
 
@@ -152,9 +167,26 @@ export async function mount<S>(
   });
   refresh = () => beat.now();
 
-  const configure = (next: Settings, nextCatalogue?: readonly Plugin<S, Fields>[]) => {
+  // One preview at a time; picks made while one plays wait for it, and only the last one plays.
+  let previews: Promise<void> = Promise.resolve();
+  let asked = 0;
+  const preview = () => {
+    const turn = ++asked;
+    previews = previews.then(async () => {
+      if (turn !== asked || open) return;
+      ready = false;
+      await greet(el, sizeFor(false, i, wide), greetings, settings.general.greeting, !reducedMotion());
+      ready = true;
+    });
+  };
+
+  const configure = (next: Settings, nextCatalogue?: readonly Plugin<S, Fields>[], nextGreetings?: readonly Greeting[]) => {
+    // Picking another startup animation in Settings plays it, as a preview.
+    const replay = started && next.general.greeting !== settings.general.greeting;
     settings = next;
     if (nextCatalogue) plugins = nextCatalogue;
+    if (nextGreetings) greetings = nextGreetings;
+    if (replay && !open) preview();
     const nextShape = shaped(hardware, next.general);
     const resized = nextShape.width !== i.width;
     i = nextShape;
@@ -179,7 +211,8 @@ export async function mount<S>(
 
   // Grow the input region before the pill animates out; shrink it only after the pill has animated in.
   const toggle = async (next: boolean) => {
-    if (next === open) return;
+    // Not while a startup animation plays: it drives the pill's size.
+    if (next === open || (next && !ready)) return;
     open = next;
     const s = sizeFor(open, i, wide);
     if (open) {
@@ -213,8 +246,9 @@ export async function mount<S>(
   await win.layout(canvas, frame(sizeFor(false, i)));
 
   beat.start();
-  // Say hello: the pill drops in and greets, then the glances show. Hovering waits for it.
-  void hello(el, sizeFor(false, i), !reducedMotion()).then(() => {
+  // The startup animation plays first; hovering waits for it.
+  void greet(el, sizeFor(false, i), greetings, settings.general.greeting, !reducedMotion()).then(() => {
+    started = ready = true;
     el.addEventListener("pointerenter", hover.enter);
     el.addEventListener("pointerleave", hover.leave);
     el.addEventListener("click", () => hover.set(true));

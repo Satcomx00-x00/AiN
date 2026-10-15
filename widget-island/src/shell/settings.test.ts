@@ -64,6 +64,14 @@ describe("settings", () => {
     });
   });
 
+  it("keeps the startup animation's id, or the default for anything that can't be one", () => {
+    expect(DEFAULT_GENERAL.greeting).toBe("hello");
+    expect(parseSettings({ general: { greeting: "my-wave" } }, fallback).general.greeting).toBe("my-wave");
+    expect(parseSettings({ general: { greeting: "none" } }, fallback).general.greeting).toBe("none");
+    for (const bad of ["", "Wave", "x", 3, "a".repeat(33)]) expect(parseSettings({ general: { greeting: bad } }, fallback).general.greeting).toBe("hello");
+    expect(parseSettings({ general: {} }, fallback).general.greeting).toBe("hello");
+  });
+
   it("removes duplicate ids in a placement", () =>
     expect(parseSettings({ layout: { glance: { left: ["clock", "clock"], right: [] }, tabs: [] } }, fallback).layout.glance.left).toEqual(["clock"]));
 

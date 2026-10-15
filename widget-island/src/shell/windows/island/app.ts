@@ -1,11 +1,13 @@
 import "./island.css";
 import { catalogue, extensionRules } from "../../../features";
+import { greetings } from "../../../features/greetings";
 import { layout } from "../../../features/layout";
 import { type Services, tauriServices } from "../../../features/services";
+import type { Greeting } from "../../../sdk/greeting";
 import type { Fields } from "../../../sdk/options";
 import type { Plugin } from "../../../sdk/plugin";
 import { type PopupPort, bindings, tauriPopup } from "../../commands";
-import { type Extension, type ExtensionsPort, type Importer, importSource, loadExtensions, tauriExtensions } from "../../extensions";
+import { type Extension, type ExtensionsPort, type Importer, idOf, importSource, loadExtensions, tauriExtensions } from "../../extensions";
 import { type IslandHandle, mount } from "../../host";
 import { type Settings, type SettingsPort, defaults, parseSettings, runnable, tauriSettings } from "../../settings";
 import { type WindowPort, tauriWindow } from "../../window";
@@ -23,7 +25,7 @@ export function extensionLoader(port: ExtensionsPort, importer: Importer = impor
     if (fresh.length) {
       const listing = await port.list().catch((e: unknown) => (log(`[island] can't list plugins: ${String(e)}`), { dir: "", plugins: [] }));
       const found = listing.plugins.filter((p) => fresh.includes(p.file));
-      const taken = new Set([...extensionRules.taken, ...[...done.values()].flatMap((e) => (e.plugin ? [e.plugin.id] : []))]);
+      const taken = new Set([...extensionRules.taken, ...[...done.values()].flatMap((e) => idOf(e) ?? [])]);
       for (const ext of await loadExtensions(found, { ...extensionRules, taken }, importer)) {
         done.set(ext.file, ext);
         if (ext.problem) log(`[island] plugin ${ext.file}: ${ext.problem}`);
@@ -58,6 +60,8 @@ export async function start(
   let island: IslandHandle<Services> | undefined;
   let plugins: readonly Plugin<Services, Fields>[] = catalogue;
   let loaded: { file: string; id: string }[] = [];
+  /** Built-in startup animations, then those from enabled files. */
+  let choices: readonly Greeting[] = greetings;
 
   // Global shortcuts follow the settings; re-registered only when they actually change.
   let bound = "";
@@ -80,8 +84,9 @@ export async function start(
     const all = await loader.sync(settings.extensions);
     loaded = all.flatMap((e) => (e.plugin ? [{ file: e.file, id: e.plugin.id }] : []));
     plugins = [...catalogue, ...all.flatMap((e) => (e.plugin ? [e.plugin as Plugin<Services, Fields>] : []))];
+    choices = [...greetings, ...all.flatMap((e) => (e.greeting && settings.extensions.includes(e.file) ? [e.greeting] : []))];
     // Newer settings may have arrived while loading; those win.
-    if (settings === latest) island?.configure(effective(settings), plugins);
+    if (settings === latest) island?.configure(effective(settings), plugins, choices);
   };
 
   await store.watch((raw) => {
@@ -99,7 +104,7 @@ export async function start(
     store.save(latest).catch((e: unknown) => console.error("[island] could not save options", e));
   };
   const quit = () => void store.quit().catch((e: unknown) => console.error("[island] could not quit", e));
-  island = await mount(root, plugins, services, win, effective(initial), openSettings, saveOptions, quit);
+  island = await mount(root, plugins, services, win, effective(initial), { openSettings, saveOptions, quit, greetings: choices });
   // Settings that changed while the island was starting.
   if (latest !== initial) island.configure(effective(latest), plugins);
   return island;

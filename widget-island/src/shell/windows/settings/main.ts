@@ -19,10 +19,13 @@ import {
   setExtension,
   tauriSettings,
 } from "../../settings";
-import { type Extension, type ExtensionsPort, fileRows, loadExtensions, noExtensions, tauriExtensions } from "../../extensions";
+import { type Extension, type ExtensionsPort, fileRows, idOf, loadExtensions, noExtensions, tauriExtensions } from "../../extensions";
 import type { Found } from "../../bindings/extensions";
 import { layout as defaultLayout } from "../../../features/layout";
 import { catalogue, extensionRules } from "../../../features";
+import { greetings } from "../../../features/greetings";
+import { NO_GREETING } from "../../greet";
+import { select } from "../../../sdk/select";
 import { tauriServices } from "../../../features/services";
 import { THEMES, themeById } from "../../themes";
 import { aroundPanel, colorPicker, field, optionControl, rangeControl, standardFields, switchControl, themeGrid } from "./controls";
@@ -152,8 +155,16 @@ function general(): Node[] {
 
 function appearance(): Node[] {
   const theme = themeById(settings.general.theme);
+  const choices = greetingChoices();
+  // A choice whose plugin is gone plays the default.
+  const chosen = choices.some((c) => c.value === settings.general.greeting) ? settings.general.greeting : greetings[0]!.id;
   return [
     ...header("Appearance"),
+    h(
+      "section",
+      { class: "card" },
+      field("Startup animation", undefined, select(choices, chosen, (greeting) => setGeneral({ greeting }), "Startup animation").el),
+    ),
     h(
       "section",
       { class: "card" },
@@ -362,7 +373,7 @@ const loaded = new Map<string, Extension>();
 async function loadFresh(): Promise<void> {
   const fresh = found.plugins.filter((p) => settings.extensions.includes(p.file) && !loaded.has(p.file));
   if (fresh.length) {
-    const taken = new Set([...extensionRules.taken, ...[...loaded.values()].flatMap((e) => (e.plugin ? [e.plugin.id] : []))]);
+    const taken = new Set([...extensionRules.taken, ...[...loaded.values()].flatMap((e) => idOf(e) ?? [])]);
     for (const ext of await loadExtensions(fresh, { ...extensionRules, taken })) loaded.set(ext.file, ext);
   }
   plugins = [...catalogue, ...[...loaded.values()].flatMap((e) => (e.plugin && settings.extensions.includes(e.file) ? [e.plugin] : []))];
@@ -387,15 +398,27 @@ async function toggleFile(file: string, on: boolean): Promise<void> {
   commit(plugin ? placeNew(settings, plugin) : settings, true);
 }
 
+const FILE = `<path d="M4 2.5h5.5L12 5v8.5H4z"/><path d="M9.5 2.5V5H12"/>`;
+const SPARKLE = `<path d="M8 2.5 9.3 6.7 13.5 8 9.3 9.3 8 13.5 6.7 9.3 2.5 8 6.7 6.7Z"/>`;
+
+/** The startup animations to pick from: built-in ones, then those from enabled files. */
+const greetingChoices = () => [
+  ...greetings.map((g) => ({ value: g.id, label: g.label })),
+  ...[...loaded.values()].flatMap((e) => (e.greeting && settings.extensions.includes(e.file) ? [{ value: e.greeting.id, label: e.greeting.label, badge: "Plugin" }] : [])),
+  { value: NO_GREETING, label: "None" },
+];
+
 function pluginsSection(): Node[] {
   const rows = fileRows(found.plugins, settings.extensions, loaded);
   const list = rows.map((row) => {
-    const title = row.plugin?.label ?? row.file;
+    const title = row.plugin?.label ?? row.greeting?.label ?? row.file;
     const detail = row.problem
       ? `Can't be used: ${row.problem}`
       : row.plugin
         ? `${row.plugin.description}${row.needs.length ? ` Uses: ${row.needs.join(", ")}.` : ""}`
-        : row.on
+        : row.greeting
+          ? "Startup animation, chosen in Appearance."
+          : row.on
           ? "Loading…"
           : "Off";
     const card = h(
@@ -404,7 +427,7 @@ function pluginsSection(): Node[] {
       h(
         "div",
         { class: "card-head" },
-        h("span", { class: "ico", "aria-hidden": "true" }, icon(row.plugin?.icon ?? `<path d="M4 2.5h5.5L12 5v8.5H4z"/><path d="M9.5 2.5V5H12"/>`)),
+        h("span", { class: "ico", "aria-hidden": "true" }, icon(row.plugin?.icon ?? (row.greeting ? SPARKLE : FILE))),
         h("div", { class: "grow" }, h("h2", {}, title), h("p", {}, detail)),
         switchControl(row.on, (on) => void toggleFile(row.file, on).then(render), `Use ${title}`),
       ),

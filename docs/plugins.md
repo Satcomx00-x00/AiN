@@ -89,12 +89,42 @@ yourself there (e.g. a choice showing live state), in place of the standard cont
 from 0 to 1) match the rest of the page. From the island, `host.openSettings()` brings the user
 there.
 
+## A startup animation
+
+A file can define the animation the pill plays when the island starts instead of a plugin: its
+definition has `play` and no `setup`. Once the file is on, the animation can be picked in
+**Settings → Appearance**; picking it plays it once, as a preview.
+
+```js
+export default (island) =>
+  island.defineGreeting({
+    id: "wave",
+    label: "Wave",
+    async play({ island: pill, surface, glance, size }) {
+      // Animate `pill`, add elements to `surface`, hide `glance` until the end…
+      await island.settle([pill.animate(/* keyframes */, { duration: 1500, fill: "backwards" })]);
+    },
+  });
+```
+
+- `play` gets the pill (`island`), its clipped inside (`surface`), the usual glances (`glance`, may
+  be `null`) and the pill's resting `size` in px. Resolve once done; remove what you added.
+- Use `fill: "backwards"` on the pill, so its own style takes over once you're done.
+- It is given 6 seconds at most; if it throws, the island goes on without it. It isn't played for
+  people who ask for reduced motion.
+- Its id can't be one a built-in animation (`hello`, `boing`, `sparkle`, `typewriter`), a
+  feature or another plugin uses.
+
+See [`examples/plugins/wave.js`](../widget-island/examples/plugins/wave.js).
+
 ## The SDK
 
 | | |
 | --- | --- |
 | `island.definePlugin(def)` | returns `def`; for editors that understand JSDoc types |
-| `island.options` | `toggle`, `number`, `choice`, `list`, `folder`: option fields for Settings |
+| `island.defineGreeting(def)` | the same, for a startup animation |
+| `island.settle(animations)` | resolves once every Web Animation given has finished or been cancelled |
+| `island.options` | `toggle`, `number`, `choice`, `list`, `folder`, `text`: option fields for Settings |
 | `island.dom` | `h(tag, attrs, ...children)`, `button`, `icon`, `svg`, `tween`, `odometer`, `roll`, `reducedMotion` |
 | `island.chart` | `curve`, `curveArea`, `sparkline`: SVG paths for small graphs |
 | `island.color` | `isLight`, `pickColor`, `imageColor` and other color helpers |
@@ -103,7 +133,8 @@ there.
 
 ## What a plugin can't do
 
-- Use an id a built-in feature uses (`clock`, `media`, …), or one another plugin already took.
+- Use an id a built-in feature or startup animation uses (`clock`, `media`, `hello`, …), or one
+  another plugin already took.
 - Define keyboard shortcuts: those are for built-in features.
 - Ask for services other than those above.
 

@@ -8,6 +8,7 @@
  * enables them in Settings.
  */
 import { type Sdk, sdk } from "../sdk";
+import type { Greeting, Stage } from "../sdk/greeting";
 import type { Field } from "../sdk/options";
 import type { AnyPlugin, Host, Widget } from "../sdk/plugin";
 import { type Found, commands } from "./bindings/extensions";
@@ -17,14 +18,19 @@ export interface Extension {
   readonly file: string;
   /** The plugin, when it loaded and passed every check. */
   readonly plugin: AnyPlugin | null;
+  /** Or the startup animation, for a file that defines one instead. */
+  readonly greeting: Greeting | null;
   /** Services it asked for. */
   readonly needs: readonly string[];
   /** Why it can't be used, when it can't. */
   readonly problem: string | null;
 }
 
+/** The id a loaded file claims, if any. */
+export const idOf = (ext: Extension): string | null => ext.plugin?.id ?? ext.greeting?.id ?? null;
+
 export interface Rules {
-  /** Ids already in use (the built-in features). */
+  /** Ids already in use (the built-in features and startup animations). */
   readonly taken: ReadonlySet<string>;
   /** Services a plugin may ask for. */
   readonly services: readonly string[];
@@ -93,6 +99,31 @@ export function check(def: unknown, rules: Rules): { plugin: AnyPlugin; needs: s
   return { plugin: def as unknown as AnyPlugin, needs: [...new Set(needs as string[])] };
 }
 
+/** Checks a startup animation's definition; returns the problem, or the animation. */
+export function checkGreeting(def: Record<string, unknown>, taken: ReadonlySet<string>): Greeting | string {
+  const { id, label, play } = def;
+  if (typeof id !== "string" || !ID.test(id)) return "id must be 2–32 lowercase letters, digits or dashes, starting with a letter";
+  if (taken.has(id)) return `the id "${id}" is already used`;
+  if (typeof label !== "string" || !label.trim() || label.length > 40) return "label must be 1–40 characters";
+  if (typeof play !== "function") return "play must be a function";
+  return { id, label, play: play as Greeting["play"] };
+}
+
+/** The animation as the island plays it: a failure is reported, and the island carries on. */
+export function confineGreeting(greeting: Greeting, log: (message: string) => void = console.error): Greeting {
+  return {
+    id: greeting.id,
+    label: greeting.label,
+    async play(stage: Stage) {
+      try {
+        await greeting.play(stage);
+      } catch (e) {
+        log(`[island] startup animation "${greeting.id}" failed: ${String(e)}`);
+      }
+    },
+  };
+}
+
 /** Wraps `fn` so that its first failure is reported and switches it off. */
 function fuse<A extends unknown[], R>(what: string, fn: (...args: A) => R, fallback: R, report: (what: string, e: unknown) => void) {
   let blown = false;
@@ -159,12 +190,12 @@ export function confine(plugin: AnyPlugin, needs: readonly string[], log: (messa
   };
 }
 
-/** Loads and checks every plugin found, in order; later duplicates of an id are refused. */
+/** Loads and checks every plugin (or startup animation) found, in order; later duplicates of an id are refused. */
 export async function loadExtensions(found: readonly Found[], rules: Rules, importer: Importer = importSource, api: Sdk = sdk): Promise<Extension[]> {
   const taken = new Set(rules.taken);
   const out: Extension[] = [];
   for (const { file, source, problem } of found) {
-    const fail = (why: string) => out.push({ file, plugin: null, needs: [], problem: why });
+    const fail = (why: string) => out.push({ file, plugin: null, greeting: null, needs: [], problem: why });
     if (source === null) {
       fail(problem ?? "couldn't be read");
       continue;
@@ -182,13 +213,24 @@ export async function loadExtensions(found: readonly Found[], rules: Rules, impo
       fail(`failed to load: ${String(e)}`);
       continue;
     }
+    // A definition with `play` and no `setup` is a startup animation.
+    if (isObject(def) && "play" in def && !("setup" in def)) {
+      const greeting = checkGreeting(def, taken);
+      if (typeof greeting === "string") {
+        fail(greeting);
+        continue;
+      }
+      taken.add(greeting.id);
+      out.push({ file, plugin: null, greeting: confineGreeting(greeting), needs: [], problem: null });
+      continue;
+    }
     const checked = check(def, { ...rules, taken });
     if (typeof checked === "string") {
       fail(checked);
       continue;
     }
     taken.add(checked.plugin.id);
-    out.push({ file, plugin: confine(checked.plugin, checked.needs), needs: checked.needs, problem: null });
+    out.push({ file, plugin: confine(checked.plugin, checked.needs), greeting: null, needs: checked.needs, problem: null });
   }
   return out;
 }
@@ -199,6 +241,7 @@ export interface FileRow {
   readonly on: boolean;
   /** Known only for files that are on and loaded fine: a file's code doesn't run before it is turned on. */
   readonly plugin: AnyPlugin | null;
+  readonly greeting: Greeting | null;
   readonly needs: readonly string[];
   readonly problem: string | null;
 }
@@ -211,7 +254,8 @@ export function fileRows(found: readonly Pick<Found, "file">[], enabled: readonl
     const on = enabled.includes(file);
     const ext = on ? loaded.get(file) : undefined;
     const problem = on && !present.has(file) ? "No longer in the plugins folder" : (ext?.problem ?? null);
-    return { file, on, plugin: present.has(file) ? (ext?.plugin ?? null) : null, needs: ext?.needs ?? [], problem };
+    const shown = present.has(file) ? ext : undefined;
+    return { file, on, plugin: shown?.plugin ?? null, greeting: shown?.greeting ?? null, needs: ext?.needs ?? [], problem };
   });
 }
 
