@@ -55,6 +55,14 @@ export interface Host<Options = unknown> {
   openSettings(): void;
 }
 
+/** What a plugin's settings panel can do with its options. */
+export interface SettingsHost<Options = unknown> {
+  /** The current option values. */
+  options(): Options;
+  /** Saves some of them, as the standard controls do. */
+  setOptions(patch: Partial<Options>): void;
+}
+
 export type Surface = "popup" | "screen" | "action";
 
 /** What a command's popup can do. */
@@ -120,10 +128,11 @@ export interface Plugin<Services = unknown, F extends Fields = Fields> {
   readonly needs?: readonly string[];
   /**
    * Extra controls for this plugin's card in Settings → Widgets, under its options: for setup an
-   * option can't express, like downloading a model. Gets the same services as `setup`. Returns a
-   * function that stops whatever it watches; it is called when the card is redrawn or closed.
+   * option can't express, like downloading a model, and for options marked `inPanel`. Gets the
+   * same services as `setup`. Returns a function that stops whatever it watches; it is called
+   * when the card is redrawn or closed.
    */
-  readonly settingsPanel?: (root: HTMLElement, services: Services) => (() => void) | void;
+  settingsPanel?(root: HTMLElement, services: Services, host: SettingsHost<Values<F>>): (() => void) | void;
   setup(services: Services, host: Host<Values<F>>): Widget;
 }
 

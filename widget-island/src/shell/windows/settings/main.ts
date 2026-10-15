@@ -25,7 +25,8 @@ import { layout as defaultLayout } from "../../../features/layout";
 import { catalogue, extensionRules } from "../../../features";
 import { tauriServices } from "../../../features/services";
 import { THEMES, themeById } from "../../themes";
-import { colorPicker, field, optionControl, rangeControl, switchControl, themeGrid } from "./controls";
+import { aroundPanel, colorPicker, field, optionControl, rangeControl, standardFields, switchControl, themeGrid } from "./controls";
+import type { Field } from "../../../sdk/options";
 import { slotList } from "./slots";
 
 const SAVE_DELAY = 250;
@@ -311,14 +312,21 @@ function widgets(): Node[] {
   return [
     ...header("Widgets", "Each widget's own options."),
     ...plugins.map((p) => {
-      const fields = Object.entries(p.options ?? {});
+      const fields = standardFields(p.options ?? {});
+      const { before, after } = aroundPanel(p.options ?? {});
+      const control = ([key, f]: [string, Field]) => optionControl(f, values[key], (v) => setOption(p.id, key, v), pickFolder);
       const values = resolve(p.options ?? {}, settings.options[p.id]) as Record<string, unknown>;
       // A plugin's own controls, under its options: given services in the app only (not the preview).
       const panel = p.settingsPanel && h("div", { class: "plugin-panel" });
       if (panel && p.settingsPanel) {
         if (!inTauri) panel.append(h("p", { class: "no-options" }, "More setup is available in the app."));
         else {
-          const stop = p.settingsPanel(panel, tauriServices as never);
+          const host = {
+            options: () => resolve(p.options ?? {}, settings.options[p.id]) as never,
+            setOptions: (patch: Readonly<Record<string, unknown>>) =>
+              commit({ ...settings, options: { ...settings.options, [p.id]: { ...settings.options[p.id], ...patch } } }),
+          };
+          const stop = p.settingsPanel(panel, tauriServices as never, host);
           if (stop) panelStops.push(stop);
         }
       }
@@ -336,12 +344,10 @@ function widgets(): Node[] {
             placesOf(p.id).join(" · ") || "Not placed — add it in Layout",
           ),
         ),
-        ...(fields.length
-          ? fields.map(([key, f]) => optionControl(f, values[key], (v) => setOption(p.id, key, v), pickFolder))
-          : panel
-            ? []
-            : [h("p", { class: "no-options" }, "No options.")]),
+        ...before.map(control),
         ...(panel ? [panel] : []),
+        ...after.map(control),
+        ...(!fields.length && !panel ? [h("p", { class: "no-options" }, "No options.")] : []),
       );
     }),
   ];

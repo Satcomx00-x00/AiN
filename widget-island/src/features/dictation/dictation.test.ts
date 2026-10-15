@@ -77,9 +77,30 @@ describe("in Settings", () => {
   const mount = () => {
     const { port, stop, model } = fakePort();
     const root = document.createElement("div");
-    const cleanup = dictation.settingsPanel?.(root, { dictation: port } as never);
-    return { root, port, stop, model, cleanup };
+    document.body.replaceChildren(root);
+    const host = { options: () => ({ model: "whisper-small" }) as never, setOptions: vi.fn() };
+    const cleanup = dictation.settingsPanel?.(root, { dictation: port } as never, host);
+    return { root, port, stop, model, cleanup, host };
   };
+
+  it("lists the models in a drop-down, marking the downloaded ones", async () => {
+    const { root, model } = mount();
+    await tick();
+    model({ ...at, installed: ["parakeet-v3", "whisper-small"], state: "ready" });
+    const trigger = root.querySelector<HTMLButtonElement>(".ui-select-trigger")!;
+    expect(trigger.textContent).toContain("Whisper small");
+    trigger.click();
+    const downloaded = [...root.querySelectorAll("[role=option]")].filter((o) => o.textContent?.includes("Downloaded")).map((o) => o.querySelector(".ui-select-label")?.firstChild?.textContent);
+    expect(downloaded).toEqual(["Parakeet TDT v3", "Whisper small"]);
+  });
+
+  it("saves the model picked in the list as the option", async () => {
+    const { root, host } = mount();
+    root.querySelector<HTMLButtonElement>(".ui-select-trigger")!.click();
+    const parakeet = [...root.querySelectorAll<HTMLElement>("[role=option]")].find((o) => o.textContent?.startsWith("Parakeet TDT v3"));
+    parakeet?.click();
+    expect(host.setOptions).toHaveBeenCalledWith({ model: "parakeet-v3" });
+  });
 
   it("downloads a missing model, stops a download, removes a downloaded one", async () => {
     const { root, port, model } = mount();
@@ -115,7 +136,7 @@ describe("in Settings", () => {
 describe("its settings", () => {
   it("keep the model choice and folder as options of the Settings card", () => {
     expect(dictation.options?.model.kind).toBe("choice");
+    expect(dictation.options?.model.inPanel).toBe(true);
     expect(dictation.options?.modelDir.kind).toBe("folder");
-    expect(dictation.options?.model.hint).not.toMatch(/island|arrows/i);
   });
 });

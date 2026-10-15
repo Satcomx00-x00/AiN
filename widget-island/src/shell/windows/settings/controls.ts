@@ -1,4 +1,5 @@
 import { button, h, icon } from "../../../sdk/dom";
+import { select } from "../../../sdk/select";
 import { hexToHsv, hsvToHex, parseHex } from "../../../sdk/color";
 import type { Field } from "../../../sdk/options";
 import type { Theme } from "../../themes";
@@ -246,16 +247,26 @@ export function folderControl(
 
 /** The right control for a plugin option field. */
 /** A drop-down list: for choices too many (or too long) to sit side by side. */
-export function dropdown(
+export const dropdown = (
   value: string,
   choices: readonly { readonly value: string; readonly label: string }[],
   onChange: (v: string) => void,
   label: string,
-): HTMLSelectElement {
-  const select = h("select", { class: "dropdown", "aria-label": label }, ...choices.map((c) => h("option", { value: c.value }, c.label)));
-  select.value = value;
-  select.addEventListener("change", () => onChange(select.value));
-  return select;
+): HTMLElement => select(choices, value, onChange, label).el;
+
+/** The fields Settings draws itself: all but those the plugin's own panel draws. */
+export const standardFields = (fields: Readonly<Record<string, Field>>): [string, Field][] => Object.entries(fields).filter(([, f]) => !f.inPanel);
+
+/**
+ * The standard fields before and after the plugin's panel, which takes the place of the first
+ * field it draws: so it sits where that option is declared, not at the end of the card.
+ */
+export function aroundPanel(fields: Readonly<Record<string, Field>>): { before: [string, Field][]; after: [string, Field][] } {
+  const all = Object.entries(fields);
+  const at = all.findIndex(([, f]) => f.inPanel);
+  const cut = at < 0 ? all.length : at;
+  const standard = ([, f]: [string, Field]) => !f.inPanel;
+  return { before: all.slice(0, cut).filter(standard), after: all.slice(cut).filter(standard) };
 }
 
 /** Up to this many choices show as buttons side by side; more become a drop-down list. */

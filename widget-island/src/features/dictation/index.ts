@@ -1,6 +1,7 @@
 import { button, h, icon } from "../../sdk/dom";
 import { choice, folder, toggle } from "../../sdk/options";
 import { type Glance, definePlugin } from "../../sdk/plugin";
+import { type SelectOption, select } from "../../sdk/select";
 import type { ClipboardPort } from "../clipboard/service";
 import type { DictationPort, ModelInfo, Phase } from "./service";
 import { DEFAULT_MODEL, MODELS, modelById } from "./models";
@@ -50,6 +51,10 @@ export function modelLine(info: ModelInfo): { title: string; detail: string; pro
       return { title: name, detail: `Download failed: ${info.message}`, progress: null };
   }
 }
+
+/** The speech models as Settings lists them: what each is, its size, and whether it's downloaded. */
+export const modelOptions = (installed: readonly string[]): SelectOption[] =>
+  MODELS.map((m) => ({ value: m.id, label: m.name, detail: m.about, meta: `${m.mb} MB`, badge: installed.includes(m.id) ? "Downloaded" : undefined }));
 
 /** What Settings says about the chosen model, and what its button does there. */
 export function modelSetup(info: ModelInfo): { detail: string; action: "download" | "stop" | "remove"; label: string; progress: number | null } {
@@ -102,12 +107,15 @@ export const dictation = definePlugin({
       ],
       "With hold to talk, dictation stops as soon as you release the keys.",
     ),
-    model: choice(
-      "Speech model",
-      DEFAULT_MODEL,
-      MODELS.map((m) => [m.id, `${m.name} — ${m.about} · ${m.mb} MB`] as const),
-      "Download it just below. Models you've downloaded stay, so switching back is instant.",
-    ),
+    // Drawn by the settings panel below, which shows which models are downloaded.
+    model: {
+      ...choice(
+        "Speech model",
+        DEFAULT_MODEL,
+        MODELS.map((m) => [m.id, m.name] as const),
+      ),
+      inPanel: true,
+    },
     modelDir: folder(
       "Model folder",
       "Default: the app's data folder",
@@ -125,8 +133,9 @@ export const dictation = definePlugin({
     },
   ],
   // Choosing, downloading and storing the model happen here, in Settings; the island only dictates.
-  settingsPanel(root, { dictation: port }: { dictation: DictationPort }) {
+  settingsPanel(root, { dictation: port }: { dictation: DictationPort }, host) {
     let model: ModelInfo | null = null;
+    const picker = select(modelOptions([]), host.options().model, (id) => host.setOptions({ model: id }), "Speech model");
     const detail = h("div", { class: "field-hint" });
     const bar = h("div", { class: "progress" }, h("i"));
     const action = button("", () => {
@@ -135,9 +144,24 @@ export const dictation = definePlugin({
       run?.catch((e: unknown) => (detail.textContent = String(e)));
     }, { class: "secondary" });
     const folder = button("Show folder", () => void port.openFolder().catch(() => {}), { class: "secondary" });
-    root.append(h("div", { class: "field" }, h("div", {}, h("div", { class: "field-label" }, "Model files"), detail, bar), h("div", { class: "recorder" }, folder, action)));
+    root.append(
+      h(
+        "div",
+        { class: "field wide" },
+        h(
+          "div",
+          {},
+          h("div", { class: "field-label" }, "Speech model"),
+          h("div", { class: "field-hint" }, "Recognized on this computer. Models you've downloaded stay, so switching back is instant."),
+        ),
+        picker.el,
+      ),
+      h("div", { class: "field" }, h("div", {}, h("div", { class: "field-label" }, "Model files"), detail, bar), h("div", { class: "recorder" }, folder, action)),
+    );
     const draw = () => {
       if (!model) return;
+      picker.setOptions(modelOptions(model.installed));
+      picker.set(model.model);
       const setup = modelSetup(model);
       detail.textContent = setup.detail;
       detail.title = model.dir;

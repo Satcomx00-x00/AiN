@@ -82,7 +82,9 @@ rather than letting it break the island.
 Options cover most settings. For setup they can't express (signing in, downloading something),
 add `settingsPanel(root, services)`: it draws extra controls under the options of the plugin's
 card in **Settings → Widgets**, with the same services as `setup`. Return a function that stops
-whatever it watches; Settings calls it when the card is redrawn or the window closes. The classes
+whatever it watches; Settings calls it when the card is redrawn or the window closes. Its third
+argument, `host`, reads and saves the plugin's options; mark an option `inPanel: true` to draw it
+yourself there (e.g. a choice showing live state), in place of the standard control. The classes
 `field`, `field-label`, `field-hint`, `secondary` (buttons) and `progress` (a bar: set `--p`
 from 0 to 1) match the rest of the page. From the island, `host.openSettings()` brings the user
 there.
@@ -96,6 +98,7 @@ there.
 | `island.dom` | `h(tag, attrs, ...children)`, `button`, `icon`, `svg`, `tween`, `odometer`, `roll`, `reducedMotion` |
 | `island.chart` | `curve`, `curveArea`, `sparkline`: SVG paths for small graphs |
 | `island.color` | `isLight`, `pickColor`, `imageColor` and other color helpers |
+| `island.ui.select(options, value, onChange, label)` | a drop-down list styled like the island: each option has a `label`, and optionally a `detail` line, a `meta` fact on the right and a `badge`. Returns `{ el, set, setOptions }` |
 | `island.version` | `1`; it changes when the SDK changes in a way that could break plugins |
 
 ## What a plugin can't do

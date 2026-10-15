@@ -7,6 +7,11 @@ interface Base<T> {
   readonly label: string;
   readonly hint?: string | undefined;
   readonly default: T;
+  /**
+   * Drawn by the plugin's own `settingsPanel` rather than as a standard control, e.g. a choice
+   * that shows live state. Still validated and defaulted like any field.
+   */
+  readonly inPanel?: boolean | undefined;
 }
 
 export interface ToggleField extends Base<boolean> {

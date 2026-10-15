@@ -13,6 +13,7 @@ import * as color from "./color";
 import * as dom from "./dom";
 import { choice, folder, list, number, toggle } from "./options";
 import { definePlugin } from "./plugin";
+import { select } from "./select";
 
 export const sdk = Object.freeze({
   version: 1,
@@ -21,6 +22,8 @@ export const sdk = Object.freeze({
   dom: Object.freeze({ ...dom }),
   chart: Object.freeze({ ...chart }),
   color: Object.freeze({ ...color }),
+  /** Components styled like the island: `select`, a drop-down list. */
+  ui: Object.freeze({ select }),
 });
 
 export type Sdk = typeof sdk;

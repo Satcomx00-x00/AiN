@@ -135,9 +135,9 @@ export function confine(plugin: AnyPlugin, needs: readonly string[], log: (messa
     ...plugin,
     // Its Settings card gets the same services as the island does, and can't break the page.
     ...(panel && {
-      settingsPanel(root: HTMLElement, services: never) {
+      settingsPanel(root: HTMLElement, services: never, host: never) {
         try {
-          const stop = panel(root, grant(services) as never);
+          const stop = panel.call(plugin, root, grant(services) as never, host);
           return typeof stop === "function" ? fuse("settings panel cleanup", stop, undefined, report) : undefined;
         } catch (e) {
           report("settings panel", e);

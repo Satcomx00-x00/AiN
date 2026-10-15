@@ -210,16 +210,16 @@ describe("a plugin's settings panel", () => {
   it("gets only the services the plugin declared, like its setup", () => {
     let got: Record<string, unknown> = {};
     const plugin = confine({ ...valid(), settingsPanel: (_: HTMLElement, s: never) => void (got = s) } as never, ["media"]);
-    plugin.settingsPanel?.({} as HTMLElement, { media: "M", clipboard: "secret" } as never);
+    plugin.settingsPanel?.({} as HTMLElement, { media: "M", clipboard: "secret" } as never, {} as never);
     expect(got).toEqual({ media: "M" });
   });
 
   it("can't break the Settings page, nor its cleanup", () => {
     const log = vi.fn();
     const throws = confine({ ...valid(), settingsPanel: () => { throw new Error("x"); } } as never, [], log);
-    expect(throws.settingsPanel?.({} as HTMLElement, {} as never)).toBeUndefined();
+    expect(throws.settingsPanel?.({} as HTMLElement, {} as never, {} as never)).toBeUndefined();
     const badStop = confine({ ...valid(), settingsPanel: () => () => { throw new Error("y"); } } as never, [], log);
-    const stop = badStop.settingsPanel?.({} as HTMLElement, {} as never);
+    const stop = badStop.settingsPanel?.({} as HTMLElement, {} as never, {} as never);
     expect(() => (stop as () => void)()).not.toThrow();
     expect(log).toHaveBeenCalledTimes(2);
   });
