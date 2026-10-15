@@ -147,13 +147,30 @@ How the code is organized, and how to add a feature: [docs/architecture.md](docs
 ## Contributing
 
 Commits follow [Conventional Commits](https://www.conventionalcommits.org) (`feat:`, `fix:`, `perf:`, `refactor:`, `docs:`, `ci:`, `build:`, `chore:`…).
-They are linted in CI. To also lint them locally, enable the hook once per clone:
+They are linted in CI, and for pull requests the title is linted too, since it becomes the squash-merge commit message.
+
+### Git hooks
+
+[prek](https://prek.j178.dev) (0.5.5 or later) runs the same checks locally. Install it
+(`uv tool install prek`, `mise use prek` or `cargo binstall prek`), then once per clone, from the repository root:
 
 ```sh
-git config core.hooksPath .githooks
+prek install --prepare-hooks
 ```
 
-For pull requests the title is linted too, since it becomes the squash-merge commit message.
+Hooks only run where the change is, and keep the slow ones for `git push`:
+
+| | Every commit (staged files) | Every push (files in the pushed commits) |
+| --- | --- | --- |
+| Anywhere | whitespace, line endings, large files, merge markers, private keys, secrets (gitleaks), spelling (typos) | |
+| `widget-island/src` | `tsc` | the Vitest tests that import what changed |
+| `widget-island/src-tauri` | `cargo fmt` (fixes) | `cargo clippy`, `cargo test` (which also regenerates the bindings) |
+| `.github/workflows` | actionlint, zizmor | |
+| Commit message | commitlint | |
+
+`prek run --all-files` runs the commit hooks on everything, `--hook-stage pre-push` the push ones.
+To skip one hook once: `PREK_SKIP=cargo-test git push`. Configuration: [`prek.toml`](prek.toml) and the
+`prek.toml` files of the two projects; spelling exceptions go in [`_typos.toml`](_typos.toml).
 
 ## CI and releases
 

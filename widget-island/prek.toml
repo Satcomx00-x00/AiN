@@ -1,0 +1,43 @@
+# Frontend hooks (TypeScript). They run in this folder, on paths relative to it; the repository-wide
+# hygiene checks live in ../prek.toml. Needs Bun and `bun install`.
+
+minimum_prek_version = "0.5.5"
+default_stages = ["pre-commit", "manual"]
+hide_status = ["skipped"]
+
+[[repos]]
+repo = "local"
+
+[[repos.hooks]]
+# Whole-project type check: tsc can't check single files against tsconfig.json, and a change in one
+# file can break its importers. Also covers the generated bindings and the example plugins (checkJs).
+id = "typecheck"
+name = "tsc"
+language = "system"
+entry = "bun x tsc"
+pass_filenames = false
+files = { glob = ["src/**/*.ts", "examples/**/*.js", "tsconfig.json", "package.json", "vite.config.ts"] }
+# A deleted module breaks whoever imported it.
+include_deleted = true
+groups = ["frontend"]
+
+[[repos.hooks]]
+# Only the tests that depend on what changed: Vitest follows the import graph from the given files.
+id = "vitest-related"
+name = "vitest (related tests)"
+language = "system"
+entry = "bun x vitest related --run --passWithNoTests"
+files = { glob = ["src/**/*.ts", "examples/**/*.js"] }
+stages = ["pre-push", "manual"]
+groups = ["frontend", "test"]
+
+[[repos.hooks]]
+# Config or dependency changes can affect any test: run them all.
+id = "vitest-all"
+name = "vitest (all, config changed)"
+language = "system"
+entry = "bun x vitest run"
+pass_filenames = false
+files = { glob = ["package.json", "vite.config.ts", "tsconfig.json"] }
+stages = ["pre-push", "manual"]
+groups = ["frontend", "test"]

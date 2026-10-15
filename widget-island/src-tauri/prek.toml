@@ -1,0 +1,53 @@
+# Backend hooks (Rust). They run in this folder; the repository-wide hygiene checks live in
+# ../../prek.toml. Needs a Rust toolchain (and on Linux, the system libraries in .github/scripts).
+
+minimum_prek_version = "0.5.5"
+default_stages = ["pre-commit", "manual"]
+hide_status = ["skipped"]
+
+[priorities]
+format = 0
+check = 10
+
+[[repos]]
+repo = "local"
+
+[[repos.hooks]]
+# Formats the crate (a fixer: review and stage what it changed). Whole crate, since rustfmt
+# follows `mod` declarations from the files it is given anyway.
+id = "cargo-fmt"
+name = "cargo fmt"
+language = "system"
+entry = "cargo fmt --all"
+types = ["rust"]
+pass_filenames = false
+priority = "format"
+groups = ["rust"]
+
+[[repos.hooks]]
+# Lints. build.rs also validates the capability files and tauri.conf.json, so their changes count.
+id = "cargo-clippy"
+name = "cargo clippy"
+language = "system"
+entry = "cargo clippy --locked --all-targets -- -D warnings"
+pass_filenames = false
+files = { glob = ["**/*.rs", "Cargo.toml", "Cargo.lock", "capabilities/*.json", "tauri.conf.json"] }
+include_deleted = true
+stages = ["pre-push", "manual"]
+priority = "check"
+groups = ["rust"]
+
+[[repos.hooks]]
+# Unit tests, which also regenerate the TypeScript bindings from src/manifest.rs and fail when
+# those were stale (commit the regenerated files).
+id = "cargo-test"
+name = "cargo test"
+language = "system"
+entry = "cargo test --locked"
+pass_filenames = false
+files = { glob = ["**/*.rs", "Cargo.toml", "Cargo.lock"] }
+include_deleted = true
+stages = ["pre-push", "manual"]
+# After clippy: both compile the crate, and Cargo would only make them wait on its build lock.
+priority = 20
+groups = ["rust", "test"]

@@ -200,4 +200,3 @@ describe("fileRows", () => {
     expect(fileRows([], ["a.js"], loaded)).toEqual([{ file: "a.js", on: true, plugin: null, needs: ["media"], problem: "No longer in the plugins folder" }]);
   });
 });
-
