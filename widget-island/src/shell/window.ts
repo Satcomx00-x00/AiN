@@ -1,4 +1,4 @@
-import { type Island as Wire, commands } from "./bindings/island";
+import { type Island as Wire, commands, events } from "./bindings/island";
 
 /** The island's resting size, and whether a hardware notch dictates it. */
 export interface Island {
@@ -24,9 +24,19 @@ export interface WindowPort {
    * The backend decides how: click-through hit-testing, or resizing where that isn't possible.
    */
   layout(canvas: Size, region: Size): Promise<void>;
+  /**
+   * Hides the pill until the cursor rests on it (top center) for `dwell` ms; once shown, it hides
+   * again `grace` ms after the cursor leaves. `dwell: null` keeps it shown. The backend watches the
+   * cursor, since a hidden pill lets every click through; where it can't (Wayland), nothing hides.
+   */
+  autoHide(dwell: number | null, grace: number): Promise<void>;
+  /** Calls `onReveal` each time the auto-hide rule shows (true) or hides (false) the pill. */
+  onReveal(onReveal: (shown: boolean) => void): Promise<() => void>;
 }
 
 export const tauriWindow: WindowPort = {
   island: async () => checkIsland(await commands.info()),
   layout: async (canvas, region) => void (await commands.layout(canvas, region)),
+  autoHide: async (dwell, grace) => void (await commands.autoHide(dwell, grace)),
+  onReveal: (onReveal) => events.revealed.listen((e) => onReveal(e.payload)),
 };

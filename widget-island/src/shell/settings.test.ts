@@ -72,6 +72,12 @@ describe("settings", () => {
     expect(parseSettings({ general: {} }, fallback).general.greeting).toBe("hello");
   });
 
+  it("keeps the pill shown unless asked, and the reveal delay within range", () => {
+    expect(DEFAULT_GENERAL).toMatchObject({ autoHide: false, revealDelay: 500 });
+    expect(parseSettings({ general: { autoHide: true, revealDelay: 1000 } }, fallback).general).toMatchObject({ autoHide: true, revealDelay: 1000 });
+    expect(parseSettings({ general: { autoHide: "yes", revealDelay: 50 } }, fallback).general).toEqual(DEFAULT_GENERAL);
+  });
+
   it("removes duplicate ids in a placement", () =>
     expect(parseSettings({ layout: { glance: { left: ["clock", "clock"], right: [] }, tabs: [] } }, fallback).layout.glance.left).toEqual(["clock"]));
 

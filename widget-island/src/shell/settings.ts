@@ -21,6 +21,10 @@ export interface General {
   readonly accentColor: string;
   /** The startup animation's id, or "none". */
   readonly greeting: string;
+  /** Keeps the pill hidden until the cursor rests at the top center of the screen. */
+  readonly autoHide: boolean;
+  /** How long the cursor must rest there to show the hidden pill. */
+  readonly revealDelay: number;
 }
 
 export interface Settings {
@@ -66,8 +70,9 @@ export function adopt(layout: Layout, fallback: Layout, seen: readonly string[])
   };
 }
 
-export const DEFAULT_GENERAL: General = { openDelay: 140, closeDelay: 260, pillWidth: 200, pillCurve: 100, theme: "island", pillColor: "#000000", accentColor: "#0a84ff", greeting: "hello" };
+export const DEFAULT_GENERAL: General = { openDelay: 140, closeDelay: 260, pillWidth: 200, pillCurve: 100, theme: "island", pillColor: "#000000", accentColor: "#0a84ff", greeting: "hello", autoHide: false, revealDelay: 500 };
 export const DELAY_RANGE = { min: 0, max: 1000, step: 20 } as const;
+export const REVEAL_RANGE = { min: 100, max: 2000, step: 100 } as const;
 export const WIDTH_RANGE = { min: 120, max: 480, step: 10 } as const;
 export const CURVE_RANGE = { min: 0, max: 100, step: 5 } as const;
 
@@ -101,6 +106,8 @@ export function parseSettings(raw: unknown, fallback: Settings): Settings {
         pillColor: color(fallback.general.pillColor),
         accentColor: color(fallback.general.accentColor),
         greeting: z.string().regex(/^[a-z][a-z0-9-]{1,31}$/).catch(fallback.general.greeting),
+        autoHide: z.boolean().catch(fallback.general.autoHide),
+        revealDelay: within(REVEAL_RANGE)(fallback.general.revealDelay),
       })
       .catch(fallback.general),
     options: z.record(z.string(), z.record(z.string(), z.unknown())).catch(fallback.options),

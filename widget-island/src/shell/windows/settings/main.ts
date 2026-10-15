@@ -8,6 +8,7 @@ import {
   CURVE_RANGE,
   DELAY_RANGE,
   type General,
+  REVEAL_RANGE,
   WIDTH_RANGE,
   type Settings,
   type SettingsPort,
@@ -149,6 +150,24 @@ function general(): Node[] {
         undefined,
         rangeControl(settings.general.closeDelay, { ...DELAY_RANGE, unit: "ms" }, (v) => setGeneral({ closeDelay: v }), "Close delay"),
       ),
+    ),
+    h(
+      "section",
+      { class: "card" },
+      field(
+        "Hide the pill",
+        "It shows only while the cursor rests at the top center of the screen, so it stays out of games and other apps.",
+        switchControl(settings.general.autoHide, (on) => setGeneral({ autoHide: on }, true), "Hide the pill"),
+      ),
+      ...(settings.general.autoHide
+        ? [
+            field(
+              "Show after",
+              "How long the cursor must rest there.",
+              rangeControl(settings.general.revealDelay, { ...REVEAL_RANGE, unit: "ms" }, (v) => setGeneral({ revealDelay: v }), "Show after"),
+            ),
+          ]
+        : []),
     ),
   ];
 }

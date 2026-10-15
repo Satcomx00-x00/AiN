@@ -2595,10 +2595,16 @@
           "markdownDescription": "Denies the unregister_all command without any pre-configured scope."
         },
         {
-          "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-info`\n- `allow-layout`",
+          "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-info`\n- `allow-layout`\n- `allow-auto-hide`",
           "type": "string",
           "const": "island:default",
-          "markdownDescription": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-info`\n- `allow-layout`"
+          "markdownDescription": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-info`\n- `allow-layout`\n- `allow-auto-hide`"
+        },
+        {
+          "description": "Enables the auto_hide command without any pre-configured scope.",
+          "type": "string",
+          "const": "island:allow-auto-hide",
+          "markdownDescription": "Enables the auto_hide command without any pre-configured scope."
         },
         {
           "description": "Enables the info command without any pre-configured scope.",
@@ -2611,6 +2617,12 @@
           "type": "string",
           "const": "island:allow-layout",
           "markdownDescription": "Enables the layout command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the auto_hide command without any pre-configured scope.",
+          "type": "string",
+          "const": "island:deny-auto-hide",
+          "markdownDescription": "Denies the auto_hide command without any pre-configured scope."
         },
         {
           "description": "Denies the info command without any pre-configured scope.",

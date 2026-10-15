@@ -39,6 +39,8 @@ let clips: Clip[] = [
 const fakeWindow: WindowPort = {
   island: async () => ({ width: params.has("notch") ? 185 : 200, height: 32, hasNotch: params.has("notch") }),
   layout: async () => {},
+  autoHide: async () => {},
+  onReveal: async () => () => {},
 };
 
 const cover = `data:image/svg+xml,${encodeURIComponent(

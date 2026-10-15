@@ -5,7 +5,7 @@ use std::{
     io,
     sync::{Arc, Mutex, RwLock},
     thread,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use tauri::{LogicalSize, Runtime, Window};
@@ -42,11 +42,50 @@ pub fn region_rect(p: Placement, region: LogicalSize<f64>, margin: f64) -> Rect 
     Rect { left, top, right: left + w, bottom: top + h }
 }
 
+/// Keeps the pill hidden until the cursor rests on its spot (top center) for `dwell`; once shown,
+/// it hides again when the cursor has been away for `grace`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct AutoHide {
+    pub dwell: Duration,
+    pub grace: Duration,
+}
+
+/// Whether the pill is shown, and since when the cursor has been where it would change that.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Reveal {
+    pub shown: bool,
+    since: Option<Instant>,
+}
+
+impl Default for Reveal {
+    fn default() -> Self {
+        Self { shown: true, since: None }
+    }
+}
+
+impl Reveal {
+    /// The next state, given whether the cursor is on the pill's spot now. Without a rule, always shown.
+    pub fn step(self, rule: Option<AutoHide>, inside: bool, now: Instant) -> Self {
+        let Some(rule) = rule else { return Self::default() };
+        // Hidden, the cursor must stay on the spot to show it; shown, it must stay away to hide it.
+        let (toward, wait) = if self.shown { (!inside, rule.grace) } else { (inside, rule.dwell) };
+        if !toward {
+            return Self { shown: self.shown, since: None };
+        }
+        let since = self.since.unwrap_or(now);
+        match now.duration_since(since) >= wait {
+            true => Self { shown: !self.shown, since: None },
+            false => Self { shown: self.shown, since: Some(since) },
+        }
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct HitArea {
     canvas: Mutex<Option<(LogicalSize<f64>, Placement)>>,
     region: RwLock<Option<Rect>>,
     tracking: Mutex<bool>,
+    auto_hide: RwLock<Option<AutoHide>>,
 }
 
 impl HitArea {
@@ -81,15 +120,32 @@ impl HitArea {
     pub fn region(&self) -> Option<Rect> {
         *self.region.read().unwrap_or_else(|e| e.into_inner())
     }
+
+    pub fn set_auto_hide(&self, rule: Option<AutoHide>) {
+        *self.auto_hide.write().unwrap_or_else(|e| e.into_inner()) = rule;
+    }
+
+    pub fn auto_hide(&self) -> Option<AutoHide> {
+        *self.auto_hide.read().unwrap_or_else(|e| e.into_inner())
+    }
 }
 
-pub fn track<R: Runtime>(window: Window<R>, area: Arc<HitArea>) -> io::Result<()> {
+/// `on_reveal` hears each time the auto-hide rule shows or hides the pill. A hidden pill lets
+/// every click through.
+pub fn track<R: Runtime>(window: Window<R>, area: Arc<HitArea>, on_reveal: impl Fn(bool) + Send + 'static) -> io::Result<()> {
     thread::Builder::new().name("hit-test".into()).spawn(move || {
         let mut passthrough = None;
+        let mut reveal = Reveal::default();
         loop {
             thread::sleep(POLL);
             let (Some(rect), Ok(cursor)) = (area.region(), window.cursor_position()) else { continue };
-            let next = !rect.contains(cursor.x, cursor.y);
+            let inside = rect.contains(cursor.x, cursor.y);
+            let next = reveal.step(area.auto_hide(), inside, Instant::now());
+            if next.shown != reveal.shown {
+                on_reveal(next.shown);
+            }
+            reveal = next;
+            let next = !(inside && reveal.shown);
             if passthrough != Some(next) && window.set_ignore_cursor_events(next).is_ok() {
                 passthrough = Some(next);
             }
@@ -140,6 +196,57 @@ mod tests {
             .unwrap();
         }
         assert_eq!(starts.get(), 1);
+    }
+
+    const RULE: AutoHide = AutoHide { dwell: Duration::from_millis(500), grace: Duration::from_millis(800) };
+
+    /// Runs `steps` of (ms since start, cursor on the spot) and returns whether the pill shows after each.
+    fn run(rule: Option<AutoHide>, steps: &[(u64, bool)]) -> Vec<bool> {
+        let start = Instant::now();
+        let mut r = Reveal::default();
+        steps
+            .iter()
+            .map(|&(ms, inside)| {
+                r = r.step(rule, inside, start + Duration::from_millis(ms));
+                r.shown
+            })
+            .collect()
+    }
+
+    #[test]
+    fn without_auto_hide_the_pill_always_shows() {
+        assert_eq!(run(None, &[(0, false), (5000, false), (6000, true)]), [true, true, true]);
+    }
+
+    #[test]
+    fn hides_once_the_cursor_has_been_away_for_the_grace_time() {
+        assert_eq!(run(Some(RULE), &[(0, false), (700, false), (800, false)]), [true, true, false]);
+    }
+
+    #[test]
+    fn shows_only_after_resting_on_the_spot_for_the_dwell_time() {
+        let steps = [(0, false), (800, false), (900, true), (1300, true), (1400, true)];
+        assert_eq!(run(Some(RULE), &steps), [true, false, false, false, true]);
+    }
+
+    #[test]
+    fn passing_over_the_spot_restarts_the_wait() {
+        let steps = [(0, false), (800, false), (900, true), (1300, false), (1400, true), (1800, true), (1900, true)];
+        assert_eq!(run(Some(RULE), &steps), [true, false, false, false, false, false, true]);
+    }
+
+    #[test]
+    fn coming_back_within_the_grace_time_keeps_it_shown() {
+        let steps = [(0, false), (700, true), (1400, false), (2000, true), (2700, false)];
+        assert_eq!(run(Some(RULE), &steps), [true, true, true, true, true]);
+    }
+
+    #[test]
+    fn turning_auto_hide_off_shows_it_at_once() {
+        let start = Instant::now();
+        let hidden = Reveal::default().step(Some(RULE), false, start).step(Some(RULE), false, start + RULE.grace);
+        assert!(!hidden.shown);
+        assert!(hidden.step(None, false, start + RULE.grace).shown);
     }
 
     #[test]
