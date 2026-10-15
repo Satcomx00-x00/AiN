@@ -141,18 +141,39 @@ pub mod tests {
         })
     }
 
-    /// Regenerates every `bindings.ts`; CI fails if that changes anything, so they never go stale.
+    /// Same text, whatever line endings a Windows checkout gave the file.
+    fn same_text(a: &str, b: &str) -> bool {
+        a.replace("\r\n", "\n") == b.replace("\r\n", "\n")
+    }
+
+    /// Writes every `bindings.ts` that is missing or out of date, then fails if it had to: they
+    /// were stale, and the fresh ones need committing. So `cargo test` keeps them current.
     #[test]
     fn exports_bindings() {
-        let src = src();
+        let (src, scratch) = (src(), std::env::temp_dir().join(format!("island-bindings-{}", std::process::id())));
         let plugins = all();
         assert_eq!(plugins.len(), ENTRIES.len());
+        let mut stale = Vec::new();
         for (entry, ipc) in ENTRIES.iter().zip(plugins) {
             assert_eq!(entry.name, ipc.name);
-            if let Some(path) = bindings_path(&src, entry) {
-                ipc.specta.export(Typescript::default().header(HEADER), &path).unwrap_or_else(|e| panic!("{} bindings: {e}", ipc.name));
+            let Some(path) = bindings_path(&src, entry) else { continue };
+            let fresh = scratch.join(format!("{}.ts", entry.name));
+            ipc.specta.export(Typescript::default().header(HEADER), &fresh).unwrap_or_else(|e| panic!("{} bindings: {e}", ipc.name));
+            let fresh = fs::read_to_string(&fresh).unwrap();
+            if !fs::read_to_string(&path).is_ok_and(|current| same_text(&current, &fresh)) {
+                fs::create_dir_all(path.parent().unwrap()).unwrap();
+                fs::write(&path, fresh).unwrap();
+                stale.push(path.display().to_string());
             }
         }
+        let _ = fs::remove_dir_all(&scratch);
+        assert!(stale.is_empty(), "these bindings were out of date and have been regenerated; commit them:\n{}", stale.join("\n"));
+    }
+
+    #[test]
+    fn compares_bindings_whatever_the_line_endings() {
+        assert!(same_text("a\r\nb\n", "a\nb\n"));
+        assert!(!same_text("a\nb", "a\nc"));
     }
 
     #[test]
