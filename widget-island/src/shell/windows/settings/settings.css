@@ -851,3 +851,18 @@ kbd {
     box-shadow: 0 0 0 2px transparent;
   }
 }
+
+/* A choice with many options (e.g. the speech model), as a drop-down list. */
+.dropdown {
+  width: 100%;
+  max-width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--soft);
+  cursor: pointer;
+}
+
+.dropdown:hover {
+  border-color: var(--muted);
+}

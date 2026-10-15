@@ -245,6 +245,22 @@ export function folderControl(
 }
 
 /** The right control for a plugin option field. */
+/** A drop-down list: for choices too many (or too long) to sit side by side. */
+export function dropdown(
+  value: string,
+  choices: readonly { readonly value: string; readonly label: string }[],
+  onChange: (v: string) => void,
+  label: string,
+): HTMLSelectElement {
+  const select = h("select", { class: "dropdown", "aria-label": label }, ...choices.map((c) => h("option", { value: c.value }, c.label)));
+  select.value = value;
+  select.addEventListener("change", () => onChange(select.value));
+  return select;
+}
+
+/** Up to this many choices show as buttons side by side; more become a drop-down list. */
+export const MAX_SEGMENTS = 3;
+
 export function optionControl(
   f: Field,
   value: unknown,
@@ -257,7 +273,9 @@ export function optionControl(
     case "number":
       return field(f.label, f.hint, rangeControl(value as number, f, onChange, f.label));
     case "choice":
-      return field(f.label, f.hint, segmented(value as string, f.choices, onChange, f.label));
+      return f.choices.length > MAX_SEGMENTS
+        ? field(f.label, f.hint, dropdown(value as string, f.choices, onChange, f.label), true)
+        : field(f.label, f.hint, segmented(value as string, f.choices, onChange, f.label));
     case "list":
       return field(f.label, f.hint, chips(value as readonly string[], f.placeholder, onChange, f.label), true);
     case "folder":
