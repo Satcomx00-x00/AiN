@@ -1,0 +1,46 @@
+// Every IPC command and event the app has, listed once. `build.rs` includes this file to generate
+// each plugin's permissions; `ipc.rs` expands it into the plugins' handlers and their TypeScript
+// bindings. So adding a command here is all it takes, and nothing can drift.
+//
+// Each entry is `<plugin name>: <module> { typed, raw, events }`:
+// - `typed` commands get generated bindings (`bindings.ts` beside the feature's frontend code);
+// - `raw` commands move binary bodies (`tauri::ipc::Request`/`Response`), which bindings can't
+//   describe, so the frontend calls them by hand;
+// - `events` are typed events the module emits (types deriving `tauri_specta::Event`).
+//
+// The shell is the app itself (the island window, shortcuts, settings…); features are what the
+// island shows, each its own plugin.
+
+macro_rules! manifest {
+    ($then:ident) => {
+        $then! {
+            shell {
+                island: shell::island { typed: [info, layout], raw: [], events: [] }
+                popup: shell::popup {
+                    typed: [bind, failures, open, hide, paste],
+                    raw: [],
+                    events: [Shown, BindingsChanged, Action]
+                }
+                settings: shell::settings { typed: [get, set, open, autostart, set_autostart], raw: [], events: [SettingsChanged] }
+                capture: shell::capture { typed: [], raw: [latest, save_png], events: [] }
+                extensions: shell::extensions { typed: [list, open_dir], raw: [], events: [] }
+            }
+            features {
+                clipboard: features::clipboard { typed: [history, copy, clear], raw: [copy_image], events: [] }
+                dictation: features::dictation {
+                    typed: [state, model_status, control, download_model, delete_model, open_model_dir],
+                    raw: [],
+                    events: [PhaseChanged, ModelChanged]
+                }
+                media: features::media { typed: [state, artwork, control], raw: [], events: [TrackChanged] }
+                privacy: features::privacy { typed: [state], raw: [], events: [UsageChanged] }
+                stats: features::stats { typed: [latest], raw: [], events: [] }
+                volume: features::volume {
+                    typed: [state, peak, sources, set_level, set_muted],
+                    raw: [],
+                    events: [OutputChanged, SourcesChanged]
+                }
+            }
+        }
+    };
+}

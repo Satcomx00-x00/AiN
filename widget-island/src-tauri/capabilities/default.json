@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "What the island window may call: events, one entry per backend plugin, settings (read, and write for plugins that remember choices).",
+  "description": "What the island window may call: events, every feature, settings (read, and write for plugins that remember choices), and the third-party plugins to load.",
   "windows": [
     "widget"
   ],
@@ -16,7 +16,8 @@
     "dictation:default",
     "settings:allow-get",
     "settings:allow-open",
+    "settings:allow-set",
     "popup:allow-bind",
-    "settings:allow-set"
+    "extensions:allow-list"
   ]
 }

@@ -8,7 +8,7 @@
   "permissions": [
     "core:event:default",
     "settings:allow-get",
-    "screen:default",
+    "capture:default",
     "clipboard:allow-copy-image",
     "popup:allow-hide"
   ]
