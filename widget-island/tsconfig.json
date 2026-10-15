@@ -13,7 +13,10 @@
     "verbatimModuleSyntax": true,
     "isolatedModules": true,
     "skipLibCheck": true,
-    "noEmit": true
+    "noEmit": true,
+    // The example plugins are plain JS, checked against the SDK through their JSDoc.
+    "allowJs": true,
+    "checkJs": true
   },
-  "include": ["src", "vite.config.ts"]
+  "include": ["src", "examples", "vite.config.ts"]
 }

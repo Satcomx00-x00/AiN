@@ -1,6 +1,0 @@
-#!/bin/sh
-# Lints the commit message against Conventional Commits.
-# Enable once per clone: git config core.hooksPath .githooks
-msg="$(cd "$(dirname "$1")" && pwd)/$(basename "$1")"
-cd "$(git rev-parse --show-toplevel)/widget-island" || exit 1
-exec bunx commitlint --edit "$msg"

@@ -1,0 +1,206 @@
+# Git hooks, run by prek (https://prek.j178.dev). Enable once per clone, from the repository root:
+#
+#   prek install --prepare-hooks
+#
+# This is a workspace: this file checks the whole repository, and the projects below add their
+# own hooks, which run in their own folder on their own files:
+#   widget-island/prek.toml             TypeScript: types, related tests
+#   widget-island/src-tauri/prek.toml   Rust: format, clippy, tests and generated bindings
+#
+# Hooks are cheap on commit and thorough on push:
+#   pre-commit  fixes and fast checks on the staged files only
+#   commit-msg  Conventional Commits
+#   pre-push    compilers and tests, only for the projects the pushed commits touch
+# `prek run --all-files` runs the pre-commit hooks on everything (CI does this);
+# `prek run --all-files --hook-stage pre-push` runs the heavy ones too.
+
+minimum_prek_version = "0.5.5"
+default_install_hook_types = ["pre-commit", "commit-msg", "pre-push"]
+# Hooks run on commit unless they say otherwise; `manual` lets `--hook-stage manual` reach them too.
+# (Hooks whose own manifest lists more stages are pinned below: re-checking on push is wasted time.)
+default_stages = ["pre-commit", "manual"]
+# A clean run is short: only failures and fixes are worth reading.
+hide_status = ["skipped"]
+
+# Generated or binary: never hand-edited, so never checked or "fixed".
+exclude = { glob = [
+  "**/bindings.ts",
+  "**/bindings/*.ts",
+  "widget-island/src-tauri/gen/**",
+  "widget-island/src-tauri/icons/**",
+  "**/*.lock",
+  "CHANGELOG.md",
+] }
+
+# Fixers rewrite files, so each has its own slot: hooks sharing a priority run at the same time.
+# Read-only checks all share one slot and run in parallel.
+[priorities]
+fix-whitespace = 0
+fix-end-of-file = 1
+fix-line-endings = 2
+fix-bom = 3
+check = 10
+
+# Only update to releases that have been out for two weeks: time for a bad one to be pulled.
+[update]
+cooldown_days = 14
+
+# ---------- file hygiene: prek's built-in Rust implementations, no setup ----------
+
+[[repos]]
+repo = "builtin"
+
+[[repos.hooks]]
+id = "trailing-whitespace"
+stages = ["pre-commit", "manual"]
+# Two trailing spaces are a line break in Markdown.
+args = ["--markdown-linebreak-ext=md"]
+priority = "fix-whitespace"
+groups = ["fix"]
+
+[[repos.hooks]]
+id = "end-of-file-fixer"
+stages = ["pre-commit", "manual"]
+priority = "fix-end-of-file"
+groups = ["fix"]
+
+[[repos.hooks]]
+# Only files mixing both endings. Not `--fix=lf`: Windows checkouts (core.autocrlf) are CRLF on
+# disk, and .gitattributes already stores everything as LF.
+id = "mixed-line-ending"
+priority = "fix-line-endings"
+groups = ["fix"]
+
+[[repos.hooks]]
+id = "fix-byte-order-marker"
+priority = "fix-bom"
+groups = ["fix"]
+
+[[repos.hooks]]
+id = "check-merge-conflict"
+priority = "check"
+
+[[repos.hooks]]
+id = "check-case-conflict"
+priority = "check"
+
+[[repos.hooks]]
+# The app builds on Windows: a name like `aux.ts` or `a:b` would break every Windows checkout.
+id = "check-illegal-windows-names"
+priority = "check"
+
+[[repos.hooks]]
+id = "check-added-large-files"
+stages = ["pre-commit", "manual"]
+# Screenshots in img/ reach ~1 MB; anything bigger belongs in a release, not the repository.
+args = ["--maxkb=1024"]
+priority = "check"
+
+[[repos.hooks]]
+id = "detect-private-key"
+priority = "check"
+
+[[repos.hooks]]
+id = "check-json"
+# tsconfig.json allows comments: it is checked as JSONC below.
+exclude = '(^|/)tsconfig\.json$'
+priority = "check"
+
+[[repos.hooks]]
+id = "check-jsonc"
+types = ["json"]
+files = '(^|/)tsconfig\.json$'
+args = ["--allow-trailing-commas"]
+priority = "check"
+
+[[repos.hooks]]
+id = "check-toml"
+priority = "check"
+
+[[repos.hooks]]
+id = "check-yaml"
+priority = "check"
+
+[[repos.hooks]]
+id = "check-executables-have-shebangs"
+stages = ["pre-commit", "manual"]
+priority = "check"
+
+[[repos.hooks]]
+id = "check-shebang-scripts-are-executable"
+stages = ["pre-commit", "manual"]
+# Rust's inner attributes (`#![...]`) start like a shebang.
+exclude = '\.rs$'
+priority = "check"
+
+# ---------- this configuration itself: only when it changes ----------
+# (Not `check-hooks-apply`: in a workspace it judges the nested projects' hooks against the
+# root's paths, and reports hooks that do run as unused.)
+
+[[repos]]
+repo = "meta"
+
+[[repos.hooks]]
+# An exclude that matches no file is dead configuration.
+id = "check-useless-excludes"
+files = '(^|/)prek\.toml$'
+priority = "check"
+
+# ---------- spelling ----------
+
+[[repos]]
+repo = "https://github.com/crate-ci/typos"
+rev = "v1.50.3"
+hooks = [{ id = "typos", priority = "check", stages = ["pre-commit", "manual"] }]
+
+# ---------- GitHub Actions: only when a workflow changes ----------
+
+[[repos]]
+repo = "https://github.com/zizmorcore/zizmor-pre-commit"
+rev = "v1.30.1"
+# Security audit: template injection, unpinned actions, over-broad permissions…
+hooks = [{ id = "zizmor", priority = "check", groups = ["ci"] }]
+
+[[repos]]
+repo = "local"
+
+[[repos.hooks]]
+# Workflow syntax, expressions, and shellcheck on `run:` scripts. A prebuilt binary through mise,
+# so no Go toolchain is needed.
+id = "actionlint"
+name = "actionlint"
+language = "mise"
+additional_dependencies = ["aqua:rhysd/actionlint@1.7.12"]
+entry = "actionlint"
+files = '^\.github/workflows/[^/]+\.ya?ml$'
+priority = "check"
+groups = ["ci"]
+
+[[repos.hooks]]
+# Secrets in the staged changes (not a scan of history), before they reach a commit.
+id = "gitleaks"
+name = "gitleaks"
+language = "mise"
+additional_dependencies = ["aqua:gitleaks/gitleaks@8.30.1"]
+entry = "gitleaks git --pre-commit --staged --redact --no-banner"
+pass_filenames = false
+stages = ["pre-commit"]
+priority = "check"
+
+[[repos.hooks]]
+# Conventional Commits, checked by the frontend's commitlint (`commitlint --edit <file>`): run from
+# widget-island for its config and dependencies, given the message file Git hands the hook.
+# Lives here, not in widget-island/prek.toml, because commitlint resolves that path from the
+# repository root, which is how prek passes it to root hooks.
+id = "commitlint"
+name = "commitlint"
+language = "system"
+entry = "bun run --cwd widget-island commitlint"
+stages = ["commit-msg"]
+
+# ---------- shell scripts ----------
+
+[[repos]]
+repo = "https://github.com/shellcheck-py/shellcheck-py"
+rev = "v0.11.0.1"
+hooks = [{ id = "shellcheck", priority = "check" }]

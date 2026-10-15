@@ -1,0 +1,154 @@
+/* The SDK's drop-down list (select.ts). Uses the colors every window defines, with fallbacks. */
+
+.ui-select {
+  position: relative;
+  width: 100%;
+}
+
+.ui-select-trigger {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 7px 10px 7px 12px;
+  border: 1px solid var(--line, rgba(255, 255, 255, 0.08));
+  border-radius: 10px;
+  background: var(--soft, rgba(255, 255, 255, 0.05));
+  color: var(--fg);
+  text-align: left;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.ui-select-trigger:hover {
+  background: var(--hover);
+}
+
+.ui-select-trigger[aria-expanded="true"] {
+  border-color: var(--accent);
+}
+
+.ui-select-value {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.ui-select-chevron {
+  flex: none;
+  color: var(--muted);
+  transition: transform 0.2s var(--spring, ease);
+}
+
+.ui-select-trigger[aria-expanded="true"] .ui-select-chevron {
+  transform: rotate(180deg);
+}
+
+.ui-select-list {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  right: 0;
+  /* As wide as its longest choice, at least as wide as the button, aligned to its right edge. */
+  width: max-content;
+  min-width: 100%;
+  max-width: 320px;
+  max-height: 280px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid var(--line, rgba(255, 255, 255, 0.08));
+  border-radius: 12px;
+  background: var(--card, #1c1c1f);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  outline: none;
+  animation: ui-select-in 0.14s ease-out;
+}
+
+.ui-select.up .ui-select-list {
+  top: auto;
+  bottom: calc(100% + 6px);
+}
+
+.ui-select-list[hidden] {
+  display: none;
+}
+
+@keyframes ui-select-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+.ui-select-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.ui-select-option.active {
+  background: var(--hover);
+}
+
+.ui-select-check {
+  flex: none;
+  color: var(--accent);
+  visibility: hidden;
+}
+
+.ui-select-option[aria-selected="true"] .ui-select-check {
+  visibility: visible;
+}
+
+.ui-select-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.ui-select-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.ui-select-detail {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ui-select-meta {
+  flex: none;
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ui-select-badge {
+  padding: 1px 7px;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--ok) 18%, transparent);
+  color: var(--ok);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-select-list,
+  .ui-select-chevron {
+    animation: none;
+    transition: none;
+  }
+}

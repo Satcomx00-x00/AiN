@@ -24,7 +24,8 @@ env:
 jobs:
   ci:
     name: CI
-    uses: ./.github/workflows/ci.yml
+    # Not yet the newer `$/` self-repository syntax: actionlint (1.7.12) predates it.
+    uses: ./.github/workflows/ci.yml # zizmor: ignore[self-repository]
 
   prepare:
     name: Prepare release
@@ -37,7 +38,8 @@ jobs:
       tag: ${{ steps.version.outputs.tag }}
       release_id: ${{ steps.release.outputs.id }}
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      # Keeps the token: this job pushes the release commit and tag.
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5 # zizmor: ignore[artipacked]
         with:
           fetch-depth: 0
       - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2
@@ -71,7 +73,9 @@ jobs:
           git diff --stat
 
       - name: Update CHANGELOG.md
-        run: git cliff --tag "${{ steps.version.outputs.tag }}" --output CHANGELOG.md
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: git cliff --tag "$TAG" --output CHANGELOG.md
 
       - name: Commit, tag and push
         env:
@@ -119,6 +123,7 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           ref: ${{ needs.prepare.outputs.tag }}
+          persist-credentials: false
       - name: Install Linux system dependencies
         if: runner.os == 'Linux'
         run: ./.github/scripts/linux-deps.sh
@@ -132,6 +137,14 @@ jobs:
         with:
           workspaces: widget-island/src-tauri -> target
           key: release
+      # rust-cache keeps sherpa-onnx-sys's build output but prunes the native libraries it extracted
+      # under target/, which it then never fetches again: make it start over.
+      - name: Refetch sherpa-onnx's native libraries
+        shell: bash
+        working-directory: widget-island/src-tauri
+        run: |
+          rm -rf target/sherpa-onnx-prebuilt
+          cargo clean --locked -p sherpa-onnx-sys --target ${{ matrix.target }}
       - name: Install frontend dependencies
         working-directory: widget-island
         run: bun install --frozen-lockfile
@@ -153,4 +166,5 @@ jobs:
     steps:
       - env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release edit "${{ needs.prepare.outputs.tag }}" --repo "$GITHUB_REPOSITORY" --draft=false --latest
+          TAG: ${{ needs.prepare.outputs.tag }}
+        run: gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --latest

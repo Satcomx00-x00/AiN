@@ -20,6 +20,7 @@
     "@commitlint/cli": "^21.2.3",
     "@commitlint/config-conventional": "^21.2.3",
     "@tauri-apps/cli": "^2",
+    "happy-dom": "^20",
     "typescript": "^5",
     "vite": "^7",
     "vitest": "^3"

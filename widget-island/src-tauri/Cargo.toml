@@ -11,7 +11,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["macos-private-api", "tray-icon"] }
+tauri = { version = "2", features = ["macos-private-api", "tray-icon", "specta"] }
 serde = { version = "1", features = ["derive"] }
 thiserror = "2"
 sysinfo = { version = "0.39.6", default-features = false, features = ["system", "network"] }
@@ -21,8 +21,15 @@ serde_json = "1.0.154"
 xcap = "0.9.8"
 cpal = "0.18.2"
 ureq = "3.4.2"
+base64 = "0.22"
+# Speech recognition for dictation, from prebuilt static libraries (Windows, Linux and macOS x64).
+sherpa-onnx = "1.13.8"
 sha2 = "0.11.1"
 tauri-plugin-dialog = "2"
+# Typed TypeScript bindings for commands and events; pinned exactly while specta 2 is a release candidate.
+specta = { version = "=2.0.0-rc.25", features = ["derive"] }
+specta-typescript = "=0.0.12"
+tauri-specta = { version = "=2.0.0-rc.25", features = ["derive", "typescript"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2-app-kit = { version = "0.3", features = ["NSWindow", "NSScreen", "NSResponder"] }
@@ -31,10 +38,13 @@ objc2-app-kit = { version = "0.3", features = ["NSWindow", "NSScreen", "NSRespon
 arboard = { version = "3.6.1", default-features = false, features = ["image-data", "wayland-data-control"] }
 gtk = "0.18"
 gtk-layer-shell = { version = "0.8", features = ["v0_6"] }
+# So helper processes (pactl) end with the app, however it ends.
+libc = "0.2"
+# Now playing, from MPRIS players over D-Bus.
+mpris = "2.1"
 
 [target."cfg(windows)".dependencies]
 clipboard-win = "5.4.1"
-base64 = "0.22"
 winreg = "0.56"
 windows = { version = "0.62", features = [
     "Foundation",
@@ -52,7 +62,6 @@ windows = { version = "0.62", features = [
     "Win32_UI_Input_KeyboardAndMouse",
     "Win32_UI_WindowsAndMessaging",
 ] }
-sherpa-onnx = "1.13.8"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-global-shortcut = "2"

@@ -1,0 +1,17 @@
+# Spell checking (https://github.com/crate-ci/typos), run by prek.
+
+[files]
+extend-exclude = [
+  # Generated: fixed by regenerating, not by hand.
+  "**/bindings.ts",
+  "**/bindings/*.ts",
+  "widget-island/src-tauri/gen/",
+  "CHANGELOG.md",
+  # Lockfiles hold hashes and package names.
+  "*.lock",
+  "bun.lock",
+]
+
+[default.extend-words]
+# JetBrains' "Darcula" theme, not a misspelt Dracula.
+darcula = "darcula"
