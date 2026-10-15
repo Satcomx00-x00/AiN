@@ -122,6 +122,16 @@ jobs:
       - name: Tests
         working-directory: widget-island/src-tauri
         run: cargo test --locked --target ${{ matrix.target }}
+      # The tests regenerate the TypeScript bindings from the manifest; committed ones must match.
+      - name: Bindings are up to date
+        if: runner.os == 'Linux'
+        run: |
+          if [ -n "$(git status --porcelain -- src)" ]; then
+            echo "::error::Generated bindings changed. Run 'cargo test' in widget-island/src-tauri and commit src/**/bindings*.ts."
+            git status --short -- src
+            git diff -- src
+            exit 1
+          fi
 
   appimage:
     name: AppImage (Linux x64)

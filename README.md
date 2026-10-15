@@ -73,13 +73,15 @@ Changes apply immediately and are saved automatically.
 | **Clock** | The time on the pill. Its tab shows a counter-style clock with the date and week number. You can choose 12h, 24h or the system format. | All |
 | **Timer** | A countdown with presets. It shows on the pill while it runs. | All |
 | **Stats** | CPU, memory and network usage, with a live load graph on the pill | All |
-| **Now playing** | Whatever plays through the system media controls (Spotify, browsers, players), with seek and playback controls | Windows |
-| **Volume** | A mixer for your outputs and apps. Pin the ones you want to adjust. A pop-up appears when the volume changes. | Windows |
-| **Mic & camera** | Which apps are using the microphone (orange) or camera (green) right now | Windows |
+| **Now playing** | Whatever plays through the system media controls (Spotify, browsers, players), with seek and playback controls | Windows, Linux (MPRIS) |
+| **Volume** | A mixer for your outputs and apps. Pin the ones you want to adjust. A pop-up appears when the volume changes. | Windows, Linux (PipeWire/PulseAudio, no level meter) |
+| **Mic & camera** | Which apps are using the microphone (orange) or camera (green) right now | Windows, Linux |
 | **Clipboard** | Your recently copied text, one click to copy it again. It is kept in memory only and never written to disk. | All (picker: Windows) |
 | **Screenshot** | Freezes the screen so you can draw on it. Select an area, then <kbd>Ctrl</kbd>+<kbd>C</kbd> to copy or <kbd>Ctrl</kbd>+<kbd>S</kbd> to save. | All |
+| **Dictation** | Speak, and the words are typed where your cursor is. Speech is recognized on your computer by a model you download once. | Windows; Linux and macOS copy the text to paste instead |
 
-You can reorder, add or remove widgets on the pill and in the tabs from **Settings → Layout**.
+You can reorder, add or remove widgets on the pill and in the tabs from **Settings → Layout**, and add widgets made by
+others from **Settings → Plugins** (see [writing a plugin](docs/plugins.md)).
 
 ## Shortcuts
 
@@ -123,17 +125,22 @@ Rust checks (from `widget-island/src-tauri`):
 ```sh
 cargo fmt --check
 cargo clippy --all-targets -- -D warnings
-cargo test
+cargo test             # also regenerates the TypeScript bindings: commit them
 ```
+
+How the code is organized, and how to add a feature: [docs/architecture.md](docs/architecture.md).
 
 ## Project layout
 
 | Path | Content |
 | --- | --- |
-| `widget-island/src/` | Vite + TypeScript frontend: island, popup, overlay and settings windows |
-| `widget-island/src/plugins/` | One folder or file per widget (UI side) |
-| `widget-island/src-tauri/` | Rust/Tauri backend |
-| `widget-island/src-tauri/src/plugins/` | Native side of each widget (media, volume, privacy, clipboard…) |
+| `widget-island/src/sdk/` | The plugin API, shared by built-in features and third-party plugins |
+| `widget-island/src/shell/` | The app itself: island host, layout, settings, shortcuts and each window's entry point |
+| `widget-island/src/features/` | One folder per feature (UI side), each with its generated `bindings.ts` |
+| `widget-island/src-tauri/src/manifest.rs` | Every IPC command and event, listed once |
+| `widget-island/src-tauri/src/shell/` | Native side of the app: island window, popup, capture, settings, tray, plugin folder |
+| `widget-island/src-tauri/src/features/` | Native side of each feature, with one backend per OS (`windows.rs`, `linux.rs`) |
+| `widget-island/examples/plugins/` | Example third-party plugin |
 | `cliff.toml` | [git-cliff](https://git-cliff.org) changelog configuration |
 | `.github/workflows/` | CI and release pipelines |
 
@@ -154,7 +161,9 @@ Every push to `main` and every pull request runs:
 
 - commit message linting (commitlint)
 - frontend: typecheck, unit tests, production build
-- Rust: `rustfmt`, then `clippy -D warnings` and `cargo test` on Linux, Windows and macOS (x64)
+- Rust: `rustfmt`, then `clippy -D warnings` and `cargo test` on Linux, Windows and macOS (x64), and a check that the
+  committed TypeScript bindings match the Rust code
+- an AppImage build, uploaded as a workflow artifact
 
 Releases are cut from the **Actions → Release → Run workflow** button on `main`:
 
