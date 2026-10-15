@@ -37,6 +37,12 @@ pub fn recording(outputs: &[Value], sources: &dyn Fn() -> Vec<Value>) -> Vec<Str
     apps.into_iter().collect()
 }
 
+/// `/dev/video0`, `/dev/video12`…: a string prefix, since `Path::starts_with` compares whole
+/// components (and `video0` isn't `video`).
+pub fn is_camera(target: &Path) -> bool {
+    target.to_str().is_some_and(|t| t.starts_with("/dev/video"))
+}
+
 /// Programs holding a camera device open, by name, from a `/proc`-like folder.
 pub fn filming(proc: &Path) -> Vec<String> {
     let Ok(processes) = fs::read_dir(proc) else { return Vec::new() };
@@ -45,7 +51,7 @@ pub fn filming(proc: &Path) -> Vec<String> {
         let dir = process.path();
         let is_pid = dir.file_name().and_then(|n| n.to_str()).is_some_and(|n| n.bytes().all(|b| b.is_ascii_digit()));
         let Ok(fds) = fs::read_dir(dir.join("fd")) else { continue };
-        let filming = is_pid && fds.flatten().any(|fd| fs::read_link(fd.path()).is_ok_and(|t| t.starts_with("/dev/video")));
+        let filming = is_pid && fds.flatten().any(|fd| fs::read_link(fd.path()).is_ok_and(|t| is_camera(&t)));
         if filming && let Ok(name) = fs::read_to_string(dir.join("comm")) {
             apps.insert(name.trim().to_string());
         }
@@ -70,6 +76,14 @@ mod tests {
         let sources =
             || vec![json!({ "index": 5, "monitor_of_sink": "n/a" }), json!({ "index": 9, "monitor_of_sink": "alsa_output.speakers" })];
         assert_eq!(recording(&outputs, &sources), ["Discord"]);
+    }
+
+    #[test]
+    fn recognizes_camera_devices() {
+        assert!(is_camera(Path::new("/dev/video0")));
+        assert!(is_camera(Path::new("/dev/video12")));
+        assert!(!is_camera(Path::new("/dev/vhci")));
+        assert!(!is_camera(Path::new("/tmp/dev/video0")));
     }
 
     #[test]
