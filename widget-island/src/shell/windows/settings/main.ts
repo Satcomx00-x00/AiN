@@ -14,6 +14,7 @@ import {
   defaults,
   memorySettings,
   parseSettings,
+  parseTarget,
   placeNew,
   setExtension,
   tauriSettings,
@@ -22,6 +23,7 @@ import { type Extension, type ExtensionsPort, fileRows, loadExtensions, noExtens
 import type { Found } from "../../bindings/extensions";
 import { layout as defaultLayout } from "../../../features/layout";
 import { catalogue, extensionRules } from "../../../features";
+import { tauriServices } from "../../../features/services";
 import { THEMES, themeById } from "../../themes";
 import { colorPicker, field, optionControl, rangeControl, switchControl, themeGrid } from "./controls";
 import { slotList } from "./slots";
@@ -59,8 +61,12 @@ type Section = keyof typeof SECTIONS;
 
 let settings: Settings = fallback;
 const isSection = (s: string): s is Section => s in SECTIONS;
-const fromHash = location.hash.slice(1);
-let section: Section = isSection(fromHash) ? fromHash : "general";
+// Opened at a place ("widgets:dictation"): the section, then the card to bring into view.
+const opened = parseTarget(location.hash.slice(1), Object.keys(SECTIONS));
+let section: Section = opened && isSection(opened.section) ? opened.section : "general";
+let scrollToCard: string | null = opened?.card ?? null;
+/** Stop functions of the plugins' settings panels on screen, called before they're redrawn. */
+let panelStops: (() => void)[] = [];
 let pending: ReturnType<typeof setTimeout> | undefined;
 
 const content = h("main", { class: "content" });
@@ -302,9 +308,18 @@ function widgets(): Node[] {
     ...plugins.map((p) => {
       const fields = Object.entries(p.options ?? {});
       const values = resolve(p.options ?? {}, settings.options[p.id]) as Record<string, unknown>;
+      // A plugin's own controls, under its options: given services in the app only (not the preview).
+      const panel = p.settingsPanel && h("div", { class: "plugin-panel" });
+      if (panel && p.settingsPanel) {
+        if (!inTauri) panel.append(h("p", { class: "no-options" }, "More setup is available in the app."));
+        else {
+          const stop = p.settingsPanel(panel, tauriServices as never);
+          if (stop) panelStops.push(stop);
+        }
+      }
       return h(
         "section",
-        { class: "card" },
+        { class: "card", id: `card-${p.id}` },
         h(
           "div",
           { class: "card-head" },
@@ -318,7 +333,10 @@ function widgets(): Node[] {
         ),
         ...(fields.length
           ? fields.map(([key, f]) => optionControl(f, values[key], (v) => setOption(p.id, key, v), pickFolder))
-          : [h("p", { class: "no-options" }, "No options.")]),
+          : panel
+            ? []
+            : [h("p", { class: "no-options" }, "No options.")]),
+        ...(panel ? [panel] : []),
       );
     }),
   ];
@@ -433,8 +451,29 @@ function render() {
     else b.removeAttribute("aria-current");
   }
   const scroll = content.scrollTop;
+  for (const stop of panelStops) stop();
+  panelStops = [];
   content.replaceChildren(...RENDER[section]());
   content.scrollTop = scroll;
+  if (scrollToCard) {
+    const card = document.getElementById(`card-${scrollToCard}`);
+    // Plugins from the folder may still be loading: try again on the next render.
+    if (card) {
+      scrollToCard = null;
+      card.scrollIntoView({ block: "start" });
+      card.classList.add("highlight");
+    }
+  }
+}
+
+/** Shows a place asked for from elsewhere, e.g. the island's "Set up in Settings". */
+function goTo(target: string) {
+  const place = parseTarget(target, Object.keys(SECTIONS));
+  if (!place || !isSection(place.section)) return;
+  section = place.section;
+  scrollToCard = place.card;
+  history.replaceState(null, "", `#${section}`);
+  render();
 }
 
 // ---------- bootstrap ----------
@@ -469,4 +508,5 @@ void store.watch((raw) => {
   void loadEnabled().then(render);
 });
 
+void store.onNavigate(goTo);
 void rescan().then(render);

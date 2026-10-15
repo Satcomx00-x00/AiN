@@ -203,12 +203,7 @@ describe("smooth curve", async () => {
 });
 
 describe("dictation", async () => {
-  const { clock, dictationGlance, mb, modelLine, nextModel, shortPath } = await import("./dictation");
-
-  it("shortens long model paths from the start", () => {
-    expect(shortPath("C:/a", 10)).toBe("C:/a");
-    expect(shortPath("C:/Users/me/models", 10)).toBe("…me/models");
-  });
+  const { clock, dictationGlance, mb, modelLine, modelSetup } = await import("./dictation");
   const { catalogue } = await import(".");
   const { bindings } = await import("../shell/commands");
 
@@ -220,24 +215,31 @@ describe("dictation", async () => {
     expect(dictationGlance({ phase: "idle" }, 0, 0)).toBeNull();
   });
 
-  it("describes the model download", () => {
-    const at = { model: "whisper-small", dir: "D:/Models/whisper-small-int8", installed: [] };
+  const at = { model: "whisper-small", dir: "D:/Models/whisper-small-int8", installed: [] };
+
+  it("tells the island which model is in use and how it stands, nothing to act on", () => {
     expect(modelLine({ ...at, state: "downloading", received: 335e6, total: 670e6 })).toEqual({
       title: "Whisper small",
       detail: "Downloading… 335 MB of 670 MB",
       progress: 0.5,
     });
-    expect(modelLine({ ...at, state: "missing", size: 375e6 }).detail).toBe("99 languages, a good balance");
-    expect(modelLine({ ...at, model: "gone", state: "ready" }).title).toBe("Parakeet TDT v3");
+    expect(modelLine({ ...at, state: "missing", size: 375e6 }).detail).toBe("Not downloaded yet");
+    expect(modelLine({ ...at, model: "gone", state: "ready" })).toEqual({ title: "Parakeet TDT v3", detail: "Ready", progress: null });
     expect(mb(0)).toBe("0 MB");
     expect(clock(9)).toBe("0:09");
   });
 
-  it("cycles through the speech models", () => {
-    expect(nextModel("parakeet-v3", 1)).toBe("parakeet-v2");
-    expect(nextModel("parakeet-v3", -1)).toBe("moonshine-base");
-    expect(nextModel("moonshine-base", 1)).toBe("parakeet-v3");
-    expect(nextModel("gone", 1)).toBe("parakeet-v2");
+  it("tells Settings what can be done with the model in each state", () => {
+    expect(modelSetup({ ...at, state: "missing", size: 375e6 })).toEqual({
+      detail: "99 languages, a good balance. Not downloaded yet.",
+      action: "download",
+      label: "Download · 375 MB",
+      progress: null,
+    });
+    expect(modelSetup({ ...at, state: "downloading", received: 1, total: 4 })).toMatchObject({ action: "stop", progress: 0.25 });
+    expect(modelSetup({ ...at, state: "downloading", received: 0, total: 0 }).progress).toBe(0);
+    expect(modelSetup({ ...at, state: "ready" })).toMatchObject({ detail: "Downloaded, in D:/Models/whisper-small-int8", action: "remove" });
+    expect(modelSetup({ ...at, state: "error", message: "offline" })).toMatchObject({ detail: "Download failed: offline", action: "download", label: "Retry" });
   });
 
   it("binds its shortcut as an action, with no popup", () => {

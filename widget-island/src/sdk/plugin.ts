@@ -51,6 +51,8 @@ export interface Host<Options = unknown> {
   options(): Options;
   /** Saves some of this plugin's options (e.g. a choice made in its panel); settings and other windows follow. */
   setOptions(patch: Partial<Options>): void;
+  /** Opens Settings at this plugin's card: where to set it up, rather than in the island. */
+  openSettings(): void;
 }
 
 export type Surface = "popup" | "screen" | "action";
@@ -116,6 +118,12 @@ export interface Plugin<Services = unknown, F extends Fields = Fields> {
    * no others. Built-in features type the services they use instead.
    */
   readonly needs?: readonly string[];
+  /**
+   * Extra controls for this plugin's card in Settings → Widgets, under its options: for setup an
+   * option can't express, like downloading a model. Gets the same services as `setup`. Returns a
+   * function that stops whatever it watches; it is called when the card is redrawn or closed.
+   */
+  readonly settingsPanel?: (root: HTMLElement, services: Services) => (() => void) | void;
   setup(services: Services, host: Host<Values<F>>): Widget;
 }
 

@@ -77,11 +77,21 @@ fn set(app: AppHandle, store: State<'_, Store>, value: Raw) -> Res<()> {
     Ok(())
 }
 
-/// Async so the window is created off the IPC callback; creating it inside one deadlocks on Windows.
+/// Takes the settings window somewhere, e.g. "widgets:dictation": a section, then a widget's card.
+#[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
+pub struct Navigate(pub String);
+
+/// A place in the settings window: lowercase words, digits, `-` and `:` (it ends up in a URL).
+pub fn valid_target(target: &str) -> bool {
+    !target.is_empty() && target.len() <= 64 && target.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == ':')
+}
+
+/// Opens the settings window, at `target` if given. Async so the window is created off the IPC
+/// callback; creating it inside one deadlocks on Windows.
 #[tauri::command]
 #[specta::specta]
-async fn open(app: AppHandle) -> Res<()> {
-    show(&app)
+async fn open(app: AppHandle, target: Option<String>) -> Res<()> {
+    show(&app, target.as_deref())
 }
 
 #[tauri::command]
@@ -98,15 +108,24 @@ fn set_autostart(app: AppHandle, enabled: bool) -> Res<()> {
     result.map_err(|e| Error::msg(format!("launch at login: {e}")))
 }
 
-/// Shows the settings window, creating it the first time.
-pub fn show(app: &AppHandle) -> Res<()> {
+/// Shows the settings window, creating it the first time, at `target` when given.
+pub fn show(app: &AppHandle, target: Option<&str>) -> Res<()> {
+    if let Some(t) = target
+        && !valid_target(t)
+    {
+        return Err(Error::msg(format!("not a place in the settings: {t:?}")));
+    }
     if let Some(w) = app.get_webview_window(WINDOW) {
         w.unminimize()?;
         w.show()?;
         w.set_focus()?;
+        if let Some(t) = target {
+            Navigate(t.into()).emit(app)?;
+        }
         return Ok(());
     }
-    WebviewWindowBuilder::new(app, WINDOW, WebviewUrl::App("settings.html".into()))
+    let url = target.map_or_else(|| "settings.html".to_string(), |t| format!("settings.html#{t}"));
+    WebviewWindowBuilder::new(app, WINDOW, WebviewUrl::App(url.into()))
         .title("Island settings")
         .inner_size(820.0, 600.0)
         .min_inner_size(640.0, 480.0)
@@ -143,6 +162,16 @@ mod tests {
         fs::write(&path, "{ not json").unwrap();
         assert_eq!(read(&path), Value::Null);
         fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn accepts_only_plain_settings_targets() {
+        for ok in ["widgets", "widgets:dictation", "widgets:cpu-alarm2"] {
+            assert!(valid_target(ok), "{ok}");
+        }
+        for bad in ["", "Widgets", "widgets/../x", "a b", "x#y", "widgets:<script>", &"a".repeat(65)] {
+            assert!(!valid_target(bad), "{bad}");
+        }
     }
 
     #[test]

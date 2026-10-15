@@ -92,7 +92,7 @@ export async function start(
   });
   await apply(latest);
   const initial = latest;
-  const openSettings = () => store.open().catch((e: unknown) => console.error("[island] could not open settings", e));
+  const openSettings = (target?: string) => store.open(target).catch((e: unknown) => console.error("[island] could not open settings", e));
   const saveOptions = (id: string, patch: Readonly<Record<string, unknown>>) => {
     latest = { ...latest, options: { ...latest.options, [id]: { ...latest.options[id], ...patch } } };
     island?.configure(effective(latest));

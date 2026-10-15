@@ -207,3 +207,18 @@ describe("plugins from the plugins folder", async () => {
   it("removes ids from a layout without touching the others", () =>
     expect(without(layout, new Set(["media"]))).toEqual({ glance: { left: ["clock"], right: ["stats"] }, tabs: ["clock"] }));
 });
+
+describe("settings targets", async () => {
+  const { parseTarget } = await import("./settings");
+  const sections = ["general", "widgets"];
+
+  it("reads a section, then a card", () => {
+    expect(parseTarget("widgets:dictation", sections)).toEqual({ section: "widgets", card: "dictation" });
+    expect(parseTarget("general", sections)).toEqual({ section: "general", card: null });
+  });
+
+  it("ignores places that don't exist", () => {
+    expect(parseTarget("", sections)).toBeNull();
+    expect(parseTarget("secret:x", sections)).toBeNull();
+  });
+});

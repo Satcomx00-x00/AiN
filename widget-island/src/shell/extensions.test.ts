@@ -128,7 +128,7 @@ describe("loadExtensions", () => {
 });
 
 describe("confine", () => {
-  const host = { refresh() {}, options: () => ({}) as never, setOptions() {} };
+  const host = { refresh() {}, options: () => ({}) as never, setOptions() {}, openSettings() {} };
 
   it("gives a plugin only the services it declared, frozen", () => {
     let got: Record<string, unknown> = {};
@@ -199,4 +199,30 @@ describe("fileRows", () => {
   it("keeps a file that is on but gone, saying so", () => {
     expect(fileRows([], ["a.js"], loaded)).toEqual([{ file: "a.js", on: true, plugin: null, needs: ["media"], problem: "No longer in the plugins folder" }]);
   });
+});
+
+describe("a plugin's settings panel", () => {
+  it("must be a function when given", () => {
+    expect(check({ ...valid(), settingsPanel: "nope" }, rules)).toBe("settingsPanel must be a function");
+    expect(typeof check({ ...valid(), settingsPanel: () => {} }, rules)).toBe("object");
+  });
+
+  it("gets only the services the plugin declared, like its setup", () => {
+    let got: Record<string, unknown> = {};
+    const plugin = confine({ ...valid(), settingsPanel: (_: HTMLElement, s: never) => void (got = s) } as never, ["media"]);
+    plugin.settingsPanel?.({} as HTMLElement, { media: "M", clipboard: "secret" } as never);
+    expect(got).toEqual({ media: "M" });
+  });
+
+  it("can't break the Settings page, nor its cleanup", () => {
+    const log = vi.fn();
+    const throws = confine({ ...valid(), settingsPanel: () => { throw new Error("x"); } } as never, [], log);
+    expect(throws.settingsPanel?.({} as HTMLElement, {} as never)).toBeUndefined();
+    const badStop = confine({ ...valid(), settingsPanel: () => () => { throw new Error("y"); } } as never, [], log);
+    const stop = badStop.settingsPanel?.({} as HTMLElement, {} as never);
+    expect(() => (stop as () => void)()).not.toThrow();
+    expect(log).toHaveBeenCalledTimes(2);
+  });
+
+  it("stays absent for a plugin without one", () => expect("settingsPanel" in confine(valid() as never, [])).toBe(false));
 });

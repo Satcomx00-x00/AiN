@@ -9,18 +9,25 @@ import * as __TAURI_EVENT from "@tauri-apps/api/event";
 export const commands = {
 	get: () => __TAURI_INVOKE<Raw>("plugin:settings|get"),
 	set: (value: Raw) => __TAURI_INVOKE<null>("plugin:settings|set", { value }),
-	/**  Async so the window is created off the IPC callback; creating it inside one deadlocks on Windows. */
-	open: () => __TAURI_INVOKE<null>("plugin:settings|open"),
+	/**
+	 *  Opens the settings window, at `target` if given. Async so the window is created off the IPC
+	 *  callback; creating it inside one deadlocks on Windows.
+	 */
+	open: (target: string | null) => __TAURI_INVOKE<null>("plugin:settings|open", { target }),
 	autostart: () => __TAURI_INVOKE<boolean>("plugin:settings|autostart"),
 	setAutostart: (enabled: boolean) => __TAURI_INVOKE<null>("plugin:settings|set_autostart", { enabled }),
 };
 
 /** Events */
 export const events = {
+	navigate: makeEvent<Navigate>("plugin:settings:navigate"),
 	settingsChanged: makeEvent<SettingsChanged>("plugin:settings:settings-changed"),
 };
 
 /* Types */
+/**  Takes the settings window somewhere, e.g. "widgets:dictation": a section, then a widget's card. */
+export type Navigate = string;
+
 /**
  *  The settings file's content. Its shape belongs to the frontend, which validates it, so the
  *  bindings type it `unknown` (and serde_json's own `Value` type is recursive, which specta can't inline).

@@ -118,8 +118,10 @@ export interface SettingsPort {
   /** Calls `onChange` with the stored settings (raw, unvalidated) now and whenever they change. */
   watch(onChange: (raw: unknown) => void): Promise<() => void>;
   save(settings: Settings): Promise<void>;
-  /** Opens the settings window. */
-  open(): Promise<void>;
+  /** Opens the settings window, at `target` when given: a section, or "widgets:<plugin id>" for a widget's card. */
+  open(target?: string): Promise<void>;
+  /** Calls `onTarget` each time something asks the already-open settings window to show a place. */
+  onNavigate(onTarget: (target: string) => void): Promise<() => void>;
   autostart(): Promise<boolean>;
   setAutostart(enabled: boolean): Promise<void>;
 }
@@ -127,7 +129,8 @@ export interface SettingsPort {
 export const tauriSettings: SettingsPort = {
   watch: (onChange) => follow(events.settingsChanged, commands.get, onChange),
   save: async (value) => void (await commands.set(value)),
-  open: async () => void (await commands.open()),
+  open: async (target) => void (await commands.open(target ?? null)),
+  onNavigate: (onTarget) => events.navigate.listen((e) => onTarget(e.payload)),
   autostart: () => commands.autostart(),
   setAutostart: async (enabled) => void (await commands.setAutostart(enabled)),
 };
@@ -148,6 +151,7 @@ export function memorySettings(): SettingsPort {
       for (const l of listeners) l(stored);
     },
     open: async () => {},
+    onNavigate: async () => () => {},
     autostart: async () => autostart,
     setAutostart: async (enabled) => {
       autostart = enabled;
@@ -188,3 +192,12 @@ export function setExtension(settings: Settings, file: string, on: boolean, plug
 /** The layout the island runs: plugins loaded from files since turned off stay out, whatever the file says. */
 export const runnable = (settings: Settings, loaded: readonly { readonly file: string; readonly id: string }[]): Layout =>
   without(settings.layout, new Set(loaded.filter((l) => !settings.extensions.includes(l.file)).map((l) => l.id)));
+
+/**
+ * Where a settings target points: "widgets:dictation" is the Widgets section, at the dictation
+ * card. Null for a section that doesn't exist.
+ */
+export function parseTarget(target: string, sections: readonly string[]): { section: string; card: string | null } | null {
+  const [section = "", card = ""] = target.split(":", 2);
+  return sections.includes(section) ? { section, card: card || null } : null;
+}

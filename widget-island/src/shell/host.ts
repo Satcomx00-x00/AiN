@@ -22,6 +22,7 @@ const IDLE_HOST: Host<never> = {
   refresh() {},
   options: () => ({}) as never,
   setOptions() {},
+  openSettings() {},
 };
 
 /**
@@ -64,7 +65,8 @@ export async function mount<S>(
   services: S,
   win: WindowPort,
   initial: Settings,
-  openSettings?: () => void,
+  /** Opens Settings, at `target` ("widgets:<plugin id>") when given. */
+  openSettings?: (target?: string) => void,
   saveOptions?: (pluginId: string, patch: Readonly<Record<string, unknown>>) => void,
 ): Promise<IslandHandle<S>> {
   const hardware = await win.island();
@@ -77,6 +79,7 @@ export async function mount<S>(
     refresh: () => refresh(),
     options: () => resolve(plugin.options ?? {}, settings.options[plugin.id]) as never,
     setOptions: (patch) => saveOptions?.(plugin.id, patch),
+    openSettings: () => openSettings?.(`widgets:${plugin.id}`),
   });
   const mounted = new Map<string, Mounted>();
   let placement: Placement = { left: [], right: [], tabs: [] };
@@ -105,7 +108,7 @@ export async function mount<S>(
   const left = glanceSlot();
   const right = glanceSlot();
   const panel = h("div", { class: "panel" });
-  const gear = openSettings && button(icon(GEAR), openSettings, { class: "gear", "aria-label": "Settings", title: "Settings" });
+  const gear = openSettings && button(icon(GEAR), () => openSettings(), { class: "gear", "aria-label": "Settings", title: "Settings" });
   let view: Tabs | undefined;
   const alerting = (now: number) => active.find((m) => m.widget.glance?.(now)?.tone === "alert");
 

@@ -816,3 +816,38 @@ kbd {
 .card.failed .card-head p {
   color: var(--hot);
 }
+
+/* A progress bar for plugins' settings panels: set --p (0–1) on it. */
+.progress {
+  height: 4px;
+  margin-top: 8px;
+  border-radius: 2px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.progress > i {
+  display: block;
+  height: 100%;
+  width: calc(var(--p, 0) * 100%);
+  background: var(--accent);
+  transition: width 0.3s;
+}
+
+.progress[hidden] {
+  display: none;
+}
+
+/* The card the island asked to show, outlined for a moment. */
+.card.highlight {
+  animation: highlight 1.6s ease-out;
+}
+
+@keyframes highlight {
+  from {
+    box-shadow: 0 0 0 2px var(--accent);
+  }
+  to {
+    box-shadow: 0 0 0 2px transparent;
+  }
+}

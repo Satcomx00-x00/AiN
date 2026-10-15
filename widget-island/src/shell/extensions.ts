@@ -82,6 +82,7 @@ export function check(def: unknown, rules: Rules): { plugin: AnyPlugin; needs: s
   if (typeof icon !== "string") return "icon must be SVG markup (a string)";
   if (!Array.isArray(slots) || !slots.length || !slots.every((s) => SLOTS.has(s))) return 'slots must list "glance" and/or "tab"';
   if (typeof setup !== "function") return "setup must be a function";
+  if (def.settingsPanel !== undefined && typeof def.settingsPanel !== "function") return "settingsPanel must be a function";
   if (cmds !== undefined && !(Array.isArray(cmds) && cmds.length === 0)) return "shortcut commands are only available to built-in features";
   if (!Array.isArray(needs) || !needs.every((n) => typeof n === "string")) return "needs must list service names";
   const unknown = needs.filter((n: string) => !rules.services.includes(n));
@@ -125,11 +126,27 @@ export function isolate(widget: Widget, report: (what: string, e: unknown) => vo
 /** The plugin as the island runs it: given only the services it needs, and isolated. */
 export function confine(plugin: AnyPlugin, needs: readonly string[], log: (message: string) => void = console.error): AnyPlugin {
   const report = (what: string, e: unknown) => log(`[island] plugin "${plugin.id}": ${what} failed and was turned off: ${String(e)}`);
+  const grant = (services: unknown) => {
+    const all = services as Record<string, unknown>;
+    return Object.freeze(Object.fromEntries(needs.map((n) => [n, all[n]])));
+  };
+  const panel = plugin.settingsPanel;
   return {
     ...plugin,
+    // Its Settings card gets the same services as the island does, and can't break the page.
+    ...(panel && {
+      settingsPanel(root: HTMLElement, services: never) {
+        try {
+          const stop = panel(root, grant(services) as never);
+          return typeof stop === "function" ? fuse("settings panel cleanup", stop, undefined, report) : undefined;
+        } catch (e) {
+          report("settings panel", e);
+          return undefined;
+        }
+      },
+    }),
     setup(services, host: Host<never>) {
-      const all = services as Record<string, unknown>;
-      const granted = Object.freeze(Object.fromEntries(needs.map((n) => [n, all[n]])));
+      const granted = grant(services);
       try {
         const widget = plugin.setup(granted as never, host);
         return isolate(isObject(widget) ? (widget as Widget) : {}, report);

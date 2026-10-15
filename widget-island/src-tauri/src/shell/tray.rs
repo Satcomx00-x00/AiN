@@ -29,13 +29,13 @@ pub fn init() -> TauriPlugin<Wry> {
                 .menu(&menu)
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| match event.id().as_ref() {
-                    SETTINGS => _ = settings::show(app),
+                    SETTINGS => _ = settings::show(app, None),
                     QUIT => app.exit(0),
                     _ => {}
                 })
                 .on_tray_icon_event(|tray, event| {
                     if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = event {
-                        _ = settings::show(tray.app_handle());
+                        _ = settings::show(tray.app_handle(), None);
                     }
                 });
             if let Some(icon) = app.default_window_icon() {

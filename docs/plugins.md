@@ -63,8 +63,9 @@ working plugin.
   are not available to plugins.
 
 - **host**: `host.options()` reads the plugin's options (read them when needed, the user can
-  change them anytime), `host.setOptions(patch)` saves some, and `host.refresh()` redraws the
-  pill now instead of at the next second.
+  change them anytime), `host.setOptions(patch)` saves some, `host.refresh()` redraws the
+  pill now instead of at the next second, and `host.openSettings()` opens Settings at the
+  plugin's card.
 
 ### What it returns
 
@@ -75,6 +76,16 @@ while shown). Several plugins can share a spot on the pill: the first one with s
 
 If a part throws, the island turns that part off and logs why (in the island's developer tools),
 rather than letting it break the island.
+
+### Setting up in Settings, not in the island
+
+Options cover most settings. For setup they can't express (signing in, downloading something),
+add `settingsPanel(root, services)`: it draws extra controls under the options of the plugin's
+card in **Settings → Widgets**, with the same services as `setup`. Return a function that stops
+whatever it watches; Settings calls it when the card is redrawn or the window closes. The classes
+`field`, `field-label`, `field-hint`, `secondary` (buttons) and `progress` (a bar: set `--p`
+from 0 to 1) match the rest of the page. From the island, `host.openSettings()` brings the user
+there.
 
 ## The SDK
 
