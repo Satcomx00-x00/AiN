@@ -1,7 +1,16 @@
 name: Release
 
-# Manual release: CI gate -> version bump + changelog (git-cliff) -> tag -> x64 builds -> publish.
+# Continuous release: every green CI run on `main` -> plan (Conventional Commits since the last tag)
+# -> version bump + changelog (git-cliff) -> tag -> x64 builds -> publish.
+# Only feat, fix, perf and breaking changes cut a release; docs, ci, chore, refactor… wait for one.
+# The button (workflow_dispatch) forces a release, or a given bump (e.g. `major` for 1.0.0).
 on:
+  # Safe despite zizmor's warning: only push runs on this repository's `main` get through (see
+  # `plan`), and nothing from the triggering run (artifacts, untrusted inputs) is used.
+  workflow_run: # zizmor: ignore[dangerous-triggers]
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
     inputs:
       bump:
@@ -22,48 +31,92 @@ env:
   BUN_VERSION: "1.3.14"
 
 jobs:
+  plan:
+    name: Plan release
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-latest
+    outputs:
+      release: ${{ steps.plan.outputs.release }}
+      sha: ${{ steps.plan.outputs.sha }}
+      tag: ${{ steps.plan.outputs.tag }}
+      version: ${{ steps.plan.outputs.version }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2
+        with:
+          tool: git-cliff
+
+      - name: Decide whether and what to release
+        id: plan
+        env:
+          BUMP: ${{ inputs.bump || 'auto' }}
+          FORCED: ${{ github.event_name == 'workflow_dispatch' }}
+        run: |
+          sha="$(git rev-parse HEAD)"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          skip() { echo "release=false" >> "$GITHUB_OUTPUT"; echo "No release: $1" >> "$GITHUB_STEP_SUMMARY"; exit 0; }
+
+          # Pushes that land while CI runs queue up here: only the newest commit is released, and it
+          # carries the older ones. (A release from an older commit could not be pushed anyway.)
+          [[ "$(git rev-parse origin/main)" == "$sha" ]] || skip "main has moved past ${sha:0:7}; its own run releases it."
+
+          # git-cliff parses the commits exactly as for the changelog (skipping chore(release), deps…).
+          releasable="$(git cliff --unreleased --context | jq '[.[].commits[]
+            | select(.breaking or (.group | test("Features|Bug fixes|Performance")))] | length')"
+          if [[ "$FORCED" != true && "$releasable" == 0 ]]; then
+            skip "no feat, fix, perf or breaking change since the last release."
+          fi
+
+          tag="$(git cliff --bumped-version --bump "$BUMP")"
+          [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::Unexpected version '$tag'"; exit 1; }
+          git rev-parse -q --verify "refs/tags/$tag" >/dev/null && skip "$tag already exists: nothing new to release."
+          {
+            echo "release=true"
+            echo "tag=$tag"
+            echo "version=${tag#v}"
+          } >> "$GITHUB_OUTPUT"
+          echo "Releasing **$tag** ($releasable releasable commits)" >> "$GITHUB_STEP_SUMMARY"
+
+  # A forced release did not come out of a CI run: run it now, as a gate.
   ci:
     name: CI
+    needs: plan
+    if: github.event_name == 'workflow_dispatch' && needs.plan.outputs.release == 'true'
     # Not yet the newer `$/` self-repository syntax: actionlint (1.7.12) predates it.
     uses: ./.github/workflows/ci.yml # zizmor: ignore[self-repository]
 
   prepare:
     name: Prepare release
-    needs: ci
-    if: github.ref == 'refs/heads/main'
+    needs: [plan, ci]
+    # `ci` is skipped when this run comes from a green CI run.
+    if: >-
+      !cancelled() && needs.plan.outputs.release == 'true' &&
+      (needs.ci.result == 'success' || needs.ci.result == 'skipped')
     runs-on: ubuntu-latest
     permissions:
       contents: write
     outputs:
-      tag: ${{ steps.version.outputs.tag }}
       release_id: ${{ steps.release.outputs.id }}
     steps:
       # Keeps the token: this job pushes the release commit and tag.
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5 # zizmor: ignore[artipacked]
         with:
+          ref: ${{ needs.plan.outputs.sha }}
           fetch-depth: 0
       - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2
         with:
           tool: git-cliff
 
-      - name: Compute next version
-        id: version
-        env:
-          BUMP: ${{ inputs.bump }}
-        run: |
-          tag="$(git cliff --bumped-version --bump "$BUMP")"
-          [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::Unexpected version '$tag'"; exit 1; }
-          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
-            echo "::error::Tag $tag already exists — no releasable commits since the last release?"
-            exit 1
-          fi
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
-          echo "Releasing $tag" >> "$GITHUB_STEP_SUMMARY"
-
       - name: Bump versions
         env:
-          VERSION: ${{ steps.version.outputs.version }}
+          VERSION: ${{ needs.plan.outputs.version }}
         run: |
           cd widget-island
           jq --arg v "$VERSION" '.version = $v' package.json > package.json.tmp && mv package.json.tmp package.json
@@ -74,12 +127,14 @@ jobs:
 
       - name: Update CHANGELOG.md
         env:
-          TAG: ${{ steps.version.outputs.tag }}
+          TAG: ${{ needs.plan.outputs.tag }}
         run: git cliff --tag "$TAG" --output CHANGELOG.md
 
+      # Pushed with the workflow token, so the release commit starts no new CI or Release run.
+      # Atomic: if main moved meanwhile, neither the commit nor the tag lands.
       - name: Commit, tag and push
         env:
-          TAG: ${{ steps.version.outputs.tag }}
+          TAG: ${{ needs.plan.outputs.tag }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -92,7 +147,7 @@ jobs:
         id: release
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ steps.version.outputs.tag }}
+          TAG: ${{ needs.plan.outputs.tag }}
         run: |
           git cliff --latest --strip all --output RELEASE_NOTES.md
           gh release create "$TAG" --draft --verify-tag --title "AiN $TAG" --notes-file RELEASE_NOTES.md
@@ -100,7 +155,7 @@ jobs:
 
   build:
     name: Build (${{ matrix.name }})
-    needs: prepare
+    needs: [plan, prepare]
     permissions:
       contents: write
     strategy:
@@ -122,7 +177,7 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
-          ref: ${{ needs.prepare.outputs.tag }}
+          ref: ${{ needs.plan.outputs.tag }}
           persist-credentials: false
       - name: Install Linux system dependencies
         if: runner.os == 'Linux'
@@ -159,12 +214,12 @@ jobs:
 
   publish:
     name: Publish release
-    needs: [prepare, build]
+    needs: [plan, build]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ needs.prepare.outputs.tag }}
+          TAG: ${{ needs.plan.outputs.tag }}
         run: gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --latest

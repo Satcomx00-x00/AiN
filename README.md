@@ -182,13 +182,17 @@ Every push to `main` and every pull request runs:
   committed TypeScript bindings match the Rust code
 - an AppImage build, uploaded as a workflow artifact
 
-Releases are cut from the **Actions → Release → Run workflow** button on `main`:
+Releases are continuous: every green CI run on `main` (a merged pull request, a push) can cut one.
 
-1. CI runs as a gate.
-2. git-cliff derives the next version from the commits since the last tag (or the bump you pick), updates
+1. git-cliff reads the Conventional Commits since the last tag. Only `feat`, `fix`, `perf` and breaking changes
+   (`feat!:`, `BREAKING CHANGE:`) release; `docs`, `ci`, `chore`, `refactor`, `test`… wait for the next one.
+2. It derives the bump (pre-1.0: a feature or a breaking change bumps the minor, anything else the patch), updates
    `package.json`, `Cargo.toml`, `Cargo.lock` and `CHANGELOG.md`, commits `chore(release): vX.Y.Z` and pushes the tag.
 3. The app is built for Windows, Linux and macOS (x64).
 4. The release is published with the changelog section as its notes.
+
+Commits merged while CI runs are released together, by the run of the newest one. To release anyway, or to pick
+the bump (`major` for 1.0.0), use **Actions → Release → Run workflow** on `main`: CI then runs first, as a gate.
 
 If a build fails, the release stays a draft: fix the cause and re-run the failed jobs.
 
