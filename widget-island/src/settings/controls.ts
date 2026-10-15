@@ -1,5 +1,7 @@
 import { button, h, icon } from "../core/dom";
+import { hexToHsv, hsvToHex, parseHex } from "../core/color";
 import type { Field } from "../core/options";
+import type { Theme } from "../core/themes";
 
 const X = `<path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/>`;
 
@@ -47,6 +49,118 @@ export function rangeControl(
   });
   paint();
   return h("div", { class: "range-wrap" }, input, out);
+}
+
+/**
+ * Any color: a saturation/brightness square, a hue slider and the hex code.
+ * The swatch opens the palette; `fallback` is what "Theme color" goes back to.
+ */
+export function colorPicker(value: string, fallback: string, onChange: (v: string) => void, label: string): HTMLElement {
+  let [hue, sat, val] = hexToHsv(value);
+  const swatch = button("", () => {
+    panel.hidden = !panel.hidden;
+    swatch.setAttribute("aria-expanded", String(!panel.hidden));
+  }, { class: "cp-swatch", "aria-label": `${label}: open the palette`, "aria-expanded": "false", title: "Open the palette" });
+  const hex = h("input", { class: "cp-hex", type: "text", maxlength: "7", spellcheck: "false", "aria-label": `${label}, hex code` });
+  const reset = button("Theme color", () => setHex(fallback), { class: "secondary" });
+  const knob = h("i", { class: "cp-knob" });
+  const area = h("div", { class: "cp-area", tabindex: "0", role: "slider", "aria-label": `${label}: saturation and brightness` }, knob);
+  const hueInput = h("input", { class: "cp-hue", type: "range", min: "0", max: "359", step: "1", "aria-label": `${label}: hue` });
+  const panel = h("div", { class: "cp-panel" }, area, hueInput);
+  panel.hidden = true;
+
+  const paint = (): string => {
+    const color = hsvToHex([hue, sat, val]);
+    swatch.style.setProperty("--swatch", color);
+    area.style.setProperty("--hue", String(Math.round(hue)));
+    knob.style.left = `${sat * 100}%`;
+    knob.style.top = `${(1 - val) * 100}%`;
+    knob.style.background = color;
+    area.setAttribute("aria-valuetext", color);
+    hueInput.value = String(Math.round(hue));
+    if (document.activeElement !== hex) hex.value = color;
+    reset.hidden = color === fallback;
+    return color;
+  };
+  const emit = () => onChange(paint());
+  const setHex = (color: string) => {
+    [hue, sat, val] = hexToHsv(color);
+    hex.value = color;
+    emit();
+  };
+
+  const clamp = (n: number) => Math.min(1, Math.max(0, n));
+  const pick = (e: PointerEvent) => {
+    const r = area.getBoundingClientRect();
+    sat = clamp((e.clientX - r.left) / r.width);
+    val = 1 - clamp((e.clientY - r.top) / r.height);
+    emit();
+  };
+  area.addEventListener("pointerdown", (e) => {
+    area.focus();
+    try {
+      area.setPointerCapture(e.pointerId);
+    } catch {
+      // Not a live pointer (a synthetic event): still pick where it landed.
+    }
+    pick(e);
+  });
+  area.addEventListener("pointermove", (e) => {
+    if (area.hasPointerCapture(e.pointerId)) pick(e);
+  });
+  area.addEventListener("keydown", (e) => {
+    const step = e.shiftKey ? 0.1 : 0.02;
+    const moves: Record<string, () => void> = {
+      ArrowLeft: () => (sat = clamp(sat - step)),
+      ArrowRight: () => (sat = clamp(sat + step)),
+      ArrowUp: () => (val = clamp(val + step)),
+      ArrowDown: () => (val = clamp(val - step)),
+    };
+    const move = moves[e.key];
+    if (!move) return;
+    e.preventDefault();
+    move();
+    emit();
+  });
+  hueInput.addEventListener("input", () => {
+    hue = hueInput.valueAsNumber;
+    emit();
+  });
+  hex.addEventListener("input", () => {
+    const color = parseHex(hex.value);
+    if (!color) return;
+    [hue, sat, val] = hexToHsv(color);
+    emit();
+  });
+  hex.addEventListener("change", () => {
+    hex.value = paint();
+  });
+  paint();
+  return h("div", { class: "cp" }, h("div", { class: "cp-row" }, swatch, hex, reset), panel);
+}
+
+/** The built-in themes as tiles, each previewing its background, text and colors. */
+export function themeGrid(themes: readonly Theme[], current: string, onPick: (theme: Theme) => void): HTMLElement {
+  return h(
+    "div",
+    { class: "themes", role: "radiogroup", "aria-label": "Theme" },
+    ...themes.map((th) => {
+      const tile = button(
+        h(
+          "span",
+          { class: "theme-preview" },
+          h("span", { class: "theme-aa" }, "Aa"),
+          h("span", { class: "theme-dots" }, ...[th.accent, th.ok, th.warn, th.hot].map((c) => h("i", { style: `background:${c}` }))),
+        ),
+        () => onPick(th),
+        { class: "theme-tile", role: "radio", "aria-checked": String(th.id === current), title: th.name },
+      );
+      tile.style.setProperty("--t-bg", th.bg);
+      tile.style.setProperty("--t-fg", th.fg);
+      tile.append(h("span", { class: "theme-name" }, th.name));
+      return tile;
+    }),
+  );
 }
 
 export function segmented(

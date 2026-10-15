@@ -1,3 +1,5 @@
+import { isLight } from "./color";
+import { palette, themeById } from "./themes";
 import { animates, button, h, icon } from "./dom";
 import { EAR, EXPANDED, frame, sizeFor } from "./geometry";
 import { glanceSlot } from "./glance";
@@ -8,7 +10,10 @@ import type { AnyPlugin, Host, Mounted, Plugin } from "./plugin";
 import { ticker } from "./scheduler";
 import type { Settings } from "./settings";
 import { type Tabs, tabs } from "./tabs";
-import type { Size, WindowPort } from "./window";
+import type { Island, Size, WindowPort } from "./window";
+
+/** The island as the settings shape it: the chosen width, unless a hardware notch dictates it. */
+export const shaped = (i: Island, general: Settings["general"]): Island => (i.hasNotch ? i : { ...i, width: general.pillWidth });
 
 /** Lucide's "settings" cog (ISC), drawn on a 24 grid and scaled into our 16 px icons. */
 const GEAR = `<g transform="scale(0.6667)" stroke-width="2.25"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></g>`;
@@ -59,8 +64,9 @@ export async function mount<S>(
   openSettings?: () => void,
   saveOptions?: (pluginId: string, patch: Readonly<Record<string, unknown>>) => void,
 ): Promise<IslandHandle> {
-  const i = await win.island();
+  const hardware = await win.island();
   let settings = initial;
+  let i = shaped(hardware, initial.general);
   // Plugins may push updates before the beat exists; those land on the first beat anyway.
   let refresh = () => {};
   const hostFor = (plugin: AnyPlugin): Host<never> => ({
@@ -76,10 +82,18 @@ export async function mount<S>(
   el.dataset.open = "false";
   el.style.setProperty("--ear", `${EAR}px`);
   el.style.setProperty("--glance-h", `${i.height}px`);
-  // Panel content is laid out once at its final size; the pill only reveals it, so nothing reflows mid-animation.
-  el.style.setProperty("--panel-w", `${sizeFor(true, i).width}px`);
   el.style.setProperty("--panel-h", `${EXPANDED.height}px`);
-  const canvas = frame(sizeFor(true, i), true);
+  let canvas = frame(sizeFor(true, i), true);
+  const reshape = () => {
+    // Panel content is laid out once at its final size; the pill only reveals it, so nothing reflows mid-animation.
+    el.style.setProperty("--panel-w", `${sizeFor(true, i).width}px`);
+    el.style.setProperty("--curve", String(settings.general.pillCurve / 100));
+    const { theme, pillColor, accentColor } = settings.general;
+    for (const [name, value] of Object.entries(palette(themeById(theme), pillColor, accentColor))) el.style.setProperty(name, value);
+    el.dataset.tone = isLight(settings.general.pillColor) ? "light" : "dark";
+    canvas = frame(sizeFor(true, i), true);
+  };
+  reshape();
   let open = false;
   // A glance may widen the collapsed pill into a live activity (music, a volume change…).
   let wide = false;
@@ -128,6 +142,15 @@ export async function mount<S>(
 
   const configure = (next: Settings) => {
     settings = next;
+    const nextShape = shaped(hardware, next.general);
+    const resized = nextShape.width !== i.width;
+    i = nextShape;
+    reshape();
+    if (resized) {
+      const s = sizeFor(open, i, wide);
+      apply(s);
+      void win.layout(canvas, frame(s, open));
+    }
     const loaded = load(catalogue, next.layout, services, hostFor, mounted);
     const placed = place(mounted, next.layout);
     for (const p of [...loaded.problems, ...placed.problems]) console.warn(`[island] ${p}`);

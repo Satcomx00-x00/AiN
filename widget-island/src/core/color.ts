@@ -1,3 +1,45 @@
+/** "#rrggbb", as the color settings store it. */
+export const isHex = (v: unknown): v is string => typeof v === "string" && /^#[0-9a-f]{6}$/i.test(v);
+
+/** Whether dark text reads better than light text on this "#rrggbb" color (WCAG relative luminance). */
+export const isLight = (hex: string): boolean => {
+  const channel = (i: number) => {
+    const c = parseInt(hex.slice(i, i + 2), 16) / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * channel(1) + 0.7152 * channel(3) + 0.0722 * channel(5) > 0.18;
+};
+
+/** Hue 0–360, saturation and value 0–1, as a color picker shows them. */
+export type Hsv = readonly [h: number, s: number, v: number];
+
+export const hexToHsv = (hex: string): Hsv => {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255) as [number, number, number];
+  const max = Math.max(r, g, b);
+  const d = max - Math.min(r, g, b);
+  const h = d === 0 ? 0 : max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return [(h * 60 + 360) % 360, max === 0 ? 0 : d / max, max];
+};
+
+export const hsvToHex = ([h, s, v]: Hsv): string => {
+  const f = (n: number) => {
+    const k = (n + h / 60) % 6;
+    const c = v - v * s * Math.max(0, Math.min(k, 4 - k, 1));
+    return Math.round(c * 255)
+      .toString(16)
+      .padStart(2, "0");
+  };
+  return `#${f(5)}${f(3)}${f(1)}`;
+};
+
+/** "#rrggbb" from what someone typed ("0A84FF", "#0a84ff", "#08f"), or null. */
+export const parseHex = (typed: string): string | null => {
+  const raw = typed.trim().replace(/^#/, "").toLowerCase();
+  if (/^[0-9a-f]{6}$/.test(raw)) return `#${raw}`;
+  if (/^[0-9a-f]{3}$/.test(raw)) return `#${[...raw].map((c) => c + c).join("")}`;
+  return null;
+};
+
 /** Hue 0–360, saturation and lightness 0–1. */
 export type Hsl = readonly [h: number, s: number, l: number];
 

@@ -4,10 +4,11 @@ import { button, h, icon } from "../core/dom";
 import { resolve } from "../core/options";
 import type { Layout } from "../core/placement";
 import type { AnyPlugin } from "../core/plugin";
-import { DELAY_RANGE, type General, type Settings, type SettingsPort, defaults, memorySettings, parseSettings, tauriSettings } from "../core/settings";
+import { CURVE_RANGE, DELAY_RANGE, type General, WIDTH_RANGE, type Settings, type SettingsPort, defaults, memorySettings, parseSettings, tauriSettings } from "../core/settings";
 import { layout as defaultLayout } from "../layout";
 import { catalogue } from "../plugins";
-import { field, optionControl, rangeControl, switchControl } from "./controls";
+import { THEMES, themeById } from "../core/themes";
+import { colorPicker, field, optionControl, rangeControl, switchControl, themeGrid } from "./controls";
 import { slotList } from "./slots";
 
 const SAVE_DELAY = 250;
@@ -22,6 +23,10 @@ const entries = commandsOf(plugins);
 let failures: Record<string, string> = {};
 
 const SECTIONS = {
+  appearance: {
+    label: "Appearance",
+    icon: `<path d="M8 1.75a6.25 6.25 0 1 0 0 12.5c.9 0 1.4-.6 1.4-1.3 0-.9-.8-1.2-.8-2 0-.7.6-1.2 1.3-1.2h1.5a2.85 2.85 0 0 0 2.85-2.85C14.25 4.1 11.45 1.75 8 1.75z"/><circle cx="4.9" cy="7.4" r=".9"/><circle cx="7.2" cy="4.7" r=".9"/><circle cx="10.4" cy="5.2" r=".9"/>`,
+  },
   general: { label: "General", icon: `<path d="M3 4.5h10M3 11.5h10"/><circle cx="6" cy="4.5" r="1.75"/><circle cx="10.5" cy="11.5" r="1.75"/>` },
   layout: { label: "Layout", icon: `<rect x="2.5" y="3" width="11" height="10" rx="2"/><path d="M2.5 7h11M7 7v6"/>` },
   shortcuts: { label: "Shortcuts", icon: `<rect x="1.75" y="4" width="12.5" height="8" rx="1.75"/><path d="M4.5 6.75h.01M7 6.75h.01M9.5 6.75h.01M12 6.75h-.5M5 9.5h6"/>` },
@@ -63,7 +68,12 @@ function commit(next: Settings, redraw = false) {
 }
 
 const setLayout = (layout: Layout) => commit({ ...settings, layout }, true);
-const setGeneral = (patch: Partial<General>) => commit({ ...settings, general: { ...settings.general, ...patch } });
+const setGeneral = (patch: Partial<General>, redraw = false) => {
+  commit({ ...settings, general: { ...settings.general, ...patch } }, redraw);
+  paintAccent();
+};
+/** The settings window takes the island's accent too. */
+const paintAccent = () => document.documentElement.style.setProperty("--accent", settings.general.accentColor);
 const setShortcut = (id: string, value: string | null) => commit({ ...settings, shortcuts: { ...settings.shortcuts, [id]: value } }, true);
 const resetShortcut = (id: string) => {
   const { [id]: _, ...rest } = settings.shortcuts;
@@ -101,6 +111,51 @@ function general(): Node[] {
         "Close after leaving",
         "Grace time before it folds back once the pointer leaves.",
         rangeControl(settings.general.closeDelay, { ...DELAY_RANGE, unit: "ms" }, (v) => setGeneral({ closeDelay: v }), "Close delay"),
+      ),
+    ),
+  ];
+}
+
+function appearance(): Node[] {
+  const theme = themeById(settings.general.theme);
+  return [
+    ...header("Appearance", "Colors and shape of the island. Choosing a theme below sets every color at once; fine-tune them here. Changes apply right away."),
+    h(
+      "section",
+      { class: "card" },
+      field(
+        "Pill color",
+        "The background of the pill and the open island. Click the swatch for the palette, or type a hex code. On a light color the text turns dark.",
+        colorPicker(settings.general.pillColor, theme.bg, (v) => setGeneral({ pillColor: v }), "Pill color"),
+      ),
+      field(
+        "Accent color",
+        "Buttons, progress bars and highlights, in the island and in this window.",
+        colorPicker(settings.general.accentColor, theme.accent, (v) => setGeneral({ accentColor: v }), "Accent color"),
+      ),
+    ),
+    h(
+      "section",
+      { class: "card" },
+      field(
+        "Pill width",
+        "How wide the folded pill is. The open island never gets narrower than its panel.",
+        rangeControl(settings.general.pillWidth, { ...WIDTH_RANGE, unit: "px" }, (v) => setGeneral({ pillWidth: v }), "Pill width"),
+      ),
+      field(
+        "Corner curve",
+        "How round the bottom corners are: 100 % is a full pill, 0 % square corners.",
+        rangeControl(settings.general.pillCurve, { ...CURVE_RANGE, unit: "%" }, (v) => setGeneral({ pillCurve: v }), "Corner curve"),
+      ),
+    ),
+    h(
+      "section",
+      { class: "card" },
+      field(
+        "Theme",
+        `${theme.name}. A theme sets the pill and accent colors, the text, and the status colors (done, warning, recording…).`,
+        themeGrid(THEMES, theme.id, (th) => setGeneral({ theme: th.id, pillColor: th.bg, accentColor: th.accent }, true)),
+        true,
       ),
     ),
   ];
@@ -270,7 +325,7 @@ function about(): Node[] {
   ];
 }
 
-const RENDER: Record<Section, () => Node[]> = { general, layout, shortcuts, widgets, about };
+const RENDER: Record<Section, () => Node[]> = { appearance, general, layout, shortcuts, widgets, about };
 
 function render() {
   for (const b of nav.querySelectorAll<HTMLButtonElement>("button[data-section]")) {
@@ -309,5 +364,6 @@ void store.watch((raw) => {
   const next = parseSettings(raw, fallback);
   if (JSON.stringify(next) === JSON.stringify(settings) && content.childElementCount) return;
   settings = next;
+  paintAccent();
   render();
 });

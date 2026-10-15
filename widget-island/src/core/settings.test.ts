@@ -52,6 +52,18 @@ describe("settings", () => {
     expect(s.layout).toEqual(layout);
   });
 
+  it("keeps the pill's shape within range", () => {
+    expect(parseSettings({ general: { pillWidth: 320, pillCurve: 40 } }, fallback).general).toMatchObject({ pillWidth: 320, pillCurve: 40 });
+    expect(parseSettings({ general: { pillWidth: 5000, pillCurve: -1 } }, fallback).general).toEqual(DEFAULT_GENERAL);
+  });
+
+  it("keeps valid colors, lowercased", () => {
+    expect(parseSettings({ general: { pillColor: "#1C1C1E", accentColor: "red" } }, fallback).general).toMatchObject({
+      pillColor: "#1c1c1e",
+      accentColor: DEFAULT_GENERAL.accentColor,
+    });
+  });
+
   it("removes duplicate ids in a placement", () =>
     expect(parseSettings({ layout: { glance: { left: ["clock", "clock"], right: [] }, tabs: [] } }, fallback).layout.glance.left).toEqual(["clock"]));
 
@@ -104,5 +116,43 @@ describe("folder option", () => {
     const fields = { dir: folder("Model folder") };
     expect(resolve(fields, { dir: "  D:\\Models " })).toEqual({ dir: "D:\\Models" });
     expect(resolve(fields, { dir: 3 })).toEqual({ dir: "" });
+  });
+});
+
+describe("pill color", () => {
+  it("picks dark text only for light colors", async () => {
+    const { isLight } = await import("./color");
+    expect(isLight("#000000")).toBe(false);
+    expect(isLight("#0b1a33")).toBe(false);
+    expect(isLight("#f2f2f7")).toBe(true);
+    expect(isLight("#ffd60a")).toBe(true);
+  });
+});
+
+describe("themes and the color picker", () => {
+  it("converts colors to the picker's terms and back", async () => {
+    const { hexToHsv, hsvToHex, parseHex } = await import("./color");
+    for (const c of ["#000000", "#ffffff", "#0a84ff", "#ff375f", "#7aa2f7", "#272822"]) expect(hsvToHex(hexToHsv(c))).toBe(c);
+    expect(hexToHsv("#ff0000")).toEqual([0, 1, 1]);
+    expect(parseHex(" 0A84FF ")).toBe("#0a84ff");
+    expect(parseHex("#08f")).toBe("#0088ff");
+    expect(parseHex("blue")).toBeNull();
+  });
+
+  it("lists valid, distinct themes", async () => {
+    const { THEMES, themeById } = await import("./themes");
+    const { isHex } = await import("./color");
+    expect(new Set(THEMES.map((t) => t.id)).size).toBe(THEMES.length);
+    for (const t of THEMES) for (const c of [t.bg, t.fg, t.accent, t.ok, t.warn, t.hot, t.done]) expect(isHex(c), `${t.id} ${c}`).toBe(true);
+    expect(themeById("tokyo-night").name).toBe("Tokyo Night");
+    expect(themeById("gone").id).toBe("island");
+  });
+
+  it("keeps the theme's text color only where it stays readable", async () => {
+    const { palette, themeById } = await import("./themes");
+    const monokai = themeById("monokai");
+    expect(palette(monokai, "#1e1e1e", "#66d9ef")["--fg"]).toBe(monokai.fg);
+    expect(palette(monokai, "#f2f2f7", "#66d9ef")["--fg"]).toBe("#1c1c1e");
+    expect(palette(monokai, "#272822", "#ffcc66")["--on-accent"]).toBe("#1c1c1e");
   });
 });

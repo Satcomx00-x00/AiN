@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { z } from "zod";
+import { isHex } from "./color";
 import { follow } from "./live";
 import type { Layout } from "./placement";
 
@@ -8,6 +9,16 @@ export interface General {
   readonly openDelay: number;
   /** Grace time before it closes after the pointer leaves. */
   readonly closeDelay: number;
+  /** Width of the folded pill, in px (a hardware notch sets its own). */
+  readonly pillWidth: number;
+  /** How round the pill's bottom corners are, in % of fully round. */
+  readonly pillCurve: number;
+  /** Built-in color theme (see core/themes.ts); it gives the text and status colors. */
+  readonly theme: string;
+  /** Background of the pill and the open island, "#rrggbb"; the text color follows its lightness. */
+  readonly pillColor: string;
+  /** Buttons, progress bars and highlights, "#rrggbb". */
+  readonly accentColor: string;
 }
 
 export interface Settings {
@@ -48,13 +59,22 @@ export function adopt(layout: Layout, fallback: Layout, seen: readonly string[])
   };
 }
 
-export const DEFAULT_GENERAL: General = { openDelay: 140, closeDelay: 260 };
+export const DEFAULT_GENERAL: General = { openDelay: 140, closeDelay: 260, pillWidth: 200, pillCurve: 100, theme: "island", pillColor: "#000000", accentColor: "#0a84ff" };
 export const DELAY_RANGE = { min: 0, max: 1000, step: 20 } as const;
+export const WIDTH_RANGE = { min: 120, max: 480, step: 10 } as const;
+export const CURVE_RANGE = { min: 0, max: 100, step: 5 } as const;
 
 export const defaults = (layout: Layout): Settings => ({ version: 1, layout, general: DEFAULT_GENERAL, options: {}, shortcuts: {}, seen: placed(layout) });
 
 const ids = z.array(z.string()).transform((list) => [...new Set(list)]);
-const delay = (fallback: number) => z.number().int().min(DELAY_RANGE.min).max(DELAY_RANGE.max).catch(fallback);
+const within = (range: { min: number; max: number }) => (fallback: number) => z.number().int().min(range.min).max(range.max).catch(fallback);
+const delay = within(DELAY_RANGE);
+const color = (fallback: string) =>
+  z
+    .string()
+    .refine(isHex)
+    .transform((c) => c.toLowerCase())
+    .catch(fallback);
 
 /** Reads whatever is stored, keeping every valid part and filling the rest from `fallback`. */
 export function parseSettings(raw: unknown, fallback: Settings): Settings {
@@ -65,7 +85,15 @@ export function parseSettings(raw: unknown, fallback: Settings): Settings {
       .object({ glance: z.object({ left: ids, right: ids }), tabs: ids })
       .catch(() => ({ glance: { left: [...layout.glance.left], right: [...layout.glance.right] }, tabs: [...layout.tabs] })),
     general: z
-      .object({ openDelay: delay(fallback.general.openDelay), closeDelay: delay(fallback.general.closeDelay) })
+      .object({
+        openDelay: delay(fallback.general.openDelay),
+        closeDelay: delay(fallback.general.closeDelay),
+        pillWidth: within(WIDTH_RANGE)(fallback.general.pillWidth),
+        pillCurve: within(CURVE_RANGE)(fallback.general.pillCurve),
+        theme: z.string().min(1).catch(fallback.general.theme),
+        pillColor: color(fallback.general.pillColor),
+        accentColor: color(fallback.general.accentColor),
+      })
       .catch(fallback.general),
     options: z.record(z.string(), z.record(z.string(), z.unknown())).catch(fallback.options),
     shortcuts: z.record(z.string(), z.string().min(1).nullable()).catch(fallback.shortcuts),

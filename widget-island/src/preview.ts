@@ -10,10 +10,13 @@
  *   &pins        pins several volume sources
  *   &pick        opens the volume tab's source list
  *   &dictate     pretends to be dictating; &dictate=missing|downloading shows the model download instead
+ *   &width=<px>  pill width; &curve=<0-100> corner curve; &bg=<hex> / &accent=<hex> colors (without #)
+ *   &theme=<id>  a built-in theme (core/themes.ts)
  */
 import { start } from "./app";
 import { idlePopup } from "./core/commands";
 import { defaults, memorySettings } from "./core/settings";
+import { themeById } from "./core/themes";
 import { layout } from "./layout";
 import type { Services } from "./services";
 import type { WindowPort } from "./core/window";
@@ -163,6 +166,25 @@ const root = document.querySelector<HTMLElement>("#island");
 const store = memorySettings();
 // `&pins`: pin a few sources, to see the mixer with several rows.
 if (params.has("pins")) await store.save({ ...defaults(layout), options: { volume: { pinned: ["Speakers", "SteelSeries Sonar - Chat", "Spotify", "Discord"] } } });
+// `&width` / `&curve`: the pill's shape settings.
+if (["width", "curve", "bg", "accent", "theme"].some((p) => params.has(p))) {
+  const base = defaults(layout);
+  const hex = (p: string, fallback: string) => (params.has(p) ? `#${params.get(p)}` : fallback);
+  const general = {
+    ...base.general,
+    pillWidth: Number(params.get("width") ?? base.general.pillWidth),
+    pillCurve: Number(params.get("curve") ?? base.general.pillCurve),
+    pillColor: hex("bg", base.general.pillColor),
+    accentColor: hex("accent", base.general.accentColor),
+  };
+  // `&theme=<id>`: a built-in theme, with its own pill and accent colors unless &bg / &accent say otherwise.
+  const theme = params.get("theme");
+  if (theme) {
+    const th = themeById(theme);
+    Object.assign(general, { theme: th.id, pillColor: hex("bg", th.bg), accentColor: hex("accent", th.accent) });
+  }
+  await store.save({ ...base, general });
+}
 if (root) await start(root, fake, fakeWindow, store, idlePopup);
 
 const tab = params.get("open");
