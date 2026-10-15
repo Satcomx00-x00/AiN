@@ -1,6 +1,6 @@
 import { isLight } from "../sdk/color";
 import { palette, themeById } from "./themes";
-import { animates, button, h, icon } from "../sdk/dom";
+import { animates, button, h, icon, reducedMotion } from "../sdk/dom";
 import { EAR, EXPANDED, frame, sizeFor } from "./geometry";
 import { glanceSlot } from "./glance";
 import { intent } from "./intent";
@@ -8,6 +8,7 @@ import { type Fields, resolve } from "../sdk/options";
 import { type Layout, type Placement, pickFrom, place, placedIds } from "./placement";
 import type { AnyPlugin, Host, Mounted, Plugin } from "../sdk/plugin";
 import { POWER, armedButton } from "./quit";
+import { hello } from "./hello";
 import { ticker } from "./scheduler";
 import type { Settings } from "./settings";
 import { type Tabs, tabs } from "./tabs";
@@ -212,10 +213,13 @@ export async function mount<S>(
   await win.layout(canvas, frame(sizeFor(false, i)));
 
   beat.start();
-  el.addEventListener("pointerenter", hover.enter);
-  el.addEventListener("pointerleave", hover.leave);
-  el.addEventListener("click", () => hover.set(true));
-  document.documentElement.addEventListener("mouseleave", hover.leave);
-  window.addEventListener("blur", () => hover.set(false));
+  // Say hello: the pill drops in and greets, then the glances show. Hovering waits for it.
+  void hello(el, sizeFor(false, i), !reducedMotion()).then(() => {
+    el.addEventListener("pointerenter", hover.enter);
+    el.addEventListener("pointerleave", hover.leave);
+    el.addEventListener("click", () => hover.set(true));
+    document.documentElement.addEventListener("mouseleave", hover.leave);
+    window.addEventListener("blur", () => hover.set(false));
+  });
   return { configure };
 }
