@@ -17,6 +17,7 @@
     "settings:allow-get",
     "settings:allow-open",
     "settings:allow-set",
+    "settings:allow-quit",
     "popup:allow-bind",
     "extensions:allow-list"
   ]

@@ -30,7 +30,7 @@ pub fn init() -> TauriPlugin<Wry> {
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| match event.id().as_ref() {
                     SETTINGS => _ = settings::show(app, None),
-                    QUIT => app.exit(0),
+                    QUIT => settings::quit_app(app),
                     _ => {}
                 })
                 .on_tray_icon_event(|tray, event| {

@@ -14,10 +14,6 @@ export const commands = {
 	 *  callback; creating it inside one deadlocks on Windows.
 	 */
 	open: (target: string | null) => __TAURI_INVOKE<null>("plugin:settings|open", { target }),
-	/**
-	 *  Quits the app entirely: every window closes, the tray icon goes, shortcuts are released and the
-	 *  process ends (background threads with it; helper processes are tied to it, see `platform`).
-	 */
 	quit: () => __TAURI_INVOKE<void>("plugin:settings|quit"),
 	autostart: () => __TAURI_INVOKE<boolean>("plugin:settings|autostart"),
 	setAutostart: (enabled: boolean) => __TAURI_INVOKE<null>("plugin:settings|set_autostart", { enabled }),

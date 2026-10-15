@@ -94,12 +94,24 @@ async fn open(app: AppHandle, target: Option<String>) -> Res<()> {
     show(&app, target.as_deref())
 }
 
+/// How long quitting may take before the process is ended outright.
+const QUIT_GRACE: std::time::Duration = std::time::Duration::from_secs(3);
+
 /// Quits the app entirely: every window closes, the tray icon goes, shortcuts are released and the
 /// process ends (background threads with it; helper processes are tied to it, see `platform`).
+/// If anything holds the event loop up, the process still ends after `QUIT_GRACE`.
+pub fn quit_app(app: &AppHandle) {
+    let _ = std::thread::Builder::new().name("quit-deadline".into()).spawn(|| {
+        std::thread::sleep(QUIT_GRACE);
+        std::process::exit(0);
+    });
+    app.exit(0);
+}
+
 #[tauri::command]
 #[specta::specta]
 fn quit(app: AppHandle) {
-    app.exit(0);
+    quit_app(&app);
 }
 
 #[tauri::command]
@@ -170,6 +182,28 @@ mod tests {
         fs::write(&path, "{ not json").unwrap();
         assert_eq!(read(&path), Value::Null);
         fs::remove_dir_all(dir).unwrap();
+    }
+
+    /// The permissions a window's capability file grants, e.g. "settings:allow-quit".
+    fn granted(capability: &str) -> Vec<String> {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("capabilities").join(format!("{capability}.json"));
+        let json: Value = serde_json::from_str(&fs::read_to_string(path).unwrap()).unwrap();
+        json["permissions"].as_array().unwrap().iter().filter_map(|p| p.as_str().map(str::to_string)).collect()
+    }
+
+    /// Every settings command the island's page calls (shell/windows/island) must be allowed for
+    /// its window, or the call is refused at runtime with only a console message to show for it.
+    #[test]
+    fn the_island_may_call_the_settings_commands_it_uses() {
+        let island = granted("default");
+        for command in ["get", "set", "open", "quit"] {
+            assert!(island.contains(&format!("settings:allow-{command}")), "the island can't call settings|{command}");
+        }
+    }
+
+    #[test]
+    fn the_settings_window_may_quit() {
+        assert!(granted("settings").iter().any(|p| p == "settings:default" || p == "settings:allow-quit"));
     }
 
     #[test]
