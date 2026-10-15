@@ -225,8 +225,13 @@ describe("smooth curve", async () => {
 });
 
 describe("dictation", async () => {
-  const { clock, dictationGlance, mb, modelLine } = await import("./dictation");
-  const { ModelSchema, PhaseSchema } = await import("./dictation/api");
+  const { clock, dictationGlance, mb, modelLine, nextModel, shortPath } = await import("./dictation");
+
+  it("shortens long model paths from the start", () => {
+    expect(shortPath("C:/a", 10)).toBe("C:/a");
+    expect(shortPath("C:/Users/me/models", 10)).toBe("…me/models");
+  });
+  const { ModelInfoSchema, ModelSchema, PhaseSchema } = await import("./dictation/api");
   const { catalogue } = await import(".");
   const { bindings } = await import("../core/commands");
 
@@ -239,12 +244,14 @@ describe("dictation", async () => {
   });
 
   it("describes the model download", () => {
-    expect(modelLine({ state: "downloading", received: 335e6, total: 670e6 })).toEqual({
-      title: "Downloading the speech model…",
-      detail: "335 MB of 670 MB",
+    const at = { model: "whisper-small", dir: "D:/Models/whisper-small-int8", installed: [] };
+    expect(modelLine({ ...at, state: "downloading", received: 335e6, total: 670e6 })).toEqual({
+      title: "Whisper small",
+      detail: "Downloading… 335 MB of 670 MB",
       progress: 0.5,
     });
-    expect(modelLine({ state: "missing", size: 670_478_772 }).detail).toContain("670 MB");
+    expect(modelLine({ ...at, state: "missing", size: 375e6 }).detail).toBe("99 languages, a good balance");
+    expect(modelLine({ ...at, model: "gone", state: "ready" }).title).toBe("Parakeet TDT v3");
     expect(mb(0)).toBe("0 MB");
     expect(clock(9)).toBe("0:09");
   });
@@ -252,6 +259,15 @@ describe("dictation", async () => {
   it("parses what the backend sends", () => {
     expect(PhaseSchema.parse({ phase: "needsModel" })).toEqual({ phase: "needsModel" });
     expect(ModelSchema.parse({ state: "ready" })).toEqual({ state: "ready" });
+    const info = { state: "missing", size: 1, model: "parakeet-v3", dir: "D:\\Models", installed: ["whisper-base"] };
+    expect(ModelInfoSchema.parse(info)).toEqual(info);
+  });
+
+  it("cycles through the speech models", () => {
+    expect(nextModel("parakeet-v3", 1)).toBe("parakeet-v2");
+    expect(nextModel("parakeet-v3", -1)).toBe("moonshine-base");
+    expect(nextModel("moonshine-base", 1)).toBe("parakeet-v3");
+    expect(nextModel("gone", 1)).toBe("parakeet-v2");
   });
 
   it("binds its shortcut as an action, with no popup", () => {

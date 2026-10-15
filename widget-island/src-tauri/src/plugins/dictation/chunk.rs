@@ -3,8 +3,6 @@
 
 /// The rate Parakeet expects.
 pub const RATE: u32 = 16_000;
-/// Offline models decode a whole chunk at once; long dictations are split into pieces this long.
-const CHUNK_SECONDS: f32 = 30.0;
 /// Cutting mid-word hurts the transcript, so each cut goes in the quietest spot of the chunk's
 /// last seconds. The window is pause-sized: shorter ones find quiet inside words (plosives).
 const SEARCH_SECONDS: f32 = 5.0;
@@ -52,9 +50,10 @@ pub struct Chunker {
 }
 
 impl Chunker {
-    pub fn new(rate: u32) -> Self {
+    /// Offline models decode a whole chunk at once; long dictations are split into pieces `chunk_seconds` long.
+    pub fn new(rate: u32, chunk_seconds: f32) -> Self {
         let samples = |seconds: f32| (seconds * rate as f32).round() as usize;
-        Self { buffered: Vec::new(), limit: samples(CHUNK_SECONDS).max(1), search: samples(SEARCH_SECONDS), window: samples(WINDOW_SECONDS).max(1) }
+        Self { buffered: Vec::new(), limit: samples(chunk_seconds).max(1), search: samples(SEARCH_SECONDS), window: samples(WINDOW_SECONDS).max(1) }
     }
 
     /// Adds samples; returns the chunks that are now full.
@@ -126,7 +125,7 @@ mod tests {
     #[test]
     fn cuts_long_audio_in_the_quietest_spot() {
         let rate = 100; // 30 s = 3000 samples, search the last 500, 10-sample window.
-        let mut chunker = Chunker::new(rate);
+        let mut chunker = Chunker::new(rate, 30.0);
         let mut audio = vec![0.5_f32; 3200];
         audio[2700..2710].fill(0.0);
         let ready = chunker.push(&audio);
@@ -138,7 +137,7 @@ mod tests {
 
     #[test]
     fn keeps_short_audio_until_flushed() {
-        let mut chunker = Chunker::new(RATE);
+        let mut chunker = Chunker::new(RATE, 30.0);
         assert!(chunker.push(&[0.1; 1600]).is_empty());
         assert_eq!(chunker.flush().map(|r| r.len()), Some(1600));
     }

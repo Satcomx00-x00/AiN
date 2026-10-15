@@ -1,6 +1,7 @@
 //! Dictation: hold or tap a shortcut, speak, and the words are typed where the cursor is.
-//! Speech is recognized on this machine by Parakeet TDT v3 through sherpa-onnx (as Orca does);
-//! nothing leaves the computer. The model (670 MB) is downloaded once, when the user asks.
+//! Speech is recognized on this machine through sherpa-onnx (as Orca does), by the model the user
+//! picks (Parakeet, Whisper, SenseVoice, Moonshine); nothing leaves the computer. Each model is
+//! downloaded once, when the user asks.
 //!
 //! A worker thread owns the microphone stream. While listening it feeds 16 kHz audio to a
 //! decoder thread in 30 s chunks, so long dictations are mostly transcribed by the time they end.
@@ -29,6 +30,46 @@ use super::{live::Live, popup, settings, worker::Worker};
 use crate::Res;
 
 pub use model::Status as ModelStatus;
+
+/// The chosen model's status, the folder it is (or would be) stored in, and which models are downloaded.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct ModelInfo {
+    model: &'static str,
+    dir: String,
+    installed: Vec<&'static str>,
+    #[serde(flatten)]
+    status: ModelStatus,
+}
+
+/// Which model the settings pick, and the models folder it goes in.
+#[derive(Clone, Copy)]
+struct Choice<'a> {
+    base: &'a std::path::Path,
+    model: &'static model::Model,
+}
+
+#[derive(Clone, PartialEq)]
+struct Place {
+    base: PathBuf,
+    model: &'static str,
+}
+
+impl Place {
+    fn read(settings: &serde_json::Value, default: &std::path::Path) -> Self {
+        let option = |key: &str| settings.pointer(&format!("/options/dictation/{key}")).and_then(|v| v.as_str());
+        Self { base: model::base_in(option("modelDir"), default), model: model::find(option("model")).id }
+    }
+
+    fn choice(&self) -> Choice<'_> {
+        Choice { base: &self.base, model: model::find(Some(self.model)) }
+    }
+}
+
+impl Choice<'_> {
+    fn dir(self) -> PathBuf {
+        self.base.join(self.model.folder)
+    }
+}
 
 pub const EVENT: &str = "dictation:state";
 pub const MODEL_EVENT: &str = "dictation:model";
@@ -75,8 +116,11 @@ pub enum Command {
 /// Shared between the commands, the worker and the decoder threads.
 struct Shared {
     phase: Live<Phase>,
-    model: Live<ModelStatus>,
-    dir: PathBuf,
+    model: Live<ModelInfo>,
+    /// Follows the "Speech model" and "Model folder" settings.
+    place: Mutex<Place>,
+    /// The app's own data folder, used when no folder is chosen.
+    default_dir: PathBuf,
     /// Loaded on first use, kept warm, dropped after `KEEP_WARM`.
     #[cfg(windows)]
     recognizer: Mutex<Option<Arc<sherpa_onnx::OfflineRecognizer>>>,
@@ -96,10 +140,34 @@ impl Shared {
         }
     }
 
+    fn place(&self) -> Place {
+        lock(&self.place).clone()
+    }
+
+    fn info(place: &Place, status: ModelStatus) -> ModelInfo {
+        let choice = place.choice();
+        ModelInfo { model: choice.model.id, dir: choice.dir().to_string_lossy().into_owned(), installed: model::installed_in(&place.base), status }
+    }
+
     fn publish_model<R: Runtime>(&self, app: &AppHandle<R>, status: ModelStatus) {
-        if self.model.set(status.clone()) {
-            let _ = app.emit(MODEL_EVENT, status);
+        let info = Self::info(&self.place(), status);
+        if self.model.set(info.clone()) {
+            let _ = app.emit(MODEL_EVENT, info);
         }
+    }
+
+    /// Re-reads the "Speech model" and "Model folder" settings; when they changed, that model is used
+    /// from then on. A download in progress finishes first, then the new choice applies.
+    fn follow_settings<R: Runtime>(&self, app: &AppHandle<R>, settings: &serde_json::Value) {
+        let place = Place::read(settings, &self.default_dir);
+        if *lock(&self.place) == place || self.downloading.load(Ordering::SeqCst) {
+            return;
+        }
+        *lock(&self.place) = place.clone();
+        #[cfg(windows)]
+        lock(&self.recognizer).take();
+        let choice = place.choice();
+        self.publish_model(app, choice.model.status(&choice.dir()));
     }
 }
 
@@ -118,8 +186,20 @@ fn state(dictation: State<'_, Dictation>) -> Phase {
 }
 
 #[tauri::command]
-fn model_status(dictation: State<'_, Dictation>) -> ModelStatus {
+fn model_status(dictation: State<'_, Dictation>) -> ModelInfo {
     dictation.shared.model.get()
+}
+
+/// Shows the model's folder (or the nearest one that exists) in the file manager.
+#[tauri::command]
+async fn open_model_dir(dictation: State<'_, Dictation>) -> Res<()> {
+    let dir = dictation.shared.place().choice().dir();
+    let existing = dir.ancestors().find(|p| p.is_dir()).map(std::path::Path::to_path_buf).unwrap_or(dir);
+    #[cfg(windows)]
+    std::process::Command::new("explorer").arg(existing).spawn()?;
+    #[cfg(not(windows))]
+    let _ = existing;
+    Ok(())
 }
 
 #[tauri::command]
@@ -138,18 +218,21 @@ fn download_model<R: Runtime>(app: AppHandle<R>, dictation: State<'_, Dictation>
     let spawned = std::thread::Builder::new().name("dictation-download".into()).spawn({
         let shared = Arc::clone(&shared);
         move || {
-            let total = model::total_size();
-            shared.publish_model(&app, ModelStatus::Downloading { received: 0, total });
-            let result = model::download(&shared.dir, &shared.stop_download, |received, total| {
+            let place = shared.place();
+            let (model, dir) = (place.choice().model, place.choice().dir());
+            shared.publish_model(&app, ModelStatus::Downloading { received: 0, total: model.total_size() });
+            let result = model::download(model, &dir, &shared.stop_download, |received, total| {
                 shared.publish_model(&app, ModelStatus::Downloading { received, total });
             });
             let status = match result {
                 Ok(()) => ModelStatus::Ready,
-                Err(model::DownloadError::Cancelled) => model::status(&shared.dir),
+                Err(model::DownloadError::Cancelled) => model.status(&dir),
                 Err(e) => ModelStatus::Error { message: e.to_string() },
             };
             shared.publish_model(&app, status);
             shared.downloading.store(false, Ordering::SeqCst);
+            // The user may have picked another model meanwhile.
+            shared.follow_settings(&app, &settings::current(&app));
         }
     });
     if let Err(e) = spawned {
@@ -169,8 +252,10 @@ fn delete_model<R: Runtime>(app: AppHandle<R>, dictation: State<'_, Dictation>) 
     }
     #[cfg(windows)]
     lock(&shared.recognizer).take();
-    model::remove(&shared.dir)?;
-    shared.publish_model(&app, model::status(&shared.dir));
+    let choice = shared.place();
+    let (model, dir) = (choice.choice().model, choice.choice().dir());
+    model::remove(&dir)?;
+    shared.publish_model(&app, model.status(&dir));
     Ok(())
 }
 
@@ -270,14 +355,39 @@ mod engine {
         if let Some(r) = &*slot {
             return Ok(Arc::clone(r));
         }
-        let path = |i| Some(model::path(&shared.dir, i));
+        let place = shared.place();
+        let (model, dir) = (place.choice().model, place.choice().dir());
+        let path = |i| Some(model.path(&dir, i));
         let mut config = sherpa_onnx::OfflineRecognizerConfig::default();
         config.feat_config.sample_rate = chunk::RATE as i32;
         config.feat_config.feature_dim = 80;
-        config.model_config.transducer.encoder = path(0);
-        config.model_config.transducer.decoder = path(1);
-        config.model_config.transducer.joiner = path(2);
-        config.model_config.tokens = path(3);
+        let m = &mut config.model_config;
+        match model.kind {
+            model::Kind::Transducer => {
+                m.transducer.encoder = path(0);
+                m.transducer.decoder = path(1);
+                m.transducer.joiner = path(2);
+            }
+            model::Kind::Whisper => {
+                m.whisper.encoder = path(0);
+                m.whisper.decoder = path(1);
+                // No language: Whisper detects it.
+                m.whisper.task = Some("transcribe".into());
+                m.whisper.tail_paddings = -1;
+            }
+            model::Kind::SenseVoice => {
+                m.sense_voice.model = path(0);
+                m.sense_voice.language = Some("auto".into());
+                m.sense_voice.use_itn = true;
+            }
+            model::Kind::Moonshine => {
+                m.moonshine.preprocessor = path(0);
+                m.moonshine.encoder = path(1);
+                m.moonshine.uncached_decoder = path(2);
+                m.moonshine.cached_decoder = path(3);
+            }
+        }
+        m.tokens = path(model.files.len() - 1);
         config.model_config.num_threads = 2;
         config.model_config.provider = Some("cpu".into());
         config.decoding_method = Some("greedy_search".into());
@@ -335,7 +445,9 @@ mod engine {
         }
 
         fn start<R: Runtime>(&mut self, app: &AppHandle<R>, shared: &Arc<Shared>) {
-            if !model::installed(&shared.dir) {
+            let place = shared.place();
+            let choice = place.choice();
+            if !choice.model.installed(&choice.dir()) {
                 return shared.publish(app, Phase::NeedsModel);
             }
             if matches!(shared.phase.get(), Phase::Transcribing) {
@@ -357,7 +469,7 @@ mod engine {
             if let Err(e) = spawned {
                 return shared.publish(app, Phase::Error { message: e.to_string() });
             }
-            let chunker = chunk::Chunker::new(chunk::RATE);
+            let chunker = chunk::Chunker::new(chunk::RATE, choice.model.chunk_seconds);
             self.session = Some(Session { stream, captured, rate, chunker, chunks, finished, started: Instant::now() });
             shared.publish(app, Phase::Listening { level: 0.0, seconds: 0.0 });
         }
@@ -415,13 +527,17 @@ fn spawn<R: Runtime>(_: AppHandle<R>, _: Arc<Shared>) -> std::io::Result<Worker<
 
 pub fn init<R: Runtime>() -> TauriPlugin<R> {
     Builder::new("dictation")
-        .invoke_handler(tauri::generate_handler![state, model_status, control, download_model, delete_model])
+        .invoke_handler(tauri::generate_handler![state, model_status, control, download_model, delete_model, open_model_dir])
         .setup(|app, _| {
-            let dir = app.path().app_data_dir()?.join("models").join(model::NAME);
+            let default_dir = app.path().app_data_dir()?.join("models");
+            let place = Place::read(&settings::current(app), &default_dir);
+            let choice = place.choice();
+            let info = Shared::info(&place, choice.model.status(&choice.dir()));
             let shared = Arc::new(Shared {
                 phase: Live::new(Phase::Idle),
-                model: Live::new(model::status(&dir)),
-                dir,
+                model: Live::new(info),
+                place: Mutex::new(place),
+                default_dir,
                 #[cfg(windows)]
                 recognizer: Mutex::new(None),
                 last_used: Mutex::new(Instant::now()),
@@ -430,6 +546,11 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
                 downloading: AtomicBool::new(false),
             });
             let worker = spawn(app.clone(), Arc::clone(&shared))?;
+            let (handle, followed) = (app.clone(), Arc::clone(&shared));
+            app.listen_any(settings::EVENT, move |event| match serde_json::from_str(event.payload()) {
+                Ok(value) => followed.follow_settings(&handle, &value),
+                Err(e) => eprintln!("island: dictation: unreadable settings event: {e}"),
+            });
             app.manage(Dictation { shared, worker });
             let handle = app.clone();
             app.listen_any(popup::ACTION_EVENT, move |event| match serde_json::from_str::<popup::Action>(event.payload()) {
@@ -453,6 +574,26 @@ mod tests {
         assert_eq!(command_for(Press, false), Some(Command::Toggle));
         assert_eq!(command_for(Release, false), None);
         assert_eq!(command_for(Tap, true), Some(Command::Toggle));
+    }
+
+    #[test]
+    fn model_info_flattens_the_status() {
+        let info = ModelInfo { model: "whisper-small", dir: "D:\\Models".into(), installed: vec!["parakeet-v3"], status: ModelStatus::Downloading { received: 1, total: 2 } };
+        assert_eq!(
+            serde_json::to_value(info).unwrap(),
+            serde_json::json!({ "model": "whisper-small", "dir": "D:\\Models", "installed": ["parakeet-v3"], "state": "downloading", "received": 1, "total": 2 })
+        );
+    }
+
+    #[test]
+    fn reads_the_chosen_model_and_folder() {
+        let default = std::env::temp_dir().join("island-default");
+        let chosen = std::env::temp_dir().join("island-chosen");
+        let settings = serde_json::json!({ "options": { "dictation": { "model": "whisper-base", "modelDir": chosen.to_str() } } });
+        let place = Place::read(&settings, &default);
+        assert_eq!(place.choice().dir(), chosen.join("whisper-base-int8"));
+        let place = Place::read(&serde_json::json!({}), &default);
+        assert_eq!(place.choice().dir(), default.join("parakeet-tdt-0.6b-v3-int8"));
     }
 
     #[test]
