@@ -1,4 +1,5 @@
 import { type ClipboardPort, tauriClipboard } from "./plugins/clipboard/api";
+import { type DictationPort, tauriDictation } from "./plugins/dictation/api";
 import { type MediaPort, tauriMedia } from "./plugins/media/api";
 import { type PrivacyPort, tauriPrivacy } from "./plugins/privacy/api";
 import { type ScreenPort, tauriScreen } from "./plugins/screenshot/api";
@@ -13,6 +14,7 @@ export interface Services {
   readonly volume: VolumePort;
   readonly privacy: PrivacyPort;
   readonly screen: ScreenPort;
+  readonly dictation: DictationPort;
 }
 
 export const tauriServices: Services = {
@@ -22,4 +24,5 @@ export const tauriServices: Services = {
   volume: tauriVolume,
   privacy: tauriPrivacy,
   screen: tauriScreen,
+  dictation: tauriDictation,
 };

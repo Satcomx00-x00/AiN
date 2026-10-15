@@ -223,3 +223,38 @@ describe("smooth curve", async () => {
     expect(curve([], 20, 10)).toBe("");
   });
 });
+
+describe("dictation", async () => {
+  const { clock, dictationGlance, mb, modelLine } = await import("./dictation");
+  const { ModelSchema, PhaseSchema } = await import("./dictation/api");
+  const { catalogue } = await import(".");
+  const { bindings } = await import("../core/commands");
+
+  it("shows a live recording on the pill, then a brief result", () => {
+    expect(dictationGlance({ phase: "listening", level: 0.4, seconds: 65 }, 0, 1)).toEqual({ text: "1:05", mark: "rec", level: 0.4, wide: true });
+    expect(dictationGlance({ phase: "done", text: "Hi" }, 1000, 2000)?.text).toBe("Typed");
+    expect(dictationGlance({ phase: "done", text: "" }, 1000, 2000)?.text).toBe("Nothing heard");
+    expect(dictationGlance({ phase: "done", text: "Hi" }, 1000, 9000)).toBeNull();
+    expect(dictationGlance({ phase: "idle" }, 0, 0)).toBeNull();
+  });
+
+  it("describes the model download", () => {
+    expect(modelLine({ state: "downloading", received: 335e6, total: 670e6 })).toEqual({
+      title: "Downloading the speech model…",
+      detail: "335 MB of 670 MB",
+      progress: 0.5,
+    });
+    expect(modelLine({ state: "missing", size: 670_478_772 }).detail).toContain("670 MB");
+    expect(mb(0)).toBe("0 MB");
+    expect(clock(9)).toBe("0:09");
+  });
+
+  it("parses what the backend sends", () => {
+    expect(PhaseSchema.parse({ phase: "needsModel" })).toEqual({ phase: "needsModel" });
+    expect(ModelSchema.parse({ state: "ready" })).toEqual({ state: "ready" });
+  });
+
+  it("binds its shortcut as an action, with no popup", () => {
+    expect(bindings(catalogue, {})["dictation.toggle"]).toEqual({ shortcut: "Ctrl+Alt+KeyD", surface: "action" });
+  });
+});

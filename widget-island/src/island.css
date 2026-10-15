@@ -922,6 +922,28 @@ button:focus-visible {
   display: none;
 }
 
+/* Recording: a red dot that breathes. */
+.mark[data-kind="rec"] {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--hot);
+  box-shadow: 0 0 6px var(--hot);
+  animation: rec 1.2s ease-in-out infinite alternate;
+}
+
+.mark[data-kind="rec"] i {
+  display: none;
+}
+
+@keyframes rec {
+  to {
+    opacity: 0.35;
+    box-shadow: 0 0 2px var(--hot);
+  }
+}
+
 .mark[data-kind="eq"] {
   display: inline-flex;
   align-items: flex-end;
@@ -1334,4 +1356,125 @@ button:focus-visible {
     transition: none !important;
     animation: none !important;
   }
+}
+
+/* ---------- Dictation ---------- */
+
+.dictation {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  min-height: 0;
+}
+
+.dict-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.round.primary.dict-main[data-state="rec"] {
+  background: var(--hot);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--hot) 60%, transparent);
+  animation: dict-pulse 1.4s ease-out infinite;
+}
+
+.dict-main:disabled {
+  opacity: 0.4;
+  box-shadow: none;
+  cursor: default;
+}
+
+@keyframes dict-pulse {
+  to {
+    box-shadow: 0 0 0 12px transparent;
+  }
+}
+
+.dict-now {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dict-status {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+
+.dict-level i {
+  --c: var(--hot);
+  transition: width 0.12s linear;
+}
+
+.dict-level[hidden] {
+  display: none;
+}
+
+.dict-model {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--r-inner);
+  background: var(--faint);
+}
+
+.dict-model-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 12px;
+}
+
+.dict-model-text span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dict-model-text .bar {
+  margin-top: 4px;
+}
+
+.dict-model-text .bar[hidden] {
+  display: none;
+}
+
+.dict-model[data-state="ready"] strong::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--ok);
+  vertical-align: 1px;
+}
+
+.dict-model[data-state="missing"] .chip,
+.dict-model[data-state="error"] .chip {
+  background: var(--accent);
+  color: #fff;
+  white-space: nowrap;
+}
+
+.dict-model[data-state="error"] span {
+  color: var(--hot);
+}
+
+.dict-head .chip[hidden] {
+  display: none;
+}
+
+.dict-status.dict-quote {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }

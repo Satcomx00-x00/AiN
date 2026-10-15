@@ -9,6 +9,7 @@
  *   &osd         changes the volume shortly after start, to show the pop-up
  *   &pins        pins several volume sources
  *   &pick        opens the volume tab's source list
+ *   &dictate     pretends to be dictating; &dictate=missing|downloading shows the model download instead
  */
 import { start } from "./app";
 import { idlePopup } from "./core/commands";
@@ -113,6 +114,26 @@ const fake: Services = {
     setMuted: async () => {},
   },
   screen: { latest: async () => null, save: async () => "" },
+  dictation: {
+    watch: async (onChange) => {
+      const mode = params.get("dictate");
+      if (mode === "") {
+        const listen = () => onChange({ phase: "listening", level: 0.3 + 0.5 * Math.random(), seconds: Math.floor((Date.now() - t0) / 1000) });
+        listen();
+        setInterval(listen, 120);
+      } else onChange({ phase: "done", text: "Ship the island widget before Friday, then polish the timer ring." });
+      return () => {};
+    },
+    watchModel: async (onChange) => {
+      const mode = params.get("dictate");
+      const total = 670_478_772;
+      onChange(mode === "missing" ? { state: "missing", size: total } : mode === "downloading" ? { state: "downloading", received: total * 0.42, total } : { state: "ready" });
+      return () => {};
+    },
+    control: async () => {},
+    download: async () => {},
+    remove: async () => {},
+  },
   privacy: {
     watch: async (onChange) => (onChange({ mic: params.has("mic") ? ["Discord"] : [], camera: [] }), () => {}),
   },

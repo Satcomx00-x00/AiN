@@ -18,12 +18,40 @@ export interface Settings {
   readonly options: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
   /** Shortcut per command id; null turns it off. Commands not listed use their default. */
   readonly shortcuts: Readonly<Record<string, string | null>>;
+  /** Plugins the stored layout already knows about; any other plugin in the default layout is new, and gets added. */
+  readonly seen: readonly string[];
+}
+
+/** Every plugin id the layout places. */
+export const placed = (layout: Layout): string[] => [...new Set([...layout.glance.left, ...layout.glance.right, ...layout.tabs])];
+
+/** Settings saved before `seen` existed knew these plugins. */
+const FIRST_SEEN = ["clock", "timer", "clipboard", "stats", "media", "volume", "privacy", "screenshot"];
+
+/**
+ * Adds plugins that are new since the layout was saved, where the default layout puts them: a glance
+ * spot at its default rank, a tab at the end. Plugins the user removed stay removed.
+ */
+export function adopt(layout: Layout, fallback: Layout, seen: readonly string[]): Layout {
+  const fresh = new Set(placed(fallback).filter((id) => !seen.includes(id)));
+  const merge = (mine: readonly string[], theirs: readonly string[], atRank: boolean) => {
+    const out = mine.filter((id) => !fresh.has(id));
+    theirs.forEach((id, rank) => {
+      if (fresh.has(id)) out.splice(atRank ? Math.min(rank, out.length) : out.length, 0, id);
+    });
+    return out;
+  };
+  if (!fresh.size) return layout;
+  return {
+    glance: { left: merge(layout.glance.left, fallback.glance.left, true), right: merge(layout.glance.right, fallback.glance.right, true) },
+    tabs: merge(layout.tabs, fallback.tabs, false),
+  };
 }
 
 export const DEFAULT_GENERAL: General = { openDelay: 140, closeDelay: 260 };
 export const DELAY_RANGE = { min: 0, max: 1000, step: 20 } as const;
 
-export const defaults = (layout: Layout): Settings => ({ version: 1, layout, general: DEFAULT_GENERAL, options: {}, shortcuts: {} });
+export const defaults = (layout: Layout): Settings => ({ version: 1, layout, general: DEFAULT_GENERAL, options: {}, shortcuts: {}, seen: placed(layout) });
 
 const ids = z.array(z.string()).transform((list) => [...new Set(list)]);
 const delay = (fallback: number) => z.number().int().min(DELAY_RANGE.min).max(DELAY_RANGE.max).catch(fallback);
@@ -41,10 +69,15 @@ export function parseSettings(raw: unknown, fallback: Settings): Settings {
       .catch(fallback.general),
     options: z.record(z.string(), z.record(z.string(), z.unknown())).catch(fallback.options),
     shortcuts: z.record(z.string(), z.string().min(1).nullable()).catch(fallback.shortcuts),
+    seen: ids.optional().catch(undefined),
   });
   // Anything unreadable at the top level becomes `{}`, which every field above then defaults.
   const parsed = schema.safeParse(raw);
-  return parsed.success ? parsed.data : schema.parse({});
+  const data = parsed.success ? parsed.data : schema.parse({});
+  // No stored layout means the default one, which already has everything.
+  const storedLayout = parsed.success && typeof raw === "object" && raw !== null && "layout" in raw;
+  const seen = data.seen ?? (storedLayout ? FIRST_SEEN : placed(layout));
+  return { ...data, layout: adopt(data.layout, layout, seen), seen: [...new Set([...seen, ...placed(layout)])] };
 }
 
 export interface SettingsPort {

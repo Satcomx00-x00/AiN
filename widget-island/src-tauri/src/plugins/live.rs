@@ -6,6 +6,10 @@ use std::sync::RwLock;
 pub struct Live<T>(RwLock<T>);
 
 impl<T: Clone + PartialEq> Live<T> {
+    pub fn new(value: T) -> Self {
+        Self(RwLock::new(value))
+    }
+
     pub fn get(&self) -> T {
         self.0.read().unwrap_or_else(|e| e.into_inner()).clone()
     }

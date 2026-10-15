@@ -29,7 +29,7 @@ export function hostCommands({ container, catalogue, layout, services, popup, st
 
   const viewFor = (entry: Entry) => {
     let built = views.get(entry.id);
-    if (!built) {
+    if (!built && entry.command.popup) {
       const root = document.createElement("div");
       root.className = "view";
       const view = entry.command.popup(root, {
@@ -46,8 +46,9 @@ export function hostCommands({ container, catalogue, layout, services, popup, st
 
   const show = (id: string) => {
     const entry = entries.find((e) => e.id === id);
-    if (!entry) return void popup.hide();
-    const { root, view } = viewFor(entry);
+    const built = entry && viewFor(entry);
+    if (!entry || !built) return void popup.hide();
+    const { root, view } = built;
     if (container.firstChild !== root) container.replaceChildren(root);
     document.title = entry.command.label;
     view.show();

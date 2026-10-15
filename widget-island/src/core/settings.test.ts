@@ -72,3 +72,29 @@ describe("reordering", () => {
     expect(move(["a", "b"], 0, -3)).toEqual(["a", "b"]);
   });
 });
+
+describe("new plugins", async () => {
+  const { adopt } = await import("./settings");
+  const fallback = { glance: { left: ["clock"], right: ["dictation", "volume", "stats"] }, tabs: ["clock", "stats", "dictation"] };
+
+  it("adds a plugin the saved layout has never seen, where the default puts it", () => {
+    const mine = { glance: { left: ["clock"], right: ["stats", "volume"] }, tabs: ["stats", "clock"] };
+    expect(adopt(mine, fallback, ["clock", "volume", "stats"])).toEqual({
+      glance: { left: ["clock"], right: ["dictation", "stats", "volume"] },
+      tabs: ["stats", "clock", "dictation"],
+    });
+  });
+
+  it("keeps a plugin out once the user removed it", () => {
+    const mine = { glance: { left: [], right: ["stats"] }, tabs: ["stats"] };
+    expect(adopt(mine, fallback, ["clock", "volume", "stats", "dictation"])).toBe(mine);
+  });
+
+  it("adopts once: the parsed settings remember what they have seen", () => {
+    const stored = { version: 1, layout: { glance: { left: [], right: ["stats"] }, tabs: ["stats"] } };
+    const once = parseSettings(stored, defaults(fallback));
+    expect(once.layout.tabs).toEqual(["stats", "dictation"]);
+    const removed = { ...once, layout: { ...once.layout, tabs: ["stats"] } };
+    expect(parseSettings(removed, defaults(fallback)).layout.tabs).toEqual(["stats"]);
+  });
+});

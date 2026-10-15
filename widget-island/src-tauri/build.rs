@@ -16,7 +16,8 @@ fn main() {
             .plugin("privacy", plugin(&["state"]))
             .plugin("settings", plugin(&["get", "set", "open", "autostart", "set_autostart"]))
             .plugin("popup", plugin(&["bind", "failures", "open", "hide", "paste"]))
-            .plugin("screen", plugin(&["latest", "save_png"])),
+            .plugin("screen", plugin(&["latest", "save_png"]))
+            .plugin("dictation", plugin(&["state", "model_status", "control", "download_model", "delete_model"])),
     )
     .expect("failed to run tauri-build");
 }

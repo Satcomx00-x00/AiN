@@ -43,6 +43,11 @@ pub fn write(path: &Path, value: &Value) -> io::Result<()> {
     fs::rename(&tmp, path)
 }
 
+/// The saved settings, for backend plugins that read their own options.
+pub fn current<R: Runtime>(app: &AppHandle<R>) -> Value {
+    app.try_state::<Store>().map_or(Value::Null, |store| read(&store.path))
+}
+
 #[tauri::command]
 fn get(store: State<'_, Store>) -> Value {
     read(&store.path)

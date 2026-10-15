@@ -3,7 +3,7 @@ import type { Fields, Values } from "./options";
 export type Tone = "alert" | "muted";
 
 /** A small indicator drawn before a glance's text. */
-export type Mark = "mic" | "camera" | "eq";
+export type Mark = "mic" | "camera" | "eq" | "rec";
 
 /** A plugin's short status for a glance spot on the collapsed pill. */
 export interface Glance {
@@ -53,7 +53,7 @@ export interface Host<Options = unknown> {
   setOptions(patch: Partial<Options>): void;
 }
 
-export type Surface = "popup" | "screen";
+export type Surface = "popup" | "screen" | "action";
 
 /** What a command's popup can do. */
 export interface PopupContext<Services, Options> {
@@ -83,11 +83,12 @@ export interface Command<Services = unknown, Options = unknown> {
   readonly shortcut: string | null;
   /**
    * Where it shows: the small launcher `popup` (default), or `screen`, a full-screen window over a
-   * capture of the monitor under the pointer, taken just before it appears.
+   * capture of the monitor under the pointer, taken just before it appears; or `action`, no window
+   * at all: the plugin's backend acts on the key press (and release, for "hold to talk").
    */
   readonly surface?: Surface;
-  /** Builds the popup's content once; `show` runs on every appearance. */
-  popup(root: HTMLElement, ctx: PopupContext<Services, Options>): PopupView;
+  /** Builds the popup's content once; `show` runs on every appearance. Not used by `action` commands. */
+  popup?(root: HTMLElement, ctx: PopupContext<Services, Options>): PopupView;
 }
 
 /** Where a plugin can be placed: a glance spot on the collapsed pill, or a tab. */

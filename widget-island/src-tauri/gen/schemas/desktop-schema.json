@@ -2313,6 +2313,72 @@
           "markdownDescription": "Denies the unminimize command without any pre-configured scope."
         },
         {
+          "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-state`\n- `allow-model-status`\n- `allow-control`\n- `allow-download-model`\n- `allow-delete-model`",
+          "type": "string",
+          "const": "dictation:default",
+          "markdownDescription": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-state`\n- `allow-model-status`\n- `allow-control`\n- `allow-download-model`\n- `allow-delete-model`"
+        },
+        {
+          "description": "Enables the control command without any pre-configured scope.",
+          "type": "string",
+          "const": "dictation:allow-control",
+          "markdownDescription": "Enables the control command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the delete_model command without any pre-configured scope.",
+          "type": "string",
+          "const": "dictation:allow-delete-model",
+          "markdownDescription": "Enables the delete_model command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the download_model command without any pre-configured scope.",
+          "type": "string",
+          "const": "dictation:allow-download-model",
+          "markdownDescription": "Enables the download_model command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the model_status command without any pre-configured scope.",
+          "type": "string",
+          "const": "dictation:allow-model-status",
+          "markdownDescription": "Enables the model_status command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the state command without any pre-configured scope.",
+          "type": "string",
+          "const": "dictation:allow-state",
+          "markdownDescription": "Enables the state command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the control command without any pre-configured scope.",
+          "type": "string",
+          "const": "dictation:deny-control",
+          "markdownDescription": "Denies the control command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the delete_model command without any pre-configured scope.",
+          "type": "string",
+          "const": "dictation:deny-delete-model",
+          "markdownDescription": "Denies the delete_model command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the download_model command without any pre-configured scope.",
+          "type": "string",
+          "const": "dictation:deny-download-model",
+          "markdownDescription": "Denies the download_model command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the model_status command without any pre-configured scope.",
+          "type": "string",
+          "const": "dictation:deny-model-status",
+          "markdownDescription": "Denies the model_status command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the state command without any pre-configured scope.",
+          "type": "string",
+          "const": "dictation:deny-state",
+          "markdownDescription": "Denies the state command without any pre-configured scope."
+        },
+        {
           "description": "No features are enabled by default, as we believe\nthe shortcuts can be inherently dangerous and it is\napplication specific if specific shortcuts should be\nregistered or unregistered.\n",
           "type": "string",
           "const": "global-shortcut:default",

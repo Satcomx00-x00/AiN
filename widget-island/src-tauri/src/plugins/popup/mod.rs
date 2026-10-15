@@ -26,6 +26,8 @@ pub const OVERLAY: &str = "overlay";
 const OVERLAY_GONE: Duration = Duration::from_millis(150);
 /// Sent to the popup with the command to show.
 pub const SHOW_EVENT: &str = "popup:show";
+/// Broadcast (to the backend too) when an "action" command's shortcut is pressed or released.
+pub const ACTION_EVENT: &str = "command:action";
 /// Broadcast after shortcuts are (re)bound, with the ones that failed.
 pub const BINDINGS_EVENT: &str = "popup:bindings";
 const SIZE: LogicalSize<f64> = LogicalSize { width: 460.0, height: 440.0 };
@@ -53,6 +55,24 @@ pub enum Surface {
     Popup,
     /// A capture of the screen under the pointer, shown full-screen.
     Screen,
+    /// No window: the plugin that owns the command acts on it, and hears the key's release too
+    /// (for "hold to talk").
+    Action,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ActionKind {
+    Press,
+    Release,
+    /// Run from the settings page rather than the keyboard: there will be no release.
+    Tap,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Action {
+    pub command: String,
+    pub kind: ActionKind,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -61,9 +81,12 @@ pub struct Binding {
     surface: Surface,
 }
 
-/// Runs a command: the popup at once, or a capture (off the main thread) then the overlay.
-fn trigger<R: Runtime>(app: &AppHandle<R>, command: &str, surface: Surface) {
+/// Runs a command: the popup at once, a capture (off the main thread) then the overlay, or an action.
+fn trigger<R: Runtime>(app: &AppHandle<R>, command: &str, surface: Surface, kind: ActionKind) {
     match surface {
+        Surface::Action => {
+            let _ = app.emit(ACTION_EVENT, Action { command: command.into(), kind });
+        }
         Surface::Popup => {
             let _ = show(app, command);
         }
@@ -105,10 +128,10 @@ async fn bind<R: Runtime>(
     let mut failures = BTreeMap::new();
     for (command, Binding { shortcut, surface }) in bindings {
         let id = command.clone();
-        let result = shortcuts.on_shortcut(shortcut.as_str(), move |app, _, event| {
-            if event.state == ShortcutState::Pressed {
-                trigger(app, &id, surface);
-            }
+        let result = shortcuts.on_shortcut(shortcut.as_str(), move |app, _, event| match event.state {
+            ShortcutState::Pressed => trigger(app, &id, surface, ActionKind::Press),
+            ShortcutState::Released if surface == Surface::Action => trigger(app, &id, surface, ActionKind::Release),
+            ShortcutState::Released => {}
         });
         if let Err(e) = result {
             failures.insert(command, reason(&format!("{e:?} {e}")));
@@ -128,7 +151,7 @@ fn failures(popup: State<'_, Popup>) -> BTreeMap<String, String> {
 /// Async so the window is created off the IPC callback.
 #[tauri::command]
 async fn open<R: Runtime>(app: AppHandle<R>, command: String, surface: Surface) -> Res<()> {
-    trigger(&app, &command, surface);
+    trigger(&app, &command, surface, ActionKind::Tap);
     Ok(())
 }
 

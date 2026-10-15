@@ -45,6 +45,7 @@ pub fn run() {
         .plugin(plugins::media::init())
         .plugin(plugins::volume::init())
         .plugin(plugins::privacy::init())
+        .plugin(plugins::dictation::init())
         .setup(|_app| {
             #[cfg(target_os = "macos")]
             _app.set_activation_policy(tauri::ActivationPolicy::Accessory);

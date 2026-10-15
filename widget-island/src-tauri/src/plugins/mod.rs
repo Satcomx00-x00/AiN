@@ -2,6 +2,7 @@
 //! The frontend calls them as `plugin:<name>|<command>`.
 
 pub mod clipboard;
+pub mod dictation;
 pub mod island;
 pub mod media;
 pub mod popup;

@@ -13,6 +13,7 @@
     "media:default",
     "volume:default",
     "privacy:default",
+    "dictation:default",
     "settings:allow-get",
     "settings:allow-open",
     "popup:allow-bind",

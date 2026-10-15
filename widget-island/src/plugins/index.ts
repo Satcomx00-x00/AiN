@@ -3,6 +3,7 @@ import type { Plugin } from "../core/plugin";
 import type { Services } from "../services";
 import { clipboard } from "./clipboard";
 import { clock } from "./clock";
+import { dictation } from "./dictation";
 import { media } from "./media";
 import { privacy } from "./privacy";
 import { screenshot } from "./screenshot";
@@ -11,4 +12,4 @@ import { timer } from "./timer";
 import { volume } from "./volume";
 
 /** Every plugin the app knows about. Where each shows up is chosen in Settings (defaults in `layout.ts`). */
-export const catalogue: readonly Plugin<Services, Fields>[] = [clock, timer, clipboard, stats, media, volume, privacy, screenshot];
+export const catalogue: readonly Plugin<Services, Fields>[] = [clock, timer, clipboard, stats, media, volume, privacy, screenshot, dictation];
