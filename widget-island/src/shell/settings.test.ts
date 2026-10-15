@@ -82,6 +82,16 @@ describe("settings", () => {
     await store.save(fallback);
     expect(seen).toEqual([null, fallback]);
   });
+
+  it("the in-memory store passes Play requests on to listeners, until they stop", async () => {
+    const store = memorySettings();
+    const played: string[] = [];
+    const stop = await store.onPlayGreeting((id) => played.push(id));
+    await store.playGreeting("sparkle");
+    stop();
+    await store.playGreeting("boing");
+    expect(played).toEqual(["sparkle"]);
+  });
 });
 
 describe("reordering", () => {

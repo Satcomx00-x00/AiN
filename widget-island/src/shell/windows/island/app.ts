@@ -104,6 +104,8 @@ export async function start(
     store.save(latest).catch((e: unknown) => console.error("[island] could not save options", e));
   };
   const quit = () => void store.quit().catch((e: unknown) => console.error("[island] could not quit", e));
+  // The Play button in Settings.
+  await store.onPlayGreeting((id) => island?.play(id));
   island = await mount(root, plugins, services, win, effective(initial), { openSettings, saveOptions, quit, greetings: choices });
   // Settings that changed while the island was starting.
   if (latest !== initial) island.configure(effective(latest), plugins);

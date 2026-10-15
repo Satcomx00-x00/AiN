@@ -93,7 +93,7 @@ there.
 
 A file can define the animation the pill plays when the island starts instead of a plugin: its
 definition has `play` and no `setup`. Once the file is on, the animation can be picked in
-**Settings → Appearance**; picking it plays it once, as a preview.
+**Settings → Appearance**; picking it plays it once, and the Play button next to it plays it again.
 
 ```js
 export default (island) =>

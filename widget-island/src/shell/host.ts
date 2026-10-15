@@ -71,6 +71,8 @@ export interface IslandHandle<S = never> {
    * `greetings` the startup animations.
    */
   configure(settings: Settings, catalogue?: readonly Plugin<S, Fields>[], greetings?: readonly Greeting[]): void;
+  /** Plays the startup animation `id` (the chosen one when not given), once the island is idle. */
+  play(id?: string): void;
 }
 
 /** The island shell: places plugins per the settings, runs the 1 s beat and the open/close choreography. */
@@ -167,15 +169,16 @@ export async function mount<S>(
   });
   refresh = () => beat.now();
 
-  // One preview at a time; picks made while one plays wait for it, and only the last one plays.
+  // One preview at a time; asks made while one plays wait for it, and only the last one plays.
   let previews: Promise<void> = Promise.resolve();
   let asked = 0;
-  const preview = () => {
+  const preview = (id?: string) => {
+    if (!started) return;
     const turn = ++asked;
     previews = previews.then(async () => {
       if (turn !== asked || open) return;
       ready = false;
-      await greet(el, sizeFor(false, i, wide), greetings, settings.general.greeting, !reducedMotion());
+      await greet(el, sizeFor(false, i, wide), greetings, id ?? settings.general.greeting, !reducedMotion());
       ready = true;
     });
   };
@@ -255,5 +258,5 @@ export async function mount<S>(
     document.documentElement.addEventListener("mouseleave", hover.leave);
     window.addEventListener("blur", () => hover.set(false));
   });
-  return { configure };
+  return { configure, play: (id) => preview(id) };
 }

@@ -623,6 +623,35 @@ h1 {
   margin-top: 4px;
 }
 
+/* The startup animation: its drop-down and a Play button. */
+.greeting-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.greeting-picker .ui-select {
+  width: auto;
+}
+
+.secondary.icon-only {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 10px;
+}
+
+.secondary.icon-only svg {
+  fill: currentColor;
+}
+
+.secondary:disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
 /* ---------- Layout slots ---------- */
 
 .slots {

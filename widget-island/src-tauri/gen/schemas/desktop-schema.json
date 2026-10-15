@@ -2751,10 +2751,10 @@
           "markdownDescription": "Denies the state command without any pre-configured scope."
         },
         {
-          "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-get`\n- `allow-set`\n- `allow-open`\n- `allow-quit`\n- `allow-autostart`\n- `allow-set-autostart`",
+          "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-get`\n- `allow-set`\n- `allow-open`\n- `allow-quit`\n- `allow-autostart`\n- `allow-set-autostart`\n- `allow-play-greeting`",
           "type": "string",
           "const": "settings:default",
-          "markdownDescription": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-get`\n- `allow-set`\n- `allow-open`\n- `allow-quit`\n- `allow-autostart`\n- `allow-set-autostart`"
+          "markdownDescription": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-get`\n- `allow-set`\n- `allow-open`\n- `allow-quit`\n- `allow-autostart`\n- `allow-set-autostart`\n- `allow-play-greeting`"
         },
         {
           "description": "Enables the autostart command without any pre-configured scope.",
@@ -2773,6 +2773,12 @@
           "type": "string",
           "const": "settings:allow-open",
           "markdownDescription": "Enables the open command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the play_greeting command without any pre-configured scope.",
+          "type": "string",
+          "const": "settings:allow-play-greeting",
+          "markdownDescription": "Enables the play_greeting command without any pre-configured scope."
         },
         {
           "description": "Enables the quit command without any pre-configured scope.",
@@ -2809,6 +2815,12 @@
           "type": "string",
           "const": "settings:deny-open",
           "markdownDescription": "Denies the open command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the play_greeting command without any pre-configured scope.",
+          "type": "string",
+          "const": "settings:deny-play-greeting",
+          "markdownDescription": "Denies the play_greeting command without any pre-configured scope."
         },
         {
           "description": "Denies the quit command without any pre-configured scope.",

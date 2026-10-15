@@ -163,7 +163,7 @@ function appearance(): Node[] {
     h(
       "section",
       { class: "card" },
-      field("Startup animation", undefined, select(choices, chosen, (greeting) => setGeneral({ greeting }), "Startup animation").el),
+      field("Startup animation", undefined, greetingPicker(choices, chosen)),
     ),
     h(
       "section",
@@ -399,6 +399,7 @@ async function toggleFile(file: string, on: boolean): Promise<void> {
 }
 
 const FILE = `<path d="M4 2.5h5.5L12 5v8.5H4z"/><path d="M9.5 2.5V5H12"/>`;
+const PLAY = `<path d="M5 3.5v9l7.5-4.5z"/>`;
 const SPARKLE = `<path d="M8 2.5 9.3 6.7 13.5 8 9.3 9.3 8 13.5 6.7 9.3 2.5 8 6.7 6.7Z"/>`;
 
 /** The startup animations to pick from: built-in ones, then those from enabled files. */
@@ -407,6 +408,22 @@ const greetingChoices = () => [
   ...[...loaded.values()].flatMap((e) => (e.greeting && settings.extensions.includes(e.file) ? [{ value: e.greeting.id, label: e.greeting.label, badge: "Plugin" }] : [])),
   { value: NO_GREETING, label: "None" },
 ];
+
+/** The startup animation's drop-down, and a button that plays the one shown on the island. */
+function greetingPicker(choices: ReturnType<typeof greetingChoices>, chosen: string): HTMLElement {
+  let shown = chosen;
+  const play = button(icon(PLAY), () => {
+    store.playGreeting(shown).catch((e: unknown) => setStatus("error", `Couldn't play it: ${String(e)}`));
+  }, { class: "secondary icon-only", "aria-label": "Play", title: "Play" });
+  const update = () => (play.disabled = shown === NO_GREETING);
+  const list = select(choices, chosen, (greeting) => {
+    shown = greeting;
+    update();
+    setGeneral({ greeting });
+  }, "Startup animation");
+  update();
+  return h("div", { class: "greeting-picker" }, list.el, play);
+}
 
 function pluginsSection(): Node[] {
   const rows = fileRows(found.plugins, settings.extensions, loaded);

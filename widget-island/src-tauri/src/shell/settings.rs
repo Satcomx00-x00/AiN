@@ -94,6 +94,28 @@ async fn open(app: AppHandle, target: Option<String>) -> Res<()> {
     show(&app, target.as_deref())
 }
 
+/// Asks the island to play a startup animation now, by its id: the Play button in Settings.
+#[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
+pub struct PlayGreeting(pub String);
+
+/// A startup animation's id: 2–32 lowercase letters, digits or dashes, starting with a letter.
+pub fn valid_greeting(id: &str) -> bool {
+    (2..=32).contains(&id.len())
+        && id.starts_with(|c: char| c.is_ascii_lowercase())
+        && id.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+}
+
+/// Plays the startup animation `id` on the island, e.g. "sparkle".
+#[tauri::command]
+#[specta::specta]
+fn play_greeting(app: AppHandle, id: String) -> Res<()> {
+    if !valid_greeting(&id) {
+        return Err(Error::msg(format!("not a startup animation: {id:?}")));
+    }
+    PlayGreeting(id).emit(&app)?;
+    Ok(())
+}
+
 /// How long quitting may take before the process is ended outright.
 const QUIT_GRACE: std::time::Duration = std::time::Duration::from_secs(3);
 
@@ -199,6 +221,21 @@ mod tests {
         for command in ["get", "set", "open", "quit"] {
             assert!(island.contains(&format!("settings:allow-{command}")), "the island can't call settings|{command}");
         }
+    }
+
+    #[test]
+    fn greeting_ids_match_the_frontends_rule() {
+        for ok in ["hello", "my-wave", "a1", &"a".repeat(32)] {
+            assert!(valid_greeting(ok), "{ok}");
+        }
+        for bad in ["", "a", "Wave", "1wave", "-wave", "wa ve", "wave!", &"a".repeat(33)] {
+            assert!(!valid_greeting(bad), "{bad}");
+        }
+    }
+
+    #[test]
+    fn the_settings_window_may_play_a_greeting() {
+        assert!(granted("settings").iter().any(|p| p == "settings:default" || p == "settings:allow-play-greeting"));
     }
 
     #[test]

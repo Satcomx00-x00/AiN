@@ -109,6 +109,60 @@ describe("the island's startup animation", () => {
     expect([a.plays.length, b.plays.length, c.plays.length]).toEqual([1, 1, 1]);
   });
 
+  it("plays the animation asked for by id (the Play button), without changing the setting", async () => {
+    const a = controlled("one");
+    const b = controlled("two");
+    const { handle } = await start("one", a.greeting, b.greeting);
+    a.finish();
+    await settleAll();
+    handle.play("two");
+    await settleAll();
+    expect([a.plays.length, b.plays.length]).toEqual([1, 1]);
+    b.finish();
+    await settleAll();
+    handle.play();
+    await settleAll();
+    expect([a.plays.length, b.plays.length]).toEqual([2, 1]);
+  });
+
+  it("plays the same animation again each time it's asked", async () => {
+    const a = controlled("one");
+    const { handle } = await start("one", a.greeting);
+    for (let n = 0; n < 2; n++) {
+      a.finish();
+      await settleAll();
+      handle.play("one");
+      await settleAll();
+    }
+    expect(a.plays).toHaveLength(3);
+  });
+
+  it("ignores Play while the startup one is still on, or for “none”", async () => {
+    const a = controlled("one");
+    const { handle } = await start("one", a.greeting);
+    handle.play("one");
+    await settleAll();
+    expect(a.plays).toHaveLength(1);
+    a.finish();
+    await settleAll();
+    handle.play("none");
+    await settleAll();
+    expect(a.plays).toHaveLength(1);
+  });
+
+  it("doesn't play over the open panel", async () => {
+    const a = controlled("one");
+    const { el, handle } = await start("one", a.greeting);
+    a.finish();
+    await settleAll();
+    el.dispatchEvent(new MouseEvent("click"));
+    await settleAll();
+    expect(el.dataset.open).toBe("true");
+    handle.play("one");
+    await settleAll();
+    expect(a.plays).toHaveLength(1);
+  });
+
   it("previews from the animations given with the settings, e.g. once a plugin's is loaded", async () => {
     const a = controlled("one");
     const late = controlled("late");

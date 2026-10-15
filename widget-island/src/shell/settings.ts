@@ -127,6 +127,10 @@ export interface SettingsPort {
   onNavigate(onTarget: (target: string) => void): Promise<() => void>;
   /** Quits the whole app: every window, the tray icon and everything running in the background. */
   quit(): Promise<void>;
+  /** Asks the island to play the startup animation `id` now. */
+  playGreeting(id: string): Promise<void>;
+  /** Calls `onPlay` with the id of each startup animation the island is asked to play. */
+  onPlayGreeting(onPlay: (id: string) => void): Promise<() => void>;
   autostart(): Promise<boolean>;
   setAutostart(enabled: boolean): Promise<void>;
 }
@@ -137,6 +141,8 @@ export const tauriSettings: SettingsPort = {
   open: async (target) => void (await commands.open(target ?? null)),
   onNavigate: (onTarget) => events.navigate.listen((e) => onTarget(e.payload)),
   quit: async () => void (await commands.quit()),
+  playGreeting: async (id) => void (await commands.playGreeting(id)),
+  onPlayGreeting: (onPlay) => events.playGreeting.listen((e) => onPlay(e.payload)),
   autostart: () => commands.autostart(),
   setAutostart: async (enabled) => void (await commands.setAutostart(enabled)),
 };
@@ -146,6 +152,7 @@ export function memorySettings(): SettingsPort {
   let stored: unknown = null;
   let autostart = false;
   const listeners = new Set<(raw: unknown) => void>();
+  const players = new Set<(id: string) => void>();
   return {
     watch: async (onChange) => {
       listeners.add(onChange);
@@ -159,6 +166,11 @@ export function memorySettings(): SettingsPort {
     open: async () => {},
     onNavigate: async () => () => {},
     quit: async () => {},
+    playGreeting: async (id) => players.forEach((p) => p(id)),
+    onPlayGreeting: async (onPlay) => {
+      players.add(onPlay);
+      return () => players.delete(onPlay);
+    },
     autostart: async () => autostart,
     setAutostart: async (enabled) => {
       autostart = enabled;

@@ -17,17 +17,23 @@ export const commands = {
 	quit: () => __TAURI_INVOKE<void>("plugin:settings|quit"),
 	autostart: () => __TAURI_INVOKE<boolean>("plugin:settings|autostart"),
 	setAutostart: (enabled: boolean) => __TAURI_INVOKE<null>("plugin:settings|set_autostart", { enabled }),
+	/**  Plays the startup animation `id` on the island, e.g. "sparkle". */
+	playGreeting: (id: string) => __TAURI_INVOKE<null>("plugin:settings|play_greeting", { id }),
 };
 
 /** Events */
 export const events = {
 	navigate: makeEvent<Navigate>("plugin:settings:navigate"),
+	playGreeting: makeEvent<PlayGreeting>("plugin:settings:play-greeting"),
 	settingsChanged: makeEvent<SettingsChanged>("plugin:settings:settings-changed"),
 };
 
 /* Types */
 /**  Takes the settings window somewhere, e.g. "widgets:dictation": a section, then a widget's card. */
 export type Navigate = string;
+
+/**  Asks the island to play a startup animation now, by its id: the Play button in Settings. */
+export type PlayGreeting = string;
 
 /**
  *  The settings file's content. Its shape belongs to the frontend, which validates it, so the
