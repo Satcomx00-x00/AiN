@@ -131,6 +131,11 @@ function general(): Node[] {
       { class: "card" },
       field("Launch at login", "Start the island when you sign in.", autostart),
       field(
+        "Quit Island",
+        "Closes the island, its windows and the tray icon, and stops everything it runs in the background. Start it again from the Start menu (or your apps).",
+        button("Quit", () => void store.quit().catch((e: unknown) => setStatus("error", `Couldn't quit: ${String(e)}`)), { class: "secondary danger" }),
+      ),
+      field(
         "Open after hovering",
         "How long the pointer rests on the pill before it opens. Higher avoids accidental opens near the top of the screen.",
         rangeControl(settings.general.openDelay, { ...DELAY_RANGE, unit: "ms" }, (v) => setGeneral({ openDelay: v }), "Open delay"),

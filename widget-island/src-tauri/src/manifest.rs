@@ -21,7 +21,7 @@ macro_rules! manifest {
                     raw: [],
                     events: [Shown, BindingsChanged, Action]
                 }
-                settings: shell::settings { typed: [get, set, open, autostart, set_autostart], raw: [], events: [SettingsChanged, Navigate] }
+                settings: shell::settings { typed: [get, set, open, quit, autostart, set_autostart], raw: [], events: [SettingsChanged, Navigate] }
                 capture: shell::capture { typed: [], raw: [latest, save_png], events: [] }
                 extensions: shell::extensions { typed: [list, open_dir], raw: [], events: [] }
             }

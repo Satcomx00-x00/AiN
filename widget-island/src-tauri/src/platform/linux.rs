@@ -5,6 +5,7 @@
 pub mod pactl {
     use std::{
         io::{self, BufRead, BufReader},
+        os::unix::process::CommandExt,
         process::{Child, Command, Stdio},
         sync::{
             Arc,
@@ -72,8 +73,19 @@ pub mod pactl {
 
     impl Subscription {
         pub fn start(mut on_event: impl FnMut(&str) + Send + 'static) -> io::Result<Self> {
-            let mut child =
-                Command::new("pactl").arg("subscribe").stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::null()).spawn()?;
+            let mut command = Command::new("pactl");
+            command.arg("subscribe").stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::null());
+            // Quitting ends the process without running `Drop`, so the kernel stops pactl instead:
+            // it gets SIGTERM when the app goes, however it goes (quit, crash or kill).
+            // SAFETY: prctl only changes this child's own death signal, between fork and exec,
+            // and is async-signal-safe.
+            unsafe {
+                command.pre_exec(|| match libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGTERM) {
+                    0 => Ok(()),
+                    _ => Err(io::Error::last_os_error()),
+                });
+            }
+            let mut child = command.spawn()?;
             let stdout = child.stdout.take().ok_or_else(|| io::Error::other("pactl subscribe has no output"))?;
             let alive = Arc::new(AtomicBool::new(true));
             let flag = Arc::clone(&alive);

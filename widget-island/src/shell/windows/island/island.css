@@ -387,8 +387,14 @@ button:focus-visible {
   transition: transform 0.5s var(--spring);
 }
 
-.gear:hover .icon {
+.gear:not(.quit):hover .icon {
   transform: rotate(60deg);
+}
+
+/* Quit: armed by a first click, it turns red and waits for the second. */
+.gear.quit[data-armed="true"] {
+  background: var(--hot);
+  color: var(--on-accent);
 }
 
 /* Tabs: a segmented control with a sliding highlight. */

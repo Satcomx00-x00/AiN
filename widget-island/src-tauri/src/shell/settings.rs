@@ -94,6 +94,14 @@ async fn open(app: AppHandle, target: Option<String>) -> Res<()> {
     show(&app, target.as_deref())
 }
 
+/// Quits the app entirely: every window closes, the tray icon goes, shortcuts are released and the
+/// process ends (background threads with it; helper processes are tied to it, see `platform`).
+#[tauri::command]
+#[specta::specta]
+fn quit(app: AppHandle) {
+    app.exit(0);
+}
+
 #[tauri::command]
 #[specta::specta]
 fn autostart(app: AppHandle) -> Res<bool> {

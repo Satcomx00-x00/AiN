@@ -98,7 +98,8 @@ export async function start(
     island?.configure(effective(latest));
     store.save(latest).catch((e: unknown) => console.error("[island] could not save options", e));
   };
-  island = await mount(root, plugins, services, win, effective(initial), openSettings, saveOptions);
+  const quit = () => void store.quit().catch((e: unknown) => console.error("[island] could not quit", e));
+  island = await mount(root, plugins, services, win, effective(initial), openSettings, saveOptions, quit);
   // Settings that changed while the island was starting.
   if (latest !== initial) island.configure(effective(latest), plugins);
   return island;

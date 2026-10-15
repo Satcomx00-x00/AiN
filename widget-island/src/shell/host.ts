@@ -7,6 +7,7 @@ import { intent } from "./intent";
 import { type Fields, resolve } from "../sdk/options";
 import { type Layout, type Placement, pickFrom, place, placedIds } from "./placement";
 import type { AnyPlugin, Host, Mounted, Plugin } from "../sdk/plugin";
+import { POWER, armedButton } from "./quit";
 import { ticker } from "./scheduler";
 import type { Settings } from "./settings";
 import { type Tabs, tabs } from "./tabs";
@@ -68,6 +69,8 @@ export async function mount<S>(
   /** Opens Settings, at `target` ("widgets:<plugin id>") when given. */
   openSettings?: (target?: string) => void,
   saveOptions?: (pluginId: string, patch: Readonly<Record<string, unknown>>) => void,
+  /** Quits the whole app. */
+  quit?: () => void,
 ): Promise<IslandHandle<S>> {
   const hardware = await win.island();
   let plugins = catalogue;
@@ -109,6 +112,7 @@ export async function mount<S>(
   const right = glanceSlot();
   const panel = h("div", { class: "panel" });
   const gear = openSettings && button(icon(GEAR), () => openSettings(), { class: "gear", "aria-label": "Settings", title: "Settings" });
+  const power = quit && armedButton(POWER, quit, { label: "Quit Island", armed: "Click again to quit Island" }, "gear quit");
   let view: Tabs | undefined;
   const alerting = (now: number) => active.find((m) => m.widget.glance?.(now)?.tone === "alert");
 
@@ -165,7 +169,7 @@ export async function mount<S>(
     placement = placed.placement;
     active = placedOnce(placement);
     view = tabs(placement.tabs, () => beat.now(), view?.active());
-    panel.replaceChildren(h("div", { class: "panel-head" }, view.bar, ...(gear ? [gear] : [])), view.panels);
+    panel.replaceChildren(h("div", { class: "panel-head" }, view.bar, ...(gear ? [gear] : []), ...(power ? [power] : [])), view.panels);
     beat.now();
   };
 

@@ -122,6 +122,8 @@ export interface SettingsPort {
   open(target?: string): Promise<void>;
   /** Calls `onTarget` each time something asks the already-open settings window to show a place. */
   onNavigate(onTarget: (target: string) => void): Promise<() => void>;
+  /** Quits the whole app: every window, the tray icon and everything running in the background. */
+  quit(): Promise<void>;
   autostart(): Promise<boolean>;
   setAutostart(enabled: boolean): Promise<void>;
 }
@@ -131,6 +133,7 @@ export const tauriSettings: SettingsPort = {
   save: async (value) => void (await commands.set(value)),
   open: async (target) => void (await commands.open(target ?? null)),
   onNavigate: (onTarget) => events.navigate.listen((e) => onTarget(e.payload)),
+  quit: async () => void (await commands.quit()),
   autostart: () => commands.autostart(),
   setAutostart: async (enabled) => void (await commands.setAutostart(enabled)),
 };
@@ -152,6 +155,7 @@ export function memorySettings(): SettingsPort {
     },
     open: async () => {},
     onNavigate: async () => () => {},
+    quit: async () => {},
     autostart: async () => autostart,
     setAutostart: async (enabled) => {
       autostart = enabled;
