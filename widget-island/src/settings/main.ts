@@ -211,6 +211,14 @@ function placesOf(id: string): string[] {
   return places.filter(([on]) => on).map(([, name]) => name);
 }
 
+/** The system folder picker; null when cancelled or outside the app. */
+async function pickFolder(current: string): Promise<string | null> {
+  if (!inTauri) return null;
+  const { open } = await import("@tauri-apps/plugin-dialog");
+  const chosen = await open({ directory: true, multiple: false, ...(current ? { defaultPath: current } : {}) });
+  return typeof chosen === "string" ? chosen : null;
+}
+
 function widgets(): Node[] {
   return [
     ...header("Widgets", "Each widget's own options."),
@@ -232,7 +240,7 @@ function widgets(): Node[] {
           ),
         ),
         ...(fields.length
-          ? fields.map(([key, f]) => optionControl(f, values[key], (v) => setOption(p.id, key, v)))
+          ? fields.map(([key, f]) => optionControl(f, values[key], (v) => setOption(p.id, key, v), pickFolder))
           : [h("p", { class: "no-options" }, "No options.")]),
       );
     }),

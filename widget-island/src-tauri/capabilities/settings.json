@@ -9,6 +9,7 @@
     "core:event:default",
     "settings:default",
     "dictation:default",
+    "dialog:allow-open",
     "popup:allow-failures",
     "popup:allow-open"
   ]

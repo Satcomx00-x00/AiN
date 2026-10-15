@@ -103,8 +103,40 @@ export function chips(value: readonly string[], placeholder: string | undefined,
   return wrap;
 }
 
+/**
+ * A folder path: type it, or pick it with the system dialog; "Default" clears it.
+ * `pick` resolves with the chosen folder, or null if the user cancelled.
+ */
+export function folderControl(
+  value: string,
+  placeholder: string | undefined,
+  pick: (current: string) => Promise<string | null>,
+  onChange: (v: string) => void,
+  label: string,
+): HTMLElement {
+  const input = h("input", { class: "path-input", type: "text", spellcheck: "false", placeholder: placeholder ?? "Default location", "aria-label": label });
+  input.value = value;
+  const reset = button("Default", () => set(""), { class: "secondary" });
+  const set = (next: string) => {
+    input.value = next.trim();
+    reset.hidden = !input.value;
+    onChange(input.value);
+  };
+  input.addEventListener("change", () => set(input.value));
+  const browse = button("Browse…", () => {
+    pick(input.value).then((chosen) => (chosen ? set(chosen) : undefined), (e: unknown) => console.error("[settings] folder picker", e));
+  }, { class: "secondary" });
+  reset.hidden = !value;
+  return h("div", { class: "path" }, input, browse, reset);
+}
+
 /** The right control for a plugin option field. */
-export function optionControl(f: Field, value: unknown, onChange: (v: unknown) => void): HTMLElement {
+export function optionControl(
+  f: Field,
+  value: unknown,
+  onChange: (v: unknown) => void,
+  pickFolder: (current: string) => Promise<string | null> = async () => null,
+): HTMLElement {
   switch (f.kind) {
     case "toggle":
       return field(f.label, f.hint, switchControl(value as boolean, onChange, f.label));
@@ -114,5 +146,7 @@ export function optionControl(f: Field, value: unknown, onChange: (v: unknown) =
       return field(f.label, f.hint, segmented(value as string, f.choices, onChange, f.label));
     case "list":
       return field(f.label, f.hint, chips(value as readonly string[], f.placeholder, onChange, f.label), true);
+    case "folder":
+      return field(f.label, f.hint, folderControl(value as string, f.placeholder, pickFolder, onChange, f.label), true);
   }
 }

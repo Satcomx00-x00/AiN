@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn() }));
 
-const { choice, list, number, resolve, toggle } = await import("./options");
+const { choice, folder, list, number, resolve, toggle } = await import("./options");
 const { DEFAULT_GENERAL, defaults, memorySettings, parseSettings } = await import("./settings");
 const { move } = await import("../settings/slots");
 
@@ -96,5 +96,13 @@ describe("new plugins", async () => {
     expect(once.layout.tabs).toEqual(["stats", "dictation"]);
     const removed = { ...once, layout: { ...once.layout, tabs: ["stats"] } };
     expect(parseSettings(removed, defaults(fallback)).layout.tabs).toEqual(["stats"]);
+  });
+});
+
+describe("folder option", () => {
+  it("keeps a trimmed path, or the default location", () => {
+    const fields = { dir: folder("Model folder") };
+    expect(resolve(fields, { dir: "  D:\\Models " })).toEqual({ dir: "D:\\Models" });
+    expect(resolve(fields, { dir: 3 })).toEqual({ dir: "" });
   });
 });
