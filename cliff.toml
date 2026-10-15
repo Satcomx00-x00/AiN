@@ -1,9 +1,8 @@
 # git-cliff configuration — https://git-cliff.org/docs/configuration
 # Generates CHANGELOG.md and release notes from Conventional Commits.
 
-[remote.github]
-owner = "Satcomx00-x00"
-repo = "AiN"
+# No [remote.github]: git-cliff would then query the GitHub API for every commit, which the template
+# does not use and anonymous CI runners get rate-limited on (HTTP 403). The URL is written out instead.
 
 [changelog]
 header = """
@@ -15,7 +14,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 """
 body = """
 {%- macro remote_url() -%}
-  https://github.com/{{ remote.github.owner }}/{{ remote.github.repo }}
+  https://github.com/Satcomx00-x00/AiN
 {%- endmacro -%}
 
 {% if version -%}
