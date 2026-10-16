@@ -24,6 +24,7 @@ macro_rules! manifest {
                 settings: shell::settings { typed: [get, set, open, quit, autostart, set_autostart, play_greeting], raw: [], events: [SettingsChanged, Navigate, PlayGreeting] }
                 capture: shell::capture { typed: [], raw: [latest, save_png], events: [] }
                 extensions: shell::extensions { typed: [list, open_dir], raw: [], events: [] }
+                store: shell::store { typed: [catalog, install, open_repo], raw: [], events: [] }
             }
             features {
                 clipboard: features::clipboard { typed: [history, copy, clear], raw: [copy_image], events: [] }

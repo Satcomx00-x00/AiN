@@ -36,6 +36,11 @@ pub struct Listing {
 
 struct Folder(PathBuf);
 
+/// The folder plugins are read from.
+pub fn dir(app: &AppHandle) -> tauri::Result<PathBuf> {
+    Ok(app.path().app_config_dir()?.join(FOLDER))
+}
+
 /// Plugin entry points in `dir`, sorted by name: `*.js` files and `*/index.js`.
 pub fn entries(dir: &Path) -> Vec<(String, PathBuf)> {
     let Ok(read) = fs::read_dir(dir) else { return Vec::new() };
@@ -90,7 +95,7 @@ crate::ipc::extensions!();
 
 pub fn init() -> TauriPlugin<Wry> {
     ipc().plugin(|app: &AppHandle| {
-        app.manage(Folder(app.path().app_config_dir()?.join(FOLDER)));
+        app.manage(Folder(dir(app)?));
         Ok(())
     })
 }

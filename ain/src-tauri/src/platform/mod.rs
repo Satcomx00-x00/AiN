@@ -16,11 +16,33 @@ pub fn init_thread() {
 
 /// Shows `path` in the system's file manager.
 pub fn reveal(path: &std::path::Path) -> std::io::Result<()> {
+    open(path.as_os_str())
+}
+
+/// Opens an https link in the default browser.
+pub fn open_url(url: &str) -> std::io::Result<()> {
+    if !url.starts_with("https://") {
+        return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "not an https link"));
+    }
+    open(url.as_ref())
+}
+
+fn open(target: &std::ffi::OsStr) -> std::io::Result<()> {
     #[cfg(windows)]
     let program = "explorer";
     #[cfg(target_os = "macos")]
     let program = "open";
     #[cfg(not(any(windows, target_os = "macos")))]
     let program = "xdg-open";
-    std::process::Command::new(program).arg(path).spawn().map(drop)
+    std::process::Command::new(program).arg(target).spawn().map(drop)
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn opens_only_https_links() {
+        for url in ["http://github.com/o/r", "file:///etc/passwd", r"C:\Windows\System32\calc.exe", "javascript:alert(1)"] {
+            assert_eq!(super::open_url(url).unwrap_err().kind(), std::io::ErrorKind::InvalidInput, "{url}");
+        }
+    }
 }
