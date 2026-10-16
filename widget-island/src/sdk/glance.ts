@@ -1,6 +1,6 @@
-import { sparkline } from "../sdk/chart";
-import { EASE_OUT, h, reducedMotion, roll, svg } from "../sdk/dom";
-import type { Glance } from "../sdk/plugin";
+import { sparkline } from "./chart";
+import { EASE_OUT, h, reducedMotion, roll, svg } from "./dom";
+import type { Glance } from "./plugin";
 
 const SPARK_SLOTS = 12;
 

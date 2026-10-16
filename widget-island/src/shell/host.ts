@@ -2,7 +2,7 @@ import { isLight } from "../sdk/color";
 import { palette, themeById } from "./themes";
 import { animates, button, h, icon, reducedMotion } from "../sdk/dom";
 import { EAR, EXPANDED, frame, sizeFor } from "./geometry";
-import { glanceSlot } from "./glance";
+import { glanceSlot } from "../sdk/glance";
 import { intent } from "./intent";
 import { type Fields, resolve } from "../sdk/options";
 import { type Layout, type Placement, pickFrom, place, placedIds } from "./placement";
