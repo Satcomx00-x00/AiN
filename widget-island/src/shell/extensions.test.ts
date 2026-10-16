@@ -362,7 +362,7 @@ describe("checkStyle", () => {
 
   it("is refused under a built-in style's id by the island's rules", async () => {
     const { extensionRules } = await import("../features");
-    for (const id of ["pill", "hidden"]) expect(extensionRules.taken.has(id)).toBe(true);
+    for (const id of ["pill", "solo", "stub", "sliver", "hidden"]) expect(extensionRules.taken.has(id)).toBe(true);
   });
 });
 

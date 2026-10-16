@@ -1,0 +1,108 @@
+/* The built-in pill styles. Each draws in the island's .glance row and sizes itself with --scale. */
+
+/* Solo: one glance in the middle. */
+.glance.solo {
+  justify-content: center;
+}
+
+/* Stub: one mark in the middle, no text. */
+.glance.stub {
+  justify-content: center;
+  padding: 0;
+}
+
+.glance.stub .g-text:empty {
+  display: none;
+}
+
+/* Sliver: a line for progress, dots for the mic and camera, all orange on an alert. */
+.glance.sliver {
+  padding: 0;
+}
+
+.sliver-in {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  gap: calc(4px * var(--scale));
+  padding: 0 calc(var(--glance-h) * 1.2);
+  transition: opacity 0.3s;
+}
+
+.sliver-line {
+  flex: 1;
+  height: max(2px, 40%);
+  border-radius: 999px;
+  background: var(--track);
+  overflow: hidden;
+}
+
+.sliver-line i {
+  display: block;
+  height: 100%;
+  width: calc(clamp(0, var(--p, 0), 1) * 100%);
+  border-radius: inherit;
+  background: var(--ambient);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--ambient) 70%, transparent);
+  transition:
+    width 0.95s linear,
+    background 0.9s ease;
+}
+
+.sliver-dots {
+  display: flex;
+  gap: calc(3px * var(--scale));
+  margin-left: auto;
+}
+
+.sliver-dot {
+  width: max(3px, calc(var(--glance-h) * 0.5));
+  height: max(3px, calc(var(--glance-h) * 0.5));
+  border-radius: 50%;
+  background: var(--done);
+  box-shadow: 0 0 5px var(--done);
+  animation: sliver-in 0.4s var(--spring, ease-out);
+}
+
+.sliver-dot[data-kind="camera"] {
+  background: var(--ok);
+  box-shadow: 0 0 5px var(--ok);
+}
+
+@keyframes sliver-in {
+  from {
+    transform: scale(0);
+  }
+}
+
+/* Music without progress: the line full, in the album's tint, pulsing gently. */
+.glance.sliver[data-playing="true"] .sliver-line i {
+  animation: sliver-pulse 2.4s ease-in-out infinite alternate;
+}
+
+@keyframes sliver-pulse {
+  to {
+    opacity: 0.55;
+  }
+}
+
+/* An alert colors the whole strip and breathes, until the island is opened. */
+.glance.sliver[data-alert="true"] .sliver-in {
+  background: var(--done);
+  animation: breathe 1.4s ease-in-out infinite alternate;
+}
+
+.glance.sliver[data-alert="true"] .sliver-line {
+  background: color-mix(in srgb, var(--bg) 25%, transparent);
+}
+
+.glance.sliver[data-alert="true"] .sliver-line i {
+  background: var(--bg);
+  box-shadow: none;
+}
+
+/* Open, the tabs say it all: the strip makes way. */
+#island[data-open="true"] .sliver-in {
+  opacity: 0;
+}
