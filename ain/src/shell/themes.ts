@@ -31,7 +31,7 @@ const t = (id: string, name: string, bg: string, fg: string, accent: string, ok:
 
 /** Built-in themes, after the editor themes they're named for. The first is the default. */
 export const THEMES: readonly Theme[] = [
-  t("island", "Island", "#000000", "#f5f5f7", "#0a84ff", "#30d158", "#ffd60a", "#ff453a", "#ff9f0a"),
+  t("island", "AiN", "#000000", "#f5f5f7", "#0a84ff", "#30d158", "#ffd60a", "#ff453a", "#ff9f0a"),
   t("monokai", "Monokai", "#272822", "#f8f8f2", "#66d9ef", "#a6e22e", "#e6db74", "#f92672", "#fd971f"),
   t("monokai-pro", "Monokai Pro", "#2d2a2e", "#fcfcfa", "#78dce8", "#a9dc76", "#ffd866", "#ff6188", "#fc9867"),
   t("tokyo-night", "Tokyo Night", "#1a1b26", "#c0caf5", "#7aa2f7", "#9ece6a", "#e0af68", "#f7768e", "#ff9e64"),

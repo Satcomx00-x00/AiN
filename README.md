@@ -107,7 +107,7 @@ will come on top of it later.
 | **Pill styles** | **Pill** (a glance at each end), **Solo** (one glance in the middle), **Stub** (a small tab with one mark), **Sliver** (a thin strip without text), **Hidden** (shows only while the cursor rests at the top center) | ✅ | ✅ | ✅ X11<br>⚠️ Wayland: Hidden stays shown, the compositor doesn't tell where the cursor is |
 | **Pill sizes** | Low profile (20 px), normal (32 px) or large (44 px), for every style; text, icons and corners ease to the new size live | ✅ | ✅ (a notch keeps its own size) | ✅ |
 | **Startup animations** | Hello, Boing, Sparkle or Typewriter when the island starts, or none; a Play button to preview; skipped when the system asks for reduced motion | ✅ | ✅ | ✅ |
-| **Themes and colors** | 54 themes (Island, Dracula, Nord, Tokyo Night, Gruvbox, Solarized…), your own pill and accent colors, the pill's width and corner curve | ✅ | ✅ | ✅ |
+| **Themes and colors** | 54 themes (AiN, Dracula, Nord, Tokyo Night, Gruvbox, Solarized…), your own pill and accent colors, the pill's width and corner curve | ✅ | ✅ | ✅ |
 | **Layout** | Which widgets show on each side of the pill (the first with something to say wins) and the order of the tabs | ✅ | ✅ | ✅ |
 | **Settings** | A settings window; changes apply at once and are saved automatically | ✅ | ✅ | ✅ |
 | **Tray icon** | Opens the settings, quits the app | ✅ | ✅ | ⚠️ needs a tray that supports AppIndicator (GNOME: the AppIndicator extension) |
