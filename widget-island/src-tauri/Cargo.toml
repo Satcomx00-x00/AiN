@@ -21,7 +21,7 @@ serde_json = "1.0.154"
 xcap = "0.9.8"
 cpal = "0.18.2"
 ureq = "3.4.2"
-base64 = "0.22"
+base64 = "0.23"
 # Speech recognition for dictation, from prebuilt static libraries (Windows, Linux and macOS x64).
 sherpa-onnx = "1.13.8"
 sha2 = "0.11.1"
