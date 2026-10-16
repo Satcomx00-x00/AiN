@@ -1,0 +1,24 @@
+# The AiN community plugin store.
+#
+# AiN reads this file over the internet (Settings → Plugins → Community store); it is never bundled
+# with the app, so a plugin added here shows up without a new release. Read from:
+#   https://raw.githubusercontent.com/Satcomx00-x00/AiN/store/store.yaml
+#
+# To list your plugin, open a pull request against this `store` branch adding an entry:
+#   id:          2–32 lowercase letters, digits or dashes; the folder it is installed in
+#   name:        shown in Settings
+#   description: one line, shown under the name
+#   repo:        the plugin's git repository (https). Installing from the app needs a GitHub one.
+#   branch:      optional; the branch, tag or commit to install from (default: the default branch)
+#   entry:       optional; the plugin's file in the repository (default: index.js)
+#
+# Start from the template on the `plugin-template` branch.
+
+version: 1
+
+plugins:
+  - id: orbit-clock
+    name: Orbit clock
+    description: An analog clock, a seconds ring on the pill and other time zones.
+    repo: https://github.com/Satcomx00-x00/AiN
+    branch: plugin-template
