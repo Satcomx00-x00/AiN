@@ -95,7 +95,8 @@ jobs:
   prepare:
     name: Prepare release
     needs: [plan, ci]
-    # `ci` is skipped when this run comes from a green CI run.
+    # `ci` is skipped when this run comes from a green CI run. GitHub skips every job downstream of a
+    # skipped one unless it says otherwise: hence the explicit conditions here, on `build` and on `publish`.
     if: >-
       !cancelled() && needs.plan.outputs.release == 'true' &&
       (needs.ci.result == 'success' || needs.ci.result == 'skipped')
@@ -156,6 +157,8 @@ jobs:
   build:
     name: Build (${{ matrix.name }})
     needs: [plan, prepare]
+    # Explicit, as for `publish`: a skipped `ci` (any automatic run) would otherwise skip every job after it.
+    if: ${{ !cancelled() && needs.prepare.result == 'success' }}
     permissions:
       contents: write
     strategy:
@@ -215,6 +218,7 @@ jobs:
   publish:
     name: Publish release
     needs: [plan, build]
+    if: ${{ !cancelled() && needs.build.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
