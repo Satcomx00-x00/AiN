@@ -131,9 +131,20 @@ cd widget-island
 bun install
 bun run tauri dev      # run the app
 bun run typecheck      # tsc
-bun run test           # vitest
+bun run test           # unit and integration tests (vitest)
 bun run tauri build    # local bundle
 ```
+
+Tests:
+
+| Command | What it runs |
+| --- | --- |
+| `bun run test` | Unit tests next to the code (`src/**/*.test.ts`), plus the integration flows in `src/integration`: the real island and settings page on fake system services |
+| `bun run test:coverage` | The same, with a coverage report in `coverage/` |
+| `bun run test:e2e` | End-to-end tests in Chromium (`e2e/`): the island, settings, clipboard popup and capture editor on the dev server, with real layout, pointer and animations |
+| `bun run test:smoke` | Smoke tests (`smoke/`): builds, then opens each window of the production build with a stand-in for the Tauri backend |
+
+The browser tests need Chromium once: `bunx playwright install chromium`.
 
 Rust checks (from `widget-island/src-tauri`):
 
@@ -192,7 +203,8 @@ To skip one hook once: `PREK_SKIP=cargo-test git push`. Configuration: [`prek.to
 Every push to `main` and every pull request runs:
 
 - commit message linting (commitlint)
-- frontend: typecheck, unit tests, production build
+- frontend: typecheck, unit and integration tests, production build
+- browser tests: end-to-end tests and smoke tests of the production build, in Chromium
 - Rust: `rustfmt`, then `clippy -D warnings` and `cargo test` on Linux, Windows and macOS (x64), and a check that the
   committed TypeScript bindings match the Rust code
 - an AppImage build, uploaded as a workflow artifact
