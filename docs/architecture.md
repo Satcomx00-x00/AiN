@@ -90,3 +90,8 @@ see [writing a plugin](plugins.md). The shell's `extensions` module finds them; 
 - it can't take a built-in feature's id, nor define shortcut commands.
 
 It still runs in the island's page, with its permissions: the Settings page says so.
+
+## Updates
+
+The shell's `updater` module checks the release host for a newer version and, when the user asks,
+installs it and restarts, on every platform; see [updates](updates.md).
