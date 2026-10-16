@@ -3,6 +3,25 @@
 All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.3.0](https://github.com/Satcomx00-x00/AiN/compare/v0.2.0..v0.3.0) - 2026-10-16
+
+### Features
+
+- **store:** Read the community plugin store and install from it ([67a8564](https://github.com/Satcomx00-x00/AiN/commit/67a856444a41013379c3398116c9310e1dd8979f))
+- **settings:** Show the community store in Settings → Plugins ([c378916](https://github.com/Satcomx00-x00/AiN/commit/c37891655d2c76b27496eb561d36cfebd3784c03))
+
+### Documentation
+
+- Explain the community store and the plugin template ([f13c5f6](https://github.com/Satcomx00-x00/AiN/commit/f13c5f60382cbf4f5ef6739d300dff36a8425042))
+
+### Tests
+
+- **settings:** Cover installing from the community store ([0e21a06](https://github.com/Satcomx00-x00/AiN/commit/0e21a0685e9fd547f9cbc7fb32024cd264c88a77))
+- **smoke:** Answer the store commands in the stand-in backend ([8adc78e](https://github.com/Satcomx00-x00/AiN/commit/8adc78e226553b1e42a8298d1cf1227ab999c0f2))
+
+### CI
+
+- Bump the actions group across 1 directory with 3 updates ([e65bff1](https://github.com/Satcomx00-x00/AiN/commit/e65bff1cabc9d63a57beee9a90726af48bffa84d))
 ## [0.2.0](https://github.com/Satcomx00-x00/AiN/compare/v0.1.2..v0.2.0) - 2026-10-16
 
 ### Features
