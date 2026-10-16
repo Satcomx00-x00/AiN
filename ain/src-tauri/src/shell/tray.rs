@@ -7,9 +7,10 @@ use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
 };
 
-use super::settings;
+use super::{settings, updater};
 
 const SETTINGS: &str = "settings";
+const UPDATES: &str = "updates";
 const QUIT: &str = "quit";
 
 /// No commands, so not in the manifest: a plain plugin that only sets the tray up.
@@ -20,6 +21,7 @@ pub fn init() -> TauriPlugin<Wry> {
                 app,
                 &[
                     &MenuItem::with_id(app, SETTINGS, "Settings…", true, None::<&str>)?,
+                    &MenuItem::with_id(app, UPDATES, "Check for Updates…", true, None::<&str>)?,
                     &PredefinedMenuItem::separator(app)?,
                     &MenuItem::with_id(app, QUIT, "Quit AiN", true, None::<&str>)?,
                 ],
@@ -30,6 +32,12 @@ pub fn init() -> TauriPlugin<Wry> {
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| match event.id().as_ref() {
                     SETTINGS => _ = settings::show(app, None),
+                    // Settings' About section shows the result as it comes.
+                    UPDATES => {
+                        _ = settings::show(app, Some("about"));
+                        let app = app.clone();
+                        tauri::async_runtime::spawn(async move { updater::check_now(&app).await });
+                    }
                     QUIT => settings::quit_app(app),
                     _ => {}
                 })
