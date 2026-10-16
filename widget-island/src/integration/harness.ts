@@ -132,6 +132,9 @@ export function system() {
 
   const store = memorySettings();
   const fallback = defaults(layout);
+  // The clock's default format follows the machine's locale ("09:41" or "09:41 AM"): pin it, so
+  // the tests read the same everywhere. A test that changes it still can.
+  void store.save({ ...fallback, options: { clock: { format: "24" } } });
 
   return {
     services,
