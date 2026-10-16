@@ -14,6 +14,7 @@ import type { Usage } from "../features/privacy/service";
 import type { Stats } from "../features/stats/service";
 import type { Output, Source } from "../features/volume/service";
 import type { PopupPort } from "../shell/commands";
+import type { CommunityPort, Offer } from "../shell/community";
 import type { ExtensionsPort, Importer } from "../shell/extensions";
 import type { IslandHandle } from "../shell/host";
 import { type Settings, defaults, memorySettings, parseSettings } from "../shell/settings";
@@ -134,6 +135,27 @@ export function system() {
     return { default: def };
   };
 
+  // The community store: installing a plugin puts its file in the folder above.
+  const offers = new Map<string, { offer: Offer; def: Definition }>();
+  /** Why the store can't be read or a download fails, while set; a download waits for `held`. */
+  const outage: { store: string | null; install: string | null; held: Promise<void> | null } = { store: null, install: null, held: null };
+  const reposOpened: string[] = [];
+  const community: CommunityPort = {
+    catalog: async () => {
+      if (outage.store) throw new Error(outage.store);
+      return { url: "https://store.test/store.yaml", plugins: [...offers.values()].map((o) => o.offer) };
+    },
+    install: async (id) => {
+      await outage.held;
+      if (outage.install) throw new Error(outage.install);
+      const listed = offers.get(id);
+      if (!listed) throw new Error(`"${id}" is no longer in the store`);
+      files.set(listed.offer.file, listed.def);
+      return listed.offer.file;
+    },
+    openRepo: async (id) => void reposOpened.push(id),
+  };
+
   const store = memorySettings();
   const fallback = defaults(layout);
   // The clock's default format follows the machine's locale ("09:41" or "09:41 AM"): pin it, so
@@ -147,6 +169,7 @@ export function system() {
     store,
     folder,
     importer,
+    community,
     /** What the system says: push a track, an output volume, mic/camera use, a dictation phase, a stats sample. */
     push: {
       track: (t: Track | null) => media.push(t),
@@ -162,6 +185,22 @@ export function system() {
     hardware: (h: { width: number; height: number; hasNotch: boolean }) => void (hardware = h),
     /** Puts a plugin file in the folder (it runs only once turned on in the settings). */
     addFile: (file: string, def: Definition) => void files.set(file, def),
+    /** Lists a plugin in the community store; installing it adds its file to the folder. */
+    addOffer: (offer: Omit<Offer, "file" | "problem"> & Partial<Offer>, def: Definition) =>
+      void offers.set(offer.id, { offer: { file: `${offer.id}/index.js`, problem: null, ...offer }, def }),
+    /** Makes reading the store, or downloading from it, fail with `message`; `null` mends it. */
+    breakStore: (part: "store" | "install", message: string | null) => void (outage[part] = message),
+    /** Holds downloads from the store until the returned function is called. */
+    holdInstalls: () => {
+      let release = () => {};
+      outage.held = new Promise((r) => (release = r));
+      return () => {
+        outage.held = null;
+        release();
+      };
+    },
+    /** The store plugins whose repository was opened, by id. */
+    reposOpened,
     /** The stored settings, read back as the island would read them. */
     settings: async (): Promise<Settings> => {
       let raw: unknown = null;
@@ -257,7 +296,7 @@ export async function startSettings(sys: System, at = "") {
   // The page sets itself up when its module loads: load a fresh copy, reading the ports given here.
   vi.resetModules();
   const ports = await import("../shell/windows/settings/ports");
-  ports.usePorts({ store: sys.store, popup: sys.popup, folder: sys.folder, importer: sys.importer, inApp: false });
+  ports.usePorts({ store: sys.store, popup: sys.popup, folder: sys.folder, importer: sys.importer, community: sys.community, inApp: false });
   await import("../shell/windows/settings/main");
   await advance(0);
   const page = document.querySelector<HTMLElement>(".app")!;

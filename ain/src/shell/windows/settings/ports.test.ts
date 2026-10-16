@@ -7,6 +7,7 @@ vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn() }));
 const { appPorts, settingsPorts, usePorts } = await import("./ports");
 const { idlePopup, tauriPopup } = await import("../../commands");
 const { importSource, noExtensions, tauriExtensions } = await import("../../extensions");
+const { noCommunity, tauriCommunity } = await import("../../community");
 const { tauriSettings } = await import("../../settings");
 
 afterEach(() => {
@@ -20,12 +21,13 @@ describe("the settings page's ports", () => {
     expect(ports.inApp).toBe(false);
     expect([ports.popup, ports.folder, ports.importer]).toEqual([idlePopup, noExtensions, importSource]);
     expect(ports.store).not.toBe(tauriSettings);
+    expect(ports.community).toBe(noCommunity);
   });
 
   it("are the app's backend inside Tauri", () => {
     Object.assign(window, { __TAURI_INTERNALS__: {} });
     const ports = appPorts();
-    expect([ports.inApp, ports.store, ports.popup, ports.folder]).toEqual([true, tauriSettings, tauriPopup, tauriExtensions]);
+    expect([ports.inApp, ports.store, ports.popup, ports.folder, ports.community]).toEqual([true, tauriSettings, tauriPopup, tauriExtensions, tauriCommunity]);
   });
 
   it("can be replaced, e.g. by an integration test, and given back", () => {
