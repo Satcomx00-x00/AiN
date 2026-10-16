@@ -8,17 +8,21 @@ use windows::Win32::{
         Input::KeyboardAndMouse::{
             INPUT, INPUT_0, INPUT_KEYBOARD, KEYBD_EVENT_FLAGS, KEYBDINPUT, KEYEVENTF_KEYUP, SendInput, VIRTUAL_KEY, VK_CONTROL, VK_V,
         },
-        WindowsAndMessaging::{GetForegroundWindow, SetForegroundWindow},
+        WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId, SetForegroundWindow},
     },
 };
 
 /// Time for focus to move back before typing into it.
 const SETTLE: Duration = Duration::from_millis(80);
 
+/// The focused window, unless it's one of ours.
 pub fn foreground() -> Option<isize> {
     // SAFETY: a plain query with no arguments.
     let hwnd = unsafe { GetForegroundWindow() };
-    (!hwnd.is_invalid()).then_some(hwnd.0 as isize)
+    let mut pid = 0u32;
+    // SAFETY: `hwnd` is a window handle (or null, which the call rejects); `pid` is valid for the call.
+    unsafe { GetWindowThreadProcessId(hwnd, Some(&mut pid)) };
+    (!hwnd.is_invalid() && pid != std::process::id()).then_some(hwnd.0 as isize)
 }
 
 fn key(vk: VIRTUAL_KEY, up: bool) -> INPUT {

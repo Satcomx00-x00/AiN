@@ -15,3 +15,5 @@ extend-exclude = [
 [default.extend-words]
 # JetBrains' "Darcula" theme, not a misspelt Dracula.
 darcula = "darcula"
+# Core Audio's four-letter property codes ('inpt' is the input scope).
+inpt = "inpt"

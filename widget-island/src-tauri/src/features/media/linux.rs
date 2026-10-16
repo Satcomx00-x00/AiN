@@ -5,15 +5,12 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use base64::{Engine, engine::general_purpose::STANDARD};
 use mpris::{Metadata, PlaybackStatus, Player, PlayerFinder};
 
 use super::{
-    Backend, Control, Read, Track,
+    Backend, Control, Read, Track, art,
     choose::{Candidate, choose},
 };
-
-const MAX_ART_BYTES: u64 = 4 * 1024 * 1024;
 
 pub struct Players {
     finder: PlayerFinder,
@@ -69,31 +66,12 @@ fn track(p: &Player, meta: &Metadata) -> Option<Track> {
     })
 }
 
-/// "image/png" for ".png", and so on; JPEG when unsure, since most cover art is.
-pub fn mime_for(path: &str) -> &'static str {
-    let lower = path.to_ascii_lowercase();
-    match lower.rsplit('.').next() {
-        Some("png") => "image/png",
-        Some("webp") => "image/webp",
-        Some("gif") => "image/gif",
-        Some("svg") => "image/svg+xml",
-        _ => "image/jpeg",
-    }
-}
-
 /// The artwork as a `data:` URL: players point at a local file or an http(s) URL.
 fn thumbnail(url: &str) -> Option<String> {
-    let (bytes, mime) = if let Some(path) = url.strip_prefix("file://") {
-        let path = percent_decode(path);
-        (fs::metadata(&path).ok().filter(|m| m.len() <= MAX_ART_BYTES).and_then(|_| fs::read(&path).ok())?, mime_for(&path).to_string())
-    } else if url.starts_with("https://") || url.starts_with("http://") {
-        let mut response = ureq::get(url).call().ok()?;
-        let mime = response.body().mime_type().map_or_else(|| mime_for(url).to_string(), str::to_string);
-        (response.body_mut().with_config().limit(MAX_ART_BYTES).read_to_vec().ok()?, mime)
-    } else {
-        return None;
-    };
-    Some(format!("data:{mime};base64,{}", STANDARD.encode(bytes)))
+    let Some(path) = url.strip_prefix("file://") else { return art::download(url) };
+    let path = percent_decode(path);
+    let bytes = fs::metadata(&path).ok().filter(|m| m.len() <= art::MAX_BYTES).and_then(|_| fs::read(&path).ok())?;
+    Some(art::data_url(art::mime_for(&path), &bytes))
 }
 
 /// File URLs escape spaces and other bytes as `%XX`.
@@ -151,12 +129,6 @@ mod tests {
     fn decodes_file_urls() {
         assert_eq!(percent_decode("/home/me/My%20Music/cover%2Ejpg"), "/home/me/My Music/cover.jpg");
         assert_eq!(percent_decode("/bad%zzescape%"), "/bad%zzescape%");
-    }
-
-    #[test]
-    fn guesses_image_types() {
-        assert_eq!(mime_for("/tmp/Cover.PNG"), "image/png");
-        assert_eq!(mime_for("https://i.scdn.co/image/ab67616d0000b273"), "image/jpeg");
     }
 
     #[test]

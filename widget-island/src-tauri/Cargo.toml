@@ -32,7 +32,7 @@ specta-typescript = "=0.0.12"
 tauri-specta = { version = "=2.0.0-rc.25", features = ["derive", "typescript"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
-objc2-app-kit = { version = "0.3", features = ["NSWindow", "NSScreen", "NSResponder"] }
+objc2-app-kit = { version = "0.3", features = ["NSWindow", "NSScreen", "NSResponder", "NSRunningApplication", "NSWorkspace", "libc"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 arboard = { version = "3.6.1", default-features = false, features = ["image-data", "wayland-data-control"] }

@@ -1,8 +1,10 @@
 //! Helpers shared by several features' OS backends. Each feature keeps its own backend next to it
-//! (`features/<name>/windows.rs`, `linux.rs`); only what they have in common lives here.
+//! (`features/<name>/windows.rs`, `linux.rs`, `macos.rs`); only what they have in common lives here.
 
 #[cfg(target_os = "linux")]
 pub mod linux;
+#[cfg(target_os = "macos")]
+pub mod macos;
 #[cfg(windows)]
 pub mod windows;
 

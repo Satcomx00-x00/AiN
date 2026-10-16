@@ -5,8 +5,9 @@
 //!
 //! A worker thread owns the microphone stream. While listening it feeds 16 kHz audio to a
 //! decoder thread in 30 s chunks, so long dictations are mostly transcribed by the time they end.
-//! The text is then typed at the cursor where the OS allows it (`windows.rs`), and put on the
-//! clipboard elsewhere: Wayland, for one, lets no app type into another.
+//! The text is then typed at the cursor (`windows.rs`; on macOS and Linux, the platform's key
+//! helpers), or put on the clipboard when the system won't let us type: macOS until the user allows
+//! Accessibility access, Wayland without `wtype` or `ydotool`, X11 without `xdotool`.
 
 mod chunk;
 mod engine;
@@ -209,23 +210,35 @@ fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     m.lock().unwrap_or_else(|e| e.into_inner())
 }
 
-/// Hands the recognized text over: typed at the cursor where the OS allows it, else copied.
-fn deliver(app: &AppHandle, text: &str) -> Delivery {
+/// Types `text` where the cursor is; false where the system doesn't let us.
+fn type_text(text: &str) -> bool {
     #[cfg(windows)]
     {
-        let _ = app;
         windows::type_text(text);
-        Delivery::Typed
+        true
     }
-    #[cfg(not(windows))]
+    #[cfg(target_os = "macos")]
+    return crate::platform::macos::keys::type_text(text);
+    #[cfg(target_os = "linux")]
+    return crate::platform::linux::keys::type_text(text);
+    #[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
     {
-        if let Some(clipboard) = app.try_state::<Arc<super::clipboard::Clipboard>>()
-            && let Err(e) = clipboard.copy(text.to_string())
-        {
-            eprintln!("island: dictation: couldn't copy the text: {e}");
-        }
-        Delivery::Copied
+        let _ = text;
+        false
     }
+}
+
+/// Hands the recognized text over: typed at the cursor where the OS allows it, else copied.
+fn deliver(app: &AppHandle, text: &str) -> Delivery {
+    if type_text(text) {
+        return Delivery::Typed;
+    }
+    if let Some(clipboard) = app.try_state::<Arc<super::clipboard::Clipboard>>()
+        && let Err(e) = clipboard.copy(text.to_string())
+    {
+        eprintln!("island: dictation: couldn't copy the text: {e}");
+    }
+    Delivery::Copied
 }
 
 #[tauri::command]

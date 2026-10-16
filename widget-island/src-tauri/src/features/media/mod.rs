@@ -1,11 +1,15 @@
 //! Now playing: whatever the OS media controls report (Spotify, browsers, players), with controls.
 //! Windows reads its media transport controls (`windows.rs`), Linux the MPRIS players on D-Bus
-//! (`linux.rs`).
+//! (`linux.rs`), macOS the players it can script: Spotify and Music (`macos.rs`).
 
-#[cfg(any(windows, target_os = "linux"))]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+mod art;
+#[cfg(any(windows, target_os = "linux", target_os = "macos"))]
 mod choose;
 #[cfg(target_os = "linux")]
 mod linux;
+#[cfg(target_os = "macos")]
+mod macos;
 #[cfg(windows)]
 mod windows;
 
@@ -21,7 +25,7 @@ use crate::{Error, Res};
 
 const POLL: Duration = Duration::from_secs(1);
 /// Whether this platform has a backend at all; without one, controls say so instead of doing nothing.
-const SUPPORTED: bool = cfg!(any(windows, target_os = "linux"));
+const SUPPORTED: bool = cfg!(any(windows, target_os = "linux", target_os = "macos"));
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
@@ -74,7 +78,9 @@ fn open() -> Slot {
     return windows::Source::new().map(|s| Box::new(s) as Box<dyn Backend>);
     #[cfg(target_os = "linux")]
     return linux::Players::new().map(|p| Box::new(p) as Box<dyn Backend>);
-    #[cfg(not(any(windows, target_os = "linux")))]
+    #[cfg(target_os = "macos")]
+    return Some(Box::new(macos::Players::default()));
+    #[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
     None
 }
 

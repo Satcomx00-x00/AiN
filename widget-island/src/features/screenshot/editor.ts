@@ -1,4 +1,5 @@
 import { button, h, icon } from "../../sdk/dom";
+import { primaryKey } from "../../sdk/platform";
 import type { PopupContext, PopupView } from "../../sdk/plugin";
 import type { ClipboardPort } from "../clipboard/service";
 import type { CapturePort } from "./service";
@@ -259,7 +260,7 @@ export function editor(root: HTMLElement, ctx: Ctx): PopupView {
     if (!image) return;
     try {
       await ctx.services.clipboard.copyImage(image);
-      say("Copied — paste it anywhere with Ctrl+V");
+      say(`Copied — paste it anywhere with ${primaryKey()}+V`);
       if (ctx.options().closeAfterCopy) setTimeout(() => ctx.close(), 650);
     } catch (e) {
       say(`Couldn't copy: ${String(e)}`);
@@ -329,6 +330,7 @@ export function editor(root: HTMLElement, ctx: Ctx): PopupView {
     paint();
   };
 
+  const mod = primaryKey();
   const bar = h(
     "div",
     { class: "ed-bar", role: "toolbar", "aria-label": "Annotate", hidden: "" },
@@ -338,12 +340,12 @@ export function editor(root: HTMLElement, ctx: Ctx): PopupView {
     h("span", { class: "ed-sep" }),
     ...sizeButtons,
     h("span", { class: "ed-sep" }),
-    button(icon(ICONS.undo), undo, { class: "ed-btn", "aria-label": "Undo (Ctrl+Z)", title: "Undo (Ctrl+Z)" }),
+    button(icon(ICONS.undo), undo, { class: "ed-btn", "aria-label": `Undo (${mod}+Z)`, title: `Undo (${mod}+Z)` }),
     button(icon(ICONS.clear), clear, { class: "ed-btn", "aria-label": "Clear drawings", title: "Clear drawings" }),
     button(icon(ICONS.reselect), startSelect, { class: "ed-btn", "aria-label": "New selection (N)", title: "New selection (N)" }),
     h("span", { class: "ed-sep" }),
-    button(h("span", { class: "ed-act" }, icon(ICONS.copy), "Copy"), () => void copy(), { class: "ed-primary", title: "Copy (Ctrl+C)" }),
-    button(icon(ICONS.save), () => void save(), { class: "ed-btn", "aria-label": "Save as PNG (Ctrl+S)", title: "Save as PNG (Ctrl+S)" }),
+    button(h("span", { class: "ed-act" }, icon(ICONS.copy), "Copy"), () => void copy(), { class: "ed-primary", title: `Copy (${mod}+C)` }),
+    button(icon(ICONS.save), () => void save(), { class: "ed-btn", "aria-label": `Save as PNG (${mod}+S)`, title: `Save as PNG (${mod}+S)` }),
     button(icon(ICONS.close), () => ctx.close(), { class: "ed-btn", "aria-label": "Close (Esc)", title: "Close (Esc)" }),
   );
   root.tabIndex = -1; // focusable, so shortcuts work without clicking first

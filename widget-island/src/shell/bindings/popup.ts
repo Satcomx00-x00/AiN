@@ -16,8 +16,8 @@ export const commands = {
 	/**  Hides the window that asks (the popup or the overlay). */
 	hide: () => __TAURI_INVOKE<null>("plugin:popup|hide"),
 	/**
-	 *  Hides the asking window, gives focus back to the previous app and pastes (Ctrl+V) into it.
-	 *  Async: it waits briefly for focus to settle, off the main thread.
+	 *  Hides the asking window, gives focus back to the previous app and pastes (Ctrl+V; Cmd+V on
+	 *  macOS) into it. Async: it waits briefly for focus to settle, off the main thread.
 	 */
 	paste: () => __TAURI_INVOKE<null>("plugin:popup|paste"),
 };

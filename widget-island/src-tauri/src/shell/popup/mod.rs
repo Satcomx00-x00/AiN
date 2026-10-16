@@ -2,10 +2,31 @@
 //! For example clipboard history on Win+Shift+B, pasting the chosen item into the app you were in.
 //!
 //! The frontend owns which commands exist and their shortcuts (they live in settings); this plugin
-//! registers them, shows the popup for whichever fires, and does the paste.
+//! registers them, shows the popup for whichever fires, and does the paste (`windows.rs`,
+//! `macos.rs`, `linux.rs`).
 
+#[cfg(target_os = "linux")]
+mod linux;
+#[cfg(target_os = "macos")]
+mod macos;
 #[cfg(windows)]
 mod windows;
+
+#[cfg(target_os = "linux")]
+use linux as os;
+#[cfg(target_os = "macos")]
+use macos as os;
+#[cfg(windows)]
+use windows as os;
+
+/// Elsewhere, the item is only copied.
+#[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
+mod os {
+    pub fn foreground() -> Option<isize> {
+        None
+    }
+    pub fn paste_into(_previous: Option<isize>) {}
+}
 
 use std::{collections::BTreeMap, sync::Mutex, thread, time::Duration};
 
@@ -33,7 +54,7 @@ const TOP: f64 = 0.22;
 struct Popup {
     /// Command id → why its shortcut couldn't be registered.
     failures: Mutex<BTreeMap<String, String>>,
-    /// The window that had focus before the popup, to paste into.
+    /// The window (on macOS, the app) that had focus before the popup, to paste into.
     previous: Mutex<Option<isize>>,
 }
 
@@ -163,29 +184,21 @@ fn hide(window: WebviewWindow) -> Res<()> {
     Ok(())
 }
 
-/// Hides the asking window, gives focus back to the previous app and pastes (Ctrl+V) into it.
-/// Async: it waits briefly for focus to settle, off the main thread.
+/// Hides the asking window, gives focus back to the previous app and pastes (Ctrl+V; Cmd+V on
+/// macOS) into it. Async: it waits briefly for focus to settle, off the main thread.
 #[tauri::command]
 #[specta::specta]
 async fn paste(window: WebviewWindow, popup: State<'_, Popup>) -> Res<()> {
     window.hide()?;
     let previous = lock(&popup.previous).take();
-    #[cfg(windows)]
-    windows::paste_into(previous);
-    #[cfg(not(windows))]
-    let _ = previous;
+    os::paste_into(previous);
     Ok(())
 }
 
 /// Shows the popup for `command` on the monitor under the pointer, remembering who had focus.
 pub fn show(app: &AppHandle, command: &str) -> Res<()> {
-    #[cfg(windows)]
-    {
-        let foreground = windows::foreground();
-        let ours = app.get_webview_window(WINDOW).and_then(|w| w.hwnd().ok()).map(|h| h.0 as isize);
-        if foreground.is_some() && foreground != ours {
-            *lock(&app.state::<Popup>().previous) = foreground;
-        }
+    if let Some(foreground) = os::foreground() {
+        *lock(&app.state::<Popup>().previous) = Some(foreground);
     }
     let window = match app.get_webview_window(WINDOW) {
         Some(w) => w,
@@ -220,10 +233,7 @@ fn capture(app: &AppHandle, command: &str) -> Res<()> {
         w.hide()?;
         thread::sleep(OVERLAY_GONE);
     }
-    #[cfg(windows)]
-    {
-        *lock(&app.state::<Popup>().previous) = windows::foreground();
-    }
+    *lock(&app.state::<Popup>().previous) = os::foreground();
     let shot = capture::capture_at(pointer.x as i32, pointer.y as i32)?;
     let (origin, size) = (shot.origin, shot.size);
     capture::store(app, shot);

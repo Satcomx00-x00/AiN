@@ -1,4 +1,5 @@
 import { follow } from "../sdk/follow";
+import { isMac } from "../sdk/platform";
 import type { AnyPlugin, Command, Surface } from "../sdk/plugin";
 import { commands, events } from "./bindings/popup";
 
@@ -44,10 +45,12 @@ export function fromKey(e: Pick<KeyboardEvent, "ctrlKey" | "altKey" | "shiftKey"
 }
 
 const KEY_LABELS: Record<string, string> = { Super: "Win", Ctrl: "Ctrl", Alt: "Alt", Shift: "Shift", Backquote: "`", Space: "Space" };
+/** Where macOS names the keys differently. */
+const MAC_LABELS: Record<string, string> = { Super: "Cmd", Ctrl: "Control", Alt: "Option" };
 
-/** "Super+Shift+KeyB" → ["Win", "Shift", "B"], for display as keycaps. */
-export const keycaps = (shortcut: string): string[] =>
-  shortcut.split("+").map((part) => KEY_LABELS[part] ?? part.replace(/^Key|^Digit|^Arrow/, ""));
+/** "Super+Shift+KeyB" → ["Win", "Shift", "B"] (["Cmd", "Shift", "B"] on macOS), for display as keycaps. */
+export const keycaps = (shortcut: string, mac = isMac()): string[] =>
+  shortcut.split("+").map((part) => (mac ? MAC_LABELS[part] : undefined) ?? KEY_LABELS[part] ?? part.replace(/^Key|^Digit|^Arrow/, ""));
 
 export interface PopupPort {
   /** Registers shortcuts (command id → shortcut and surface); resolves with the ones that failed and why. */

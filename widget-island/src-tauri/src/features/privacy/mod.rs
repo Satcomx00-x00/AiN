@@ -1,8 +1,11 @@
 //! Which apps are using the microphone or the camera right now. Windows keeps a record of it
-//! (`windows.rs`); on Linux, recording streams and open camera devices tell (`linux.rs`).
+//! (`windows.rs`); on Linux, recording streams and open camera devices tell (`linux.rs`); macOS
+//! tells which processes record, and whether a camera is on (`macos.rs`).
 
 #[cfg(target_os = "linux")]
 mod linux;
+#[cfg(target_os = "macos")]
+mod macos;
 #[cfg(windows)]
 mod windows;
 
@@ -28,7 +31,7 @@ pub struct Usage {
 pub struct UsageChanged(pub Option<Usage>);
 
 /// Whether this platform can tell at all.
-const SUPPORTED: bool = cfg!(any(windows, target_os = "linux"));
+const SUPPORTED: bool = cfg!(any(windows, target_os = "linux", target_os = "macos"));
 
 /// This platform's answer, sorted and without duplicates.
 fn read() -> Usage {
@@ -36,7 +39,9 @@ fn read() -> Usage {
     return windows::read();
     #[cfg(target_os = "linux")]
     return linux::read();
-    #[cfg(not(any(windows, target_os = "linux")))]
+    #[cfg(target_os = "macos")]
+    return macos::read();
+    #[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
     Usage::default()
 }
 

@@ -1,5 +1,57 @@
 //! Linux specifics shared by several backends.
 
+/// Synthetic key presses, through whichever tool the session allows: `xdotool` on X11; on Wayland,
+/// which lets no app type into another by itself, `wtype` (wlroots and KDE compositors) or `ydotool`
+/// (any, with its daemon running). Without one, callers fall back to the clipboard.
+pub mod keys {
+    use std::process::{Command, Stdio};
+
+    fn wayland() -> bool {
+        std::env::var_os("WAYLAND_DISPLAY").is_some_and(|d| !d.is_empty())
+    }
+
+    /// Runs a tool; its output when it ran and succeeded.
+    fn run(program: &str, args: &[&str]) -> Option<String> {
+        let out = Command::new(program).args(args).stdin(Stdio::null()).stderr(Stdio::null()).output().ok()?;
+        out.status.success().then(|| String::from_utf8_lossy(&out.stdout).into_owned())
+    }
+
+    /// The focused window (X11), unless it's ours. Wayland doesn't tell.
+    pub fn active_window() -> Option<isize> {
+        if wayland() {
+            return None;
+        }
+        let window: isize = run("xdotool", &["getactivewindow"])?.trim().parse().ok()?;
+        let pid = run("xdotool", &["getwindowpid", &window.to_string()]).and_then(|p| p.trim().parse::<u32>().ok());
+        (pid != Some(std::process::id())).then_some(window)
+    }
+
+    /// Types `text` where the cursor is; false when no tool could.
+    pub fn type_text(text: &str) -> bool {
+        if wayland() {
+            run("wtype", &["--", text]).is_some() || run("ydotool", &["type", "--", text]).is_some()
+        } else {
+            run("xdotool", &["type", "--clearmodifiers", "--", text]).is_some()
+        }
+    }
+
+    /// Focuses `window` again (X11; Wayland's compositor does it by itself), then presses Ctrl+V.
+    pub fn paste(window: Option<isize>) -> bool {
+        if wayland() {
+            // ydotool takes Linux key codes: 29 is left Ctrl, 47 is V.
+            return run("wtype", &["-M", "ctrl", "-k", "v", "-m", "ctrl"]).is_some()
+                || run("ydotool", &["key", "29:1", "47:1", "47:0", "29:0"]).is_some();
+        }
+        let window = window.map(|w| w.to_string());
+        let mut args = Vec::new();
+        if let Some(w) = window.as_deref() {
+            args.extend(["windowactivate", "--sync", w]);
+        }
+        args.extend(["key", "--clearmodifiers", "ctrl+v"]);
+        run("xdotool", &args).is_some()
+    }
+}
+
 /// `pactl`, the PulseAudio command-line client. On PipeWire systems (Fedora, Ubuntu…) it talks to
 /// pipewire-pulse. JSON output (`-f json`) needs pactl 16 or later.
 pub mod pactl {

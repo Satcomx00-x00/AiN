@@ -73,12 +73,12 @@ Changes apply immediately and are saved automatically.
 | **Clock** | The time on the pill. Its tab shows a counter-style clock with the date and week number. You can choose 12h, 24h or the system format. | All |
 | **Timer** | A countdown with presets. It shows on the pill while it runs. | All |
 | **Stats** | CPU, memory and network usage, with a live load graph on the pill | All |
-| **Now playing** | Whatever plays through the system media controls (Spotify, browsers, players), with seek and playback controls | Windows, Linux (MPRIS) |
-| **Volume** | A mixer for your outputs and apps. Pin the ones you want to adjust. A pop-up appears when the volume changes. | Windows, Linux (PipeWire/PulseAudio, no level meter) |
-| **Mic & camera** | Which apps are using the microphone (orange) or camera (green) right now | Windows, Linux |
-| **Clipboard** | Your recently copied text, one click to copy it again. It is kept in memory only and never written to disk. | All (picker: Windows) |
-| **Screenshot** | Freezes the screen so you can draw on it. Select an area, then <kbd>Ctrl</kbd>+<kbd>C</kbd> to copy or <kbd>Ctrl</kbd>+<kbd>S</kbd> to save. | All |
-| **Dictation** | Speak, and the words are typed where your cursor is. Speech is recognized on your computer by a model you download once. | Windows; Linux and macOS copy the text to paste instead |
+| **Now playing** | Whatever plays through the system media controls (Spotify, browsers, players), with seek and playback controls | All (Linux: MPRIS players; macOS: Spotify and Music) |
+| **Volume** | A mixer for your outputs and apps. Pin the ones you want to adjust. A pop-up appears when the volume changes. | All (Linux and macOS: no level meter; macOS: outputs only, it has no per-app volume) |
+| **Mic & camera** | Which apps are using the microphone (orange) or camera (green) right now | All (macOS: apps on the mic from macOS 14; for the camera, only that one is in use) |
+| **Clipboard** | Your recently copied text, one click to copy it again. It is kept in memory only and never written to disk. | All |
+| **Screenshot** | Freezes the screen so you can draw on it. Select an area, then <kbd>Ctrl</kbd>+<kbd>C</kbd> to copy or <kbd>Ctrl</kbd>+<kbd>S</kbd> to save (<kbd>Cmd</kbd> on macOS). | All |
+| **Dictation** | Speak, and the words are typed where your cursor is. Speech is recognized on your computer by a model you download once. | All (see [permissions](#permissions-and-helper-tools); without them the text is copied to paste) |
 
 You can reorder, add or remove widgets on the pill and in the tabs from **Settings → Layout**, and add widgets made by
 others from **Settings → Plugins** (see [writing a plugin](docs/plugins.md)).
@@ -91,7 +91,7 @@ others from **Settings → Plugins** (see [writing a plugin](docs/plugins.md)).
 | Annotate a screenshot | <kbd>Win</kbd>+<kbd>Alt</kbd>+<kbd>S</kbd> |
 
 You can rebind both in **Settings → Shortcuts**. On Windows, <kbd>Win</kbd> + a single letter is reserved by the
-OS, so add <kbd>Shift</kbd> or <kbd>Alt</kbd>.
+OS, so add <kbd>Shift</kbd> or <kbd>Alt</kbd>. On macOS, <kbd>Win</kbd> is <kbd>Cmd</kbd>; on Linux, the Super key.
 
 ## Install
 
@@ -105,6 +105,17 @@ Download the latest build for your OS from [Releases](https://github.com/Satcomx
 
 > [!NOTE]
 > The binaries are not signed yet, so Windows SmartScreen and macOS Gatekeeper will show a warning on first launch.
+
+### Permissions and helper tools
+
+Typing dictated text and pasting from the clipboard picker press keys in another app, which macOS and Linux only
+allow in some conditions. When they can't, the text stays on the clipboard for you to paste.
+
+| OS | What it needs |
+| --- | --- |
+| macOS | Allow AiN under **System Settings → Privacy & Security → Accessibility** (macOS asks the first time). Now playing asks once to control Spotify or Music, and dictation to use the microphone. |
+| Linux, X11 | [`xdotool`](https://github.com/jordansissel/xdotool) |
+| Linux, Wayland | [`wtype`](https://github.com/atx/wtype) (wlroots compositors, KDE), or [`ydotool`](https://github.com/ReimuNotMoe/ydotool) with its daemon running (any compositor, GNOME included) |
 
 ## Development
 
@@ -139,7 +150,7 @@ How the code is organized, and how to add a feature: [docs/architecture.md](docs
 | `widget-island/src/features/` | One folder per feature (UI side), each with its generated `bindings.ts` |
 | `widget-island/src-tauri/src/manifest.rs` | Every IPC command and event, listed once |
 | `widget-island/src-tauri/src/shell/` | Native side of the app: island window, popup, capture, settings, tray, plugin folder |
-| `widget-island/src-tauri/src/features/` | Native side of each feature, with one backend per OS (`windows.rs`, `linux.rs`) |
+| `widget-island/src-tauri/src/features/` | Native side of each feature, with one backend per OS (`windows.rs`, `linux.rs`, `macos.rs`) |
 | `widget-island/examples/plugins/` | Example third-party plugin |
 | `cliff.toml` | [git-cliff](https://git-cliff.org) changelog configuration |
 | `.github/workflows/` | CI and release pipelines |
