@@ -1,5 +1,5 @@
 import "./settings.css";
-import { type Entry, type PopupPort, commandsOf, fromKey, idlePopup, keycaps, shortcutOf, surfaceOf, tauriPopup } from "../../commands";
+import { type Entry, commandsOf, fromKey, keycaps, shortcutOf, surfaceOf } from "../../commands";
 import { button, h, icon } from "../../../sdk/dom";
 import { resolve } from "../../../sdk/options";
 import type { Layout } from "../../placement";
@@ -11,16 +11,13 @@ import {
   REVEAL_RANGE,
   WIDTH_RANGE,
   type Settings,
-  type SettingsPort,
   defaults,
-  memorySettings,
   parseSettings,
   parseTarget,
   placeNew,
   setExtension,
-  tauriSettings,
 } from "../../settings";
-import { type Extension, type ExtensionsPort, fileRows, idOf, loadExtensions, noExtensions, tauriExtensions } from "../../extensions";
+import { type Extension, fileRows, idOf, loadExtensions } from "../../extensions";
 import type { Found } from "../../bindings/extensions";
 import { layout as defaultLayout } from "../../../features/layout";
 import { catalogue, extensionRules } from "../../../features";
@@ -34,17 +31,15 @@ import { tauriServices } from "../../../features/services";
 import { THEMES, themeById } from "../../themes";
 import { aroundPanel, colorPicker, field, optionControl, rangeControl, segmented, standardFields, switchControl, themeGrid } from "./controls";
 import type { Field } from "../../../sdk/options";
+import { settingsPorts } from "./ports";
 import { slotList } from "./slots";
 
 const SAVE_DELAY = 250;
 /** Built-in features, then plugins from enabled files that loaded fine. */
 let plugins: readonly AnyPlugin[] = catalogue;
 const fallback = defaults(defaultLayout);
-// Outside Tauri (the browser preview) settings live in memory and there are no shortcuts.
-const inTauri = "__TAURI_INTERNALS__" in window;
-const store: SettingsPort = inTauri ? tauriSettings : memorySettings();
-const popup: PopupPort = inTauri ? tauriPopup : idlePopup;
-const folder: ExtensionsPort = inTauri ? tauriExtensions : noExtensions;
+// The app's backend, or in-memory stand-ins outside Tauri (the browser preview, integration tests).
+const { store, popup, folder, importer, inApp: inTauri } = settingsPorts();
 // Only built-in features offer shortcuts.
 const entries = commandsOf(catalogue);
 /** Shortcuts the island couldn't register, and why. */
@@ -426,7 +421,7 @@ async function loadFresh(): Promise<void> {
   const fresh = found.plugins.filter((p) => settings.extensions.includes(p.file) && !loaded.has(p.file));
   if (fresh.length) {
     const taken = new Set([...extensionRules.taken, ...[...loaded.values()].flatMap((e) => idOf(e) ?? [])]);
-    for (const ext of await loadExtensions(fresh, { ...extensionRules, taken })) loaded.set(ext.file, ext);
+    for (const ext of await loadExtensions(fresh, { ...extensionRules, taken }, importer)) loaded.set(ext.file, ext);
   }
   plugins = [...catalogue, ...[...loaded.values()].flatMap((e) => (e.plugin && settings.extensions.includes(e.file) ? [e.plugin] : []))];
 }

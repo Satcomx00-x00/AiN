@@ -55,9 +55,10 @@ export async function start(
   store: SettingsPort = tauriSettings,
   popup: PopupPort = tauriPopup,
   extensions: ExtensionsPort = tauriExtensions,
+  importer: Importer = importSource,
 ): Promise<IslandHandle<Services>> {
   const fallback = defaults(layout);
-  const loader = extensionLoader(extensions);
+  const loader = extensionLoader(extensions, importer);
   let latest: Settings = fallback;
   let island: IslandHandle<Services> | undefined;
   let plugins: readonly Plugin<Services, Fields>[] = catalogue;
