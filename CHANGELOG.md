@@ -3,6 +3,60 @@
 All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.2.0](https://github.com/Satcomx00-x00/AiN/compare/v0.1.2..v0.2.0) - 2026-10-16
+
+### Features
+
+- Run every widget on Windows, Linux and macOS ([6d34ae8](https://github.com/Satcomx00-x00/AiN/commit/6d34ae88879f82f13839ee6519e0c9f3e9b464f4))
+- **island:** Pick the pill's style and size, from low profile to large ([a522132](https://github.com/Satcomx00-x00/AiN/commit/a522132cd8b7bb844502f2bd35b297d35bef8db5))
+- **island:** Add the Solo, Stub and Sliver pill styles ([7bcf07f](https://github.com/Satcomx00-x00/AiN/commit/7bcf07f66059d6757b64461fbc4f4bb7ed866f63))
+- **plugins:** Add an example pill style ([4b6c56a](https://github.com/Satcomx00-x00/AiN/commit/4b6c56a368fae82aea38b7ea2eac57a45e3bb355))
+- [**breaking**] Rename the app to AiN ([bc07cb1](https://github.com/Satcomx00-x00/AiN/commit/bc07cb11fea9dd6d4da1c94cffa9355aaa81163b))
+- **appearance:** Name the default theme AiN ([205799e](https://github.com/Satcomx00-x00/AiN/commit/205799e9373c71818b777f98de85f0cc821b8e4e))
+
+### Bug fixes
+
+- **media:** Build the image sniffer only where it is used ([39dc145](https://github.com/Satcomx00-x00/AiN/commit/39dc14506582b627949407835df3b23e392a14ab))
+
+### Miscellaneous
+
+- **preview:** Pick the pill size and style from the URL ([5fe3ef9](https://github.com/Satcomx00-x00/AiN/commit/5fe3ef98b177e5d0aa1463af32ffb9c0b2a54e66))
+- Take the README's pictures with bun run screenshots ([772a0a4](https://github.com/Satcomx00-x00/AiN/commit/772a0a493b4ae47ad136cbb470e293aad3da3bea))
+
+### Refactoring
+
+- **sdk:** Move the glance spot into the SDK ([2cb3d46](https://github.com/Satcomx00-x00/AiN/commit/2cb3d46d490dc8d2955995cfffef0bf6c1b1870f))
+- **settings:** Take the settings page's backend from one place ([18b36ce](https://github.com/Satcomx00-x00/AiN/commit/18b36cebb1599db2199cdff1c76c0136e0731392))
+- Move the app to the ain folder ([a7b39f3](https://github.com/Satcomx00-x00/AiN/commit/a7b39f39b0362dd623e5738d603a34070f4827ae))
+
+### Documentation
+
+- Explain pill styles and sizes ([dd98e0e](https://github.com/Satcomx00-x00/AiN/commit/dd98e0e759815791bd52e6cf4ed0a3631890a188))
+- List the test suites and how to run them ([c3d88c5](https://github.com/Satcomx00-x00/AiN/commit/c3d88c57b63c47ab8afd8b1762904c2790c1ae19))
+- List every built-in feature with what each OS supports ([4d19428](https://github.com/Satcomx00-x00/AiN/commit/4d194280d2c9d3887e32aa2a34d4dfc92676dc0a))
+- Show the pill styles, sizes and startup animation ([54b0970](https://github.com/Satcomx00-x00/AiN/commit/54b0970222a43ea3c792b9482acb1a738865baee))
+- Retake the settings screenshots, which still showed the old name ([21431d0](https://github.com/Satcomx00-x00/AiN/commit/21431d07b7efffe31f28aea25896783a7ca3f817))
+
+### Tests
+
+- Run the island and its settings page together in integration tests ([94f052b](https://github.com/Satcomx00-x00/AiN/commit/94f052bc4acc0e258dfb0173a6e4051b90152a2a))
+- Cover the clipboard, the volume mixer, layout lists and the popup windows ([1f833ec](https://github.com/Satcomx00-x00/AiN/commit/1f833ec726d51aa09f0739e8cc39c922a854370e))
+- Measure coverage with test:coverage ([2f50d3d](https://github.com/Satcomx00-x00/AiN/commit/2f50d3de7a3afcb12c8492b29902d101137b2e7d))
+- Add end-to-end tests in Chromium ([93299b8](https://github.com/Satcomx00-x00/AiN/commit/93299b8100f883c53034c015bd2ced9e9b540a72))
+- Smoke-test each window of the production build ([0582712](https://github.com/Satcomx00-x00/AiN/commit/05827122b57d4e6c46fef5aa1703df77301fd704))
+- Read the clock the same on every machine in integration tests ([11a0d50](https://github.com/Satcomx00-x00/AiN/commit/11a0d5047914c51c18d4b0f5739609526d7a647f))
+- Run the browser tests in WebKit too ([970651c](https://github.com/Satcomx00-x00/AiN/commit/970651cc805932ce27a17795dde80da49fa73779))
+- Keep the integration tests from timing out on a busy machine ([f8d1e66](https://github.com/Satcomx00-x00/AiN/commit/f8d1e667faaca2eb48b171107e84130651616eee))
+- Watch the size animation frame by frame ([c0567c4](https://github.com/Satcomx00-x00/AiN/commit/c0567c4e0d42a5e89b2e631cc241db54b9be1d65))
+
+### Build
+
+- **deps:** Add Playwright and Vitest coverage for the tests ([930daff](https://github.com/Satcomx00-x00/AiN/commit/930daff3e4137ca65b77bf06489547b91108d1c0))
+
+### CI
+
+- Run the end-to-end and smoke tests ([e30808b](https://github.com/Satcomx00-x00/AiN/commit/e30808b28e7f6a7d20bf0fa19b7a811667a8954c))
+- Launch the AppImage on a virtual display ([c8a6c0e](https://github.com/Satcomx00-x00/AiN/commit/c8a6c0e2a7239651d49a4f51263ac66d8dddc496))
 ## [0.1.2](https://github.com/Satcomx00-x00/AiN/compare/v0.1.1..v0.1.2) - 2026-10-16
 
 ### CI
