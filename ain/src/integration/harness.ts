@@ -20,6 +20,10 @@ import { type Settings, defaults, memorySettings, parseSettings } from "../shell
 import type { Size, WindowPort } from "../shell/window";
 import { layout } from "../features/layout";
 
+// Each test loads the whole app, and the first one in a file also compiles it: give them time, even
+// on a busy machine.
+vi.setConfig({ testTimeout: 20_000 });
+
 /** 9:41 on a weekday: the clock shows "09:41". */
 export const NOW = new Date(2026, 9, 16, 9, 41, 0).getTime();
 

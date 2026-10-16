@@ -28,6 +28,8 @@ name = "vitest (related tests)"
 language = "system"
 entry = "bun x vitest related --run --passWithNoTests"
 files = { glob = ["src/**/*.ts", "examples/**/*.js"] }
+# One Vitest for all the files: several at once load the whole app each and starve one another.
+require_serial = true
 stages = ["pre-push", "manual"]
 groups = ["frontend", "test"]
 
