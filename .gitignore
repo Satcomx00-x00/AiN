@@ -29,6 +29,8 @@ dist/
 
 # Test output: coverage, Playwright's results and report
 coverage/
+test-results/
+playwright-report/
 
 # Release notes generated in CI
 RELEASE_NOTES.md

@@ -17,7 +17,7 @@
 import { start } from "../shell/windows/island/app";
 import { idlePopup } from "../shell/commands";
 import { noExtensions } from "../shell/extensions";
-import { PILL_SIZE_IDS, defaults, memorySettings } from "../shell/settings";
+import { type General, PILL_SIZE_IDS, defaults, memorySettings, parseSettings } from "../shell/settings";
 import { themeById } from "../shell/themes";
 import { layout } from "../features/layout";
 import type { Services } from "../features/services";
@@ -193,6 +193,18 @@ if (["width", "curve", "bg", "accent", "theme", "size", "style"].some((p) => par
   await store.save({ ...base, general });
 }
 if (root) await start(root, fake, fakeWindow, store, idlePopup, noExtensions);
+
+/** For the end-to-end tests: change the general settings live, as the settings window would. */
+let stored: unknown = null;
+await store.watch((raw) => (stored = raw));
+Object.assign(window, {
+  preview: {
+    update: async (patch: Partial<General>) => {
+      const current = parseSettings(stored, defaults(layout));
+      await store.save({ ...current, general: { ...current.general, ...patch } });
+    },
+  },
+});
 
 const tab = params.get("open");
 if (tab) {
