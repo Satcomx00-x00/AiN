@@ -27,5 +27,8 @@ rustc-ice-*.txt
 node_modules/
 dist/
 
+# Test output: coverage, Playwright's results and report
+coverage/
+
 # Release notes generated in CI
 RELEASE_NOTES.md
