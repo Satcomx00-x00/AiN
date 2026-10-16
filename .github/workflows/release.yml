@@ -151,8 +151,12 @@ jobs:
           TAG: ${{ needs.plan.outputs.tag }}
         run: |
           git cliff --latest --strip all --output RELEASE_NOTES.md
-          gh release create "$TAG" --draft --verify-tag --title "AiN $TAG" --notes-file RELEASE_NOTES.md
-          echo "id=$(gh api "repos/$GITHUB_REPOSITORY/releases" --jq ".[] | select(.tag_name == \"$TAG\") | .id")" >> "$GITHUB_OUTPUT"
+          # The id comes from the creation itself: listing releases right after may not show the draft
+          # yet, and without an id the builds upload nothing.
+          id="$(gh api "repos/$GITHUB_REPOSITORY/releases" -f tag_name="$TAG" -f name="AiN $TAG" \
+            -F draft=true -F body=@RELEASE_NOTES.md --jq .id)"
+          [[ "$id" =~ ^[0-9]+$ ]] || { echo "::error::No id for the draft release of $TAG: '$id'"; exit 1; }
+          echo "id=$id" >> "$GITHUB_OUTPUT"
 
   build:
     name: Build (${{ matrix.name }})
@@ -226,4 +230,9 @@ jobs:
       - env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.plan.outputs.tag }}
-        run: gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --latest
+        # Never publish a release nobody can download: a build that "succeeds" without uploading
+        # leaves it a draft.
+        run: |
+          assets="$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets | length')"
+          [[ "$assets" -gt 0 ]] || { echo "::error::$TAG has no assets: left as a draft"; exit 1; }
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --latest
