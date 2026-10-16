@@ -17,6 +17,7 @@ pub fn mime_for(path: &str) -> &'static str {
 }
 
 /// The image type from its first bytes; JPEG when unsure.
+#[cfg(any(target_os = "macos", test))]
 pub fn sniff(bytes: &[u8]) -> &'static str {
     match bytes {
         [0x89, b'P', b'N', b'G', ..] => "image/png",
