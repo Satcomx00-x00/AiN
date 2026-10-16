@@ -2,6 +2,7 @@ import { type PopupPort, idlePopup, tauriPopup } from "../../commands";
 import { type CommunityPort, noCommunity, tauriCommunity } from "../../community";
 import { type ExtensionsPort, type Importer, importSource, noExtensions, tauriExtensions } from "../../extensions";
 import { type SettingsPort, memorySettings, tauriSettings } from "../../settings";
+import { type UpdaterPort, demoUpdater, tauriUpdater } from "../../updater";
 
 /** What the settings page talks to. */
 export interface SettingsPorts {
@@ -11,6 +12,8 @@ export interface SettingsPorts {
   readonly importer: Importer;
   /** The community plugin store; without it (e.g. in a test), the Plugins section shows none. */
   readonly community?: CommunityPort;
+  /** Self-update; without it (e.g. in a test), a pretend one that shows every state and never touches the network. */
+  readonly updater?: UpdaterPort;
   /** True inside the app: shortcuts can be tried, folders picked and plugins set up with real services. */
   readonly inApp: boolean;
 }
@@ -24,6 +27,7 @@ export function appPorts(): SettingsPorts {
     folder: inApp ? tauriExtensions : noExtensions,
     importer: importSource,
     community: inApp ? tauriCommunity : noCommunity,
+    updater: inApp ? tauriUpdater : demoUpdater(),
     inApp,
   };
 }

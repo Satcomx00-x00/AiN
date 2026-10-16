@@ -35,6 +35,10 @@ test("the settings window draws every section and saves a change", async ({ page
     await page.locator("nav button", { hasText: section }).click();
     await expect(page.locator("main h1")).toHaveText(section);
   }
+  // About ends on the updater's card, filled from the backend.
+  const updates = page.locator("#card-updates");
+  await expect(updates.locator("h2")).toHaveText("AiN 0.2.0");
+  await expect(updates.locator(".update-badge")).toHaveText("Up to date");
   await page.locator("nav button", { hasText: "Plugins" }).click();
   await expect(page.locator(".store-card h2")).toHaveText(["Orbit clock"]);
   await page.locator("nav button", { hasText: "Appearance" }).click();
