@@ -12,11 +12,12 @@
  *   &dictate     pretends to be dictating; &dictate=missing|downloading shows the model download instead
  *   &width=<px>  pill width; &curve=<0-100> corner curve; &bg=<hex> / &accent=<hex> colors (without #)
  *   &theme=<id>  a built-in theme (shell/themes.ts)
+ *   &size=<low|normal|large>  pill size; &style=<id> pill style (features/styles)
  */
 import { start } from "../shell/windows/island/app";
 import { idlePopup } from "../shell/commands";
 import { noExtensions } from "../shell/extensions";
-import { defaults, memorySettings } from "../shell/settings";
+import { PILL_SIZE_IDS, defaults, memorySettings } from "../shell/settings";
 import { themeById } from "../shell/themes";
 import { layout } from "../features/layout";
 import type { Services } from "../features/services";
@@ -171,7 +172,7 @@ const store = memorySettings();
 // `&pins`: pin a few sources, to see the mixer with several rows.
 if (params.has("pins")) await store.save({ ...defaults(layout), options: { volume: { pinned: ["Speakers", "SteelSeries Sonar - Chat", "Spotify", "Discord"] } } });
 // `&width` / `&curve`: the pill's shape settings.
-if (["width", "curve", "bg", "accent", "theme"].some((p) => params.has(p))) {
+if (["width", "curve", "bg", "accent", "theme", "size", "style"].some((p) => params.has(p))) {
   const base = defaults(layout);
   const hex = (p: string, fallback: string) => (params.has(p) ? `#${params.get(p)}` : fallback);
   const general = {
@@ -180,6 +181,8 @@ if (["width", "curve", "bg", "accent", "theme"].some((p) => params.has(p))) {
     pillCurve: Number(params.get("curve") ?? base.general.pillCurve),
     pillColor: hex("bg", base.general.pillColor),
     accentColor: hex("accent", base.general.accentColor),
+    pillSize: PILL_SIZE_IDS.find((s) => s === params.get("size")) ?? base.general.pillSize,
+    style: params.get("style") ?? base.general.style,
   };
   // `&theme=<id>`: a built-in theme, with its own pill and accent colors unless &bg / &accent say otherwise.
   const theme = params.get("theme");
