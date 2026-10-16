@@ -6,8 +6,10 @@ export interface Stage {
   readonly surface: HTMLElement;
   /** The usual glances (time, music…): hide them until the animation is done. */
   readonly glance: HTMLElement | null;
-  /** The pill's resting size, in px. */
+  /** The pill's resting size, in px: the chosen style's, at the chosen size. */
   readonly size: { readonly width: number; readonly height: number };
+  /** Content scale of the chosen pill size (1 for Normal); scale drawn details by it. Also `--scale` in CSS. */
+  readonly scale: number;
 }
 
 /**

@@ -9,6 +9,7 @@ import { media } from "./media";
 import { privacy } from "./privacy";
 import { screenshot } from "./screenshot";
 import { stats } from "./stats";
+import { styles } from "./styles";
 import { timer } from "./timer";
 import { volume } from "./volume";
 
@@ -16,12 +17,12 @@ import { volume } from "./volume";
 export const catalogue: readonly Plugin<Services, Fields>[] = [clock, timer, clipboard, stats, media, volume, privacy, screenshot, dictation];
 
 /**
- * What plugins from the plugins folder may use: their ids can't clash with a built-in feature's or
- * startup animation's, and
+ * What plugins from the plugins folder may use: their ids can't clash with a built-in feature's,
+ * startup animation's or pill style's, and
  * they may only ask for these services. Clipboard history, screen captures and dictation stay
  * with the built-in features: they read what the user copies, sees and says.
  */
 export const extensionRules = {
-  taken: new Set([...catalogue.map((p) => p.id), ...greetings.map((g) => g.id)]),
+  taken: new Set([...catalogue.map((p) => p.id), ...greetings.map((g) => g.id), ...styles.map((s) => s.id)]),
   services: ["stats", "media", "volume", "privacy"] satisfies (keyof Services)[],
 } as const;

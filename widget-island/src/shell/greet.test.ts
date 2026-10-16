@@ -9,7 +9,7 @@ function island() {
   return el;
 }
 
-const SIZE = { width: 200, height: 32 };
+const PILL = { size: { width: 200, height: 32 }, scale: 1 };
 
 /** A greeting that records the stages it was played on. */
 function fake(id: string, play: (stage: Stage) => Promise<void> | void = () => {}) {
@@ -32,30 +32,30 @@ describe("greet", () => {
     const a = fake("one");
     const b = fake("two");
     const el = island();
-    await greet(el, SIZE, [a.greeting, b.greeting], "two", true);
+    await greet(el, PILL, [a.greeting, b.greeting], "two", true);
     expect(a.stages).toHaveLength(0);
-    expect(b.stages).toEqual([{ island: el, surface: el.querySelector(".surface"), glance: el.querySelector(".glance"), size: SIZE }]);
+    expect(b.stages).toEqual([{ island: el, surface: el.querySelector(".surface"), glance: el.querySelector(".glance"), ...PILL }]);
   });
 
   it("plays nothing for “none”, or when motion should be reduced", async () => {
     const a = fake("one");
-    await greet(island(), SIZE, [a.greeting], NO_GREETING, true);
-    await greet(island(), SIZE, [a.greeting], "one", false);
+    await greet(island(), PILL, [a.greeting], NO_GREETING, true);
+    await greet(island(), PILL, [a.greeting], "one", false);
     expect(a.stages).toHaveLength(0);
   });
 
   it("falls back to the first greeting when the chosen one is gone", async () => {
     const a = fake("one");
     const b = fake("two");
-    await greet(island(), SIZE, [a.greeting, b.greeting], "removed-plugin", true);
+    await greet(island(), PILL, [a.greeting, b.greeting], "removed-plugin", true);
     expect(a.stages).toHaveLength(1);
     expect(b.stages).toHaveLength(0);
   });
 
   it("does nothing without greetings or without the pill's inside", async () => {
     const a = fake("one");
-    await expect(greet(island(), SIZE, [], "one", true)).resolves.toBeUndefined();
-    await greet(document.createElement("div"), SIZE, [a.greeting], "one", true);
+    await expect(greet(island(), PILL, [], "one", true)).resolves.toBeUndefined();
+    await greet(document.createElement("div"), PILL, [a.greeting], "one", true);
     expect(a.stages).toHaveLength(0);
   });
 
@@ -63,7 +63,7 @@ describe("greet", () => {
     let finish: () => void = () => {};
     const a = fake("one", () => new Promise<void>((r) => (finish = r)));
     let over = false;
-    const done = greet(island(), SIZE, [a.greeting], "one", true).then(() => (over = true));
+    const done = greet(island(), PILL, [a.greeting], "one", true).then(() => (over = true));
     await Promise.resolve();
     expect(over).toBe(false);
     finish();
@@ -77,8 +77,8 @@ describe("greet", () => {
       throw new Error("boom");
     });
     const async = fake("async", () => Promise.reject(new Error("bang")));
-    await expect(greet(island(), SIZE, [sync.greeting], "sync", true, log)).resolves.toBeUndefined();
-    await expect(greet(island(), SIZE, [async.greeting], "async", true, log)).resolves.toBeUndefined();
+    await expect(greet(island(), PILL, [sync.greeting], "sync", true, log)).resolves.toBeUndefined();
+    await expect(greet(island(), PILL, [async.greeting], "async", true, log)).resolves.toBeUndefined();
     expect(log.mock.calls.map(([m]) => m)).toEqual([expect.stringMatching(/"sync" failed: Error: boom/), expect.stringMatching(/"async" failed: Error: bang/)]);
   });
 
@@ -87,7 +87,7 @@ describe("greet", () => {
     const log = vi.fn();
     const stuck = fake("stuck", () => new Promise<void>(() => {}));
     let over = false;
-    const done = greet(island(), SIZE, [stuck.greeting], "stuck", true, log, 1000).then(() => (over = true));
+    const done = greet(island(), PILL, [stuck.greeting], "stuck", true, log, 1000).then(() => (over = true));
     await vi.advanceTimersByTimeAsync(999);
     expect(over).toBe(false);
     await vi.advanceTimersByTimeAsync(1);
@@ -97,7 +97,7 @@ describe("greet", () => {
 
   it("leaves no timer behind once the greeting is done", async () => {
     vi.useFakeTimers();
-    await greet(island(), SIZE, [fake("one").greeting], "one", true);
+    await greet(island(), PILL, [fake("one").greeting], "one", true);
     expect(vi.getTimerCount()).toBe(0);
   });
 });

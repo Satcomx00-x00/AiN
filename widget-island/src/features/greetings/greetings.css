@@ -1,6 +1,7 @@
-/* "Hello": a little face in the pill. */
+/* "Hello": a little face in the pill, sized with it (--px is one pixel at the Normal size). */
 
 .hello-face {
+  --px: calc(1px * var(--scale, 1));
   position: absolute;
   inset: 0;
   pointer-events: none;
@@ -8,37 +9,37 @@
 
 .hello-face .eye {
   position: absolute;
-  top: calc(50% - 4px);
-  width: 6px;
-  height: 8px;
+  top: calc(50% - 4 * var(--px));
+  width: calc(6 * var(--px));
+  height: calc(8 * var(--px));
   border-radius: 50%;
   background: var(--fg);
 }
 
 .hello-face .eye:first-child {
-  left: calc(50% - 11px);
+  left: calc(50% - 11 * var(--px));
 }
 
 .hello-face .eye:nth-child(2) {
-  left: calc(50% + 5px);
+  left: calc(50% + 5 * var(--px));
 }
 
 .hello-face .cheek {
   position: absolute;
-  top: calc(50% + 3px);
-  width: 7px;
-  height: 4px;
+  top: calc(50% + 3 * var(--px));
+  width: calc(7 * var(--px));
+  height: calc(4 * var(--px));
   border-radius: 50%;
   background: #ff7aa8;
   filter: blur(0.6px);
 }
 
 .hello-face .cheek:nth-child(3) {
-  left: calc(50% - 20px);
+  left: calc(50% - 20 * var(--px));
 }
 
 .hello-face .cheek:nth-child(4) {
-  left: calc(50% + 13px);
+  left: calc(50% + 13 * var(--px));
 }
 
 /* "Sparkle": twinkling stars over the pill. */
@@ -85,7 +86,7 @@
 }
 
 .typewriter-caret {
-  width: 2px;
+  width: calc(2px * var(--scale, 1));
   height: 1.1em;
   margin-left: 2px;
   border-radius: 1px;

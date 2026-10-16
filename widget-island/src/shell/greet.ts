@@ -4,13 +4,14 @@ import { GREETING_LIMIT_MS, type Greeting, type Stage } from "../sdk/greeting";
 export const NO_GREETING = "none";
 
 /**
- * Plays the chosen greeting on `island`: nothing for "none" or when motion should be reduced, the
- * first greeting when the chosen one is gone (e.g. its plugin was removed). A greeting that throws
- * or runs too long can't hold the island up: it resolves anyway, reporting why.
+ * Plays the chosen greeting on `island`, at the folded `pill`'s size: nothing for "none" or when
+ * motion should be reduced, the first greeting when the chosen one is gone (e.g. its plugin was
+ * removed). A greeting that throws or runs too long can't hold the island up: it resolves anyway,
+ * reporting why.
  */
 export async function greet(
   island: HTMLElement,
-  size: Stage["size"],
+  pill: Pick<Stage, "size" | "scale">,
   greetings: readonly Greeting[],
   chosen: string,
   motion: boolean,
@@ -21,7 +22,7 @@ export async function greet(
   const greeting = greetings.find((g) => g.id === chosen) ?? greetings[0];
   const surface = island.querySelector<HTMLElement>(".surface");
   if (!greeting || !surface) return;
-  const stage: Stage = { island, surface, glance: island.querySelector<HTMLElement>(".glance"), size };
+  const stage: Stage = { island, surface, glance: island.querySelector<HTMLElement>(".glance"), size: pill.size, scale: pill.scale };
   let timer: ReturnType<typeof setTimeout> | undefined;
   const late = new Promise<"late">((resolve) => (timer = setTimeout(() => resolve("late"), limit)));
   try {

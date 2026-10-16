@@ -4,7 +4,7 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 
 const { invoke } = await import("@tauri-apps/api/core");
 const { checkIsland, tauriWindow } = await import("./window");
-const { EAR, EXPANDED, GLANCE, SLACK, WIDE, frame, sizeFor } = await import("./geometry");
+const { EAR, EXPANDED, GLANCE, PILL_SIZES, SLACK, WIDE, earFor, frame, pillOf, sizeFor } = await import("./geometry");
 const { pick, pickFrom, place, placedIds } = await import("./placement");
 const { pickColor, toHsl, vivid } = await import("../sdk/color");
 const { load } = await import("./host");
@@ -16,20 +16,48 @@ const { animates } = await import("../sdk/dom");
 const notch = { width: 185, height: 32, hasNotch: true };
 
 describe("geometry", () => {
+  const flat = { ...notch, width: 200, hasNotch: false };
   it("collapsed leaves room for glance text beside the notch", () =>
-    expect(sizeFor(false, notch)).toEqual({ width: 185 + 2 * GLANCE, height: 32 }));
-  it("collapsed without a notch keeps its width", () =>
-    expect(sizeFor(false, { ...notch, hasNotch: false })).toEqual({ width: 185, height: 32 }));
+    expect(sizeFor(false, pillOf(notch, "normal"))).toEqual({ width: 185 + 2 * GLANCE, height: 32 }));
+  it("collapsed without a notch keeps its width", () => expect(sizeFor(false, pillOf(flat, "normal"))).toEqual({ width: 200, height: 32 }));
   it("expanded grows below the notch", () =>
-    expect(sizeFor(true, notch)).toEqual({ width: EXPANDED.width, height: 32 + EXPANDED.height }));
-  it("never shrinks narrower than the notch", () => expect(sizeFor(true, { ...notch, width: 600 }).width).toBe(600 + 2 * GLANCE));
-  it("a live activity widens only the collapsed pill", () => {
-    expect(sizeFor(false, { ...notch, hasNotch: false }, true).width).toBe(185 + WIDE);
-    expect(sizeFor(true, notch, true)).toEqual(sizeFor(true, notch));
+    expect(sizeFor(true, pillOf(notch, "normal"))).toEqual({ width: EXPANDED.width, height: 32 + EXPANDED.height }));
+  it("never shrinks narrower than the notch", () => expect(sizeFor(true, pillOf({ ...notch, width: 600 }, "normal")).width).toBe(600 + 2 * GLANCE));
+  it("a live activity widens only the collapsed pill, more on a bigger pill", () => {
+    expect(sizeFor(false, pillOf(flat, "normal"), true).width).toBe(200 + WIDE);
+    expect(sizeFor(false, pillOf(flat, "large"), true, 1.375).width).toBe(260 + 132);
+    expect(sizeFor(true, pillOf(notch, "normal"), true)).toEqual(sizeFor(true, pillOf(notch, "normal")));
   });
-  it("widens the window to fit both ears", () => expect(frame({ width: 200, height: 32 })).toEqual({ width: 200 + 2 * EAR, height: 32 }));
+  it("sizes the pill low profile, normal or large", () => {
+    expect(pillOf(flat, "low")).toEqual({ width: 160, height: 20, hasNotch: false, scale: 0.625 });
+    expect(pillOf(flat, "normal")).toEqual({ width: 200, height: 32, hasNotch: false, scale: 1 });
+    expect(pillOf(flat, "large")).toEqual({ width: 260, height: 44, hasNotch: false, scale: 1.375 });
+  });
+  it("keeps a hardware notch's size whatever the pill size", () => expect(pillOf(notch, "low")).toEqual(pillOf(notch, "large")));
+  it("widens the window to fit both ears, which grow with the pill", () => {
+    expect(frame({ width: 200, height: 32 })).toEqual({ width: 200 + 2 * EAR, height: 32 });
+    expect(frame({ width: 260, height: 44 }, false, 1.375)).toEqual({ width: 260 + 2 * 14, height: 44 });
+  });
   it("adds slack around the open pill for overshoot and shadow", () =>
     expect(frame({ width: 420, height: 188 }, true)).toEqual({ width: 420 + 2 * (EAR + SLACK), height: 188 + SLACK }));
+  it("rounds the ears up, so the window never clips them", () => {
+    expect([earFor(0.625), earFor(1), earFor(1.375)]).toEqual([7, 10, 14]);
+    expect(frame({ width: 420, height: 200 }, true, 1.375)).toEqual({ width: 420 + 2 * (14 + SLACK), height: 200 + SLACK });
+  });
+  it("scales a custom width setting by the size's width factor", () => {
+    const wide = { width: 300, height: 32, hasNotch: false };
+    expect(pillOf(wide, "low").width).toBe(Math.round(300 * PILL_SIZES.low.width));
+    expect(pillOf(wide, "large").width).toBe(Math.round(300 * PILL_SIZES.large.width));
+  });
+  it("orders the sizes from low profile to large", () => {
+    expect(PILL_SIZES.low.scale).toBeLessThan(PILL_SIZES.normal.scale);
+    expect(PILL_SIZES.normal.scale).toBeLessThan(PILL_SIZES.large.scale);
+    expect(PILL_SIZES.normal).toEqual({ scale: 1, width: 1 });
+  });
+  it("opens at least as wide as the panel, whatever the folded width", () => {
+    expect(sizeFor(true, { width: 35, height: 9 })).toEqual({ width: EXPANDED.width, height: 9 + EXPANDED.height });
+    expect(sizeFor(true, { width: 600, height: 44 }).width).toBe(600);
+  });
 });
 
 describe("placement", () => {

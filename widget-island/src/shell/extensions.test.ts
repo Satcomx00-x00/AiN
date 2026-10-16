@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 
-const { check, checkGreeting, confine, confineGreeting, fileRows, idOf, isolate, loadExtensions } = await import("./extensions");
+const { check, checkGreeting, checkStyle, confine, confineGreeting, confineStyle, fileRows, idOf, isolate, loadExtensions } = await import("./extensions");
 const { sdk } = await import("../sdk");
 
 const rules = { taken: new Set(["clock", "media"]), services: ["media", "stats"] };
@@ -140,6 +140,28 @@ describe("loadExtensions", () => {
     expect(out.map((e) => e.problem)).toEqual([null, `the id "pomodoro" is already used`]);
   });
 
+  it("takes a definition with mount and no setup as a pill style", async () => {
+    const draw = vi.fn();
+    const out = await loadExtensions(
+      [file("s.js", "s")],
+      rules,
+      modules({ s: { default: (api: typeof sdk) => api.defineStyle({ id: "neon", label: "Neon", hidden: true, mount: () => ({ draw }) }) } }),
+    );
+    expect(out[0]).toMatchObject({ file: "s.js", plugin: null, greeting: null, needs: [], problem: null, style: { id: "neon", label: "Neon", hidden: true } });
+    expect(idOf(out[0]!)).toBe("neon");
+    out[0]!.style!.mount({} as HTMLElement, { options: () => ({}) }).draw({} as never);
+    expect(draw).toHaveBeenCalledTimes(1);
+  });
+
+  it("shares ids between plugins and pill styles", async () => {
+    const out = await loadExtensions(
+      [file("a.js", "a"), file("b.js", "b")],
+      rules,
+      modules({ a: { default: () => ({ id: "pomodoro", label: "P", mount: () => ({ draw() {} }) }) }, b: { default: () => valid() } }),
+    );
+    expect(out.map((e) => e.problem)).toEqual([null, `the id "pomodoro" is already used`]);
+  });
+
   it("checks a definition with both play and setup as a plugin", async () => {
     const out = await loadExtensions([file("a.js", "a")], rules, modules({ a: { default: () => ({ ...valid(), play() {} }) } }));
     expect(out[0]).toMatchObject({ greeting: null, plugin: { id: "pomodoro" } });
@@ -208,9 +230,11 @@ describe("isolate", () => {
 describe("fileRows", () => {
   const plugin = { ...valid() } as never;
   const greeting = { id: "wave", label: "Wave", play: () => {} };
+  const style = { id: "neon", label: "Neon", mount: () => ({ draw() {} }) };
   const loaded = new Map([
-    ["a.js", { file: "a.js", plugin, greeting: null, needs: ["media"], problem: null }],
-    ["w.js", { file: "w.js", plugin: null, greeting, needs: [], problem: null }],
+    ["a.js", { file: "a.js", plugin, greeting: null, style: null, needs: ["media"], problem: null }],
+    ["w.js", { file: "w.js", plugin: null, greeting, style: null, needs: [], problem: null }],
+    ["s.js", { file: "s.js", plugin: null, greeting: null, style, needs: [], problem: null }],
   ]);
 
   it("lists files by name, with details only for those turned on", () => {
@@ -226,13 +250,18 @@ describe("fileRows", () => {
   });
 
   it("keeps a file that is on but gone, saying so", () => {
-    expect(fileRows([], ["a.js"], loaded)).toEqual([{ file: "a.js", on: true, plugin: null, greeting: null, needs: ["media"], problem: "No longer in the plugins folder" }]);
+    expect(fileRows([], ["a.js"], loaded)).toEqual([{ file: "a.js", on: true, plugin: null, greeting: null, style: null, needs: ["media"], problem: "No longer in the plugins folder" }]);
   });
 
   it("shows a startup animation's file like a plugin's, only while on and present", () => {
     expect(fileRows([{ file: "w.js" }], ["w.js"], loaded)[0]).toMatchObject({ plugin: null, greeting, problem: null });
     expect(fileRows([{ file: "w.js" }], [], loaded)[0]?.greeting).toBeNull();
     expect(fileRows([], ["w.js"], loaded)[0]?.greeting).toBeNull();
+  });
+
+  it("shows a pill style's file the same way", () => {
+    expect(fileRows([{ file: "s.js" }], ["s.js"], loaded)[0]).toMatchObject({ plugin: null, greeting: null, style, problem: null });
+    expect(fileRows([{ file: "s.js" }], [], loaded)[0]?.style).toBeNull();
   });
 });
 
@@ -306,4 +335,56 @@ describe("a plugin's settings panel", () => {
   });
 
   it("stays absent for a plugin without one", () => expect("settingsPanel" in confine(valid() as never, [])).toBe(false));
+});
+
+describe("checkStyle", () => {
+  const ok = () => ({ id: "neon", label: "Neon", mount: () => ({ draw() {} }) });
+
+  it("keeps only what the island uses", () => {
+    expect(Object.keys(checkStyle({ ...ok(), extra: 1 }, new Set()) as object).sort()).toEqual(["id", "label", "mount"]);
+    const full = { ...ok(), hidden: true, size: () => ({ width: 1, height: 1 }), options: { glow: { kind: "toggle", label: "Glow", default: true } } };
+    expect(Object.keys(checkStyle(full, new Set()) as object).sort()).toEqual(["hidden", "id", "label", "mount", "options", "size"]);
+  });
+
+  it.each([
+    ["a bad id", { id: "Neon" }, "id must be"],
+    ["a taken id", { id: "pill" }, `"pill" is already used`],
+    ["no label", { label: " " }, "label must be"],
+    ["a mount that isn't a function", { mount: {} }, "mount must be a function"],
+    ["a size that isn't a function", { size: { width: 4 } }, "size must be a function"],
+    ["hidden that isn't a boolean", { hidden: "yes" }, "hidden must be true or false"],
+    ["widens that isn't a boolean", { widens: 0 }, "widens must be true or false"],
+    ["a description that isn't a string", { description: 3 }, "description must be a string"],
+    ["a malformed option", { options: { glow: { kind: "toggle", label: "Glow", default: "on" } } }, `option "glow" has a default`],
+  ])("refuses %s", (_, patch, problem) => {
+    expect(checkStyle({ ...ok(), ...patch }, new Set(["pill"]))).toContain(problem);
+  });
+
+  it("is refused under a built-in style's id by the island's rules", async () => {
+    const { extensionRules } = await import("../features");
+    for (const id of ["pill", "hidden"]) expect(extensionRules.taken.has(id)).toBe(true);
+  });
+});
+
+describe("confineStyle", () => {
+  const pill = { width: 200, height: 32, hasNotch: false, scale: 1 };
+
+  it("gives the plain pill when size throws, and says why", () => {
+    const log = vi.fn();
+    const style = confineStyle({ id: "a", label: "A", size: () => { throw new Error("boom"); }, mount: () => ({ draw() {} }) }, log);
+    expect(style.size?.(pill, {})).toEqual({ width: 200, height: 32 });
+    expect(log).toHaveBeenCalledWith(expect.stringContaining(`"a": size failed: Error: boom`));
+  });
+
+  it("refuses a mount that returns no view, so the island can set the style aside", () => {
+    const style = confineStyle({ id: "a", label: "A", mount: () => 42 as never }, vi.fn());
+    expect(() => style.mount({} as HTMLElement, { options: () => ({}) })).toThrow("mount must return a view");
+  });
+
+  it("passes size and view through while nothing fails", () => {
+    const view = { draw() {} };
+    const style = confineStyle({ id: "a", label: "A", size: (p) => ({ width: p.width / 2, height: 6 }), mount: () => view }, vi.fn());
+    expect(style.size?.(pill, {})).toEqual({ width: 100, height: 6 });
+    expect(style.mount({} as HTMLElement, { options: () => ({}) })).toBe(view);
+  });
 });

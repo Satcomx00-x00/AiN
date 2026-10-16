@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { isHex } from "../sdk/color";
 import { follow } from "../sdk/follow";
+import type { PillSize } from "../sdk/style";
 import { commands, events } from "./bindings/settings";
 import type { Layout } from "./placement";
 
@@ -9,8 +10,12 @@ export interface General {
   readonly openDelay: number;
   /** Grace time before it closes after the pointer leaves. */
   readonly closeDelay: number;
-  /** Width of the folded pill, in px (a hardware notch sets its own). */
+  /** Width of the folded pill at the Normal size, in px (a hardware notch sets its own). */
   readonly pillWidth: number;
+  /** Low profile, normal or large: scales the pill and what it shows (a hardware notch keeps its size). */
+  readonly pillSize: PillSize;
+  /** The pill style's id: how the folded island looks (see sdk/style.ts). */
+  readonly style: string;
   /** How round the pill's bottom corners are, in % of fully round. */
   readonly pillCurve: number;
   /** Built-in color theme (see shell/themes.ts); it gives the text and status colors. */
@@ -21,9 +26,7 @@ export interface General {
   readonly accentColor: string;
   /** The startup animation's id, or "none". */
   readonly greeting: string;
-  /** Keeps the pill hidden until the cursor rests at the top center of the screen. */
-  readonly autoHide: boolean;
-  /** How long the cursor must rest there to show the hidden pill. */
+  /** How long the cursor must rest at the top center to show a hidden pill (the Hidden style). */
   readonly revealDelay: number;
 }
 
@@ -70,7 +73,10 @@ export function adopt(layout: Layout, fallback: Layout, seen: readonly string[])
   };
 }
 
-export const DEFAULT_GENERAL: General = { openDelay: 140, closeDelay: 260, pillWidth: 200, pillCurve: 100, theme: "island", pillColor: "#000000", accentColor: "#0a84ff", greeting: "hello", autoHide: false, revealDelay: 500 };
+export const DEFAULT_GENERAL: General = { openDelay: 140, closeDelay: 260, pillWidth: 200, pillSize: "normal", style: "pill", pillCurve: 100, theme: "island", pillColor: "#000000", accentColor: "#0a84ff", greeting: "hello", revealDelay: 500 };
+export const PILL_SIZE_IDS = ["low", "normal", "large"] as const satisfies readonly PillSize[];
+/** The style that keeps the pill hidden until the cursor rests on its spot. */
+export const HIDDEN_STYLE = "hidden";
 export const DELAY_RANGE = { min: 0, max: 1000, step: 20 } as const;
 export const REVEAL_RANGE = { min: 100, max: 2000, step: 100 } as const;
 export const WIDTH_RANGE = { min: 120, max: 480, step: 10 } as const;
@@ -79,6 +85,7 @@ export const CURVE_RANGE = { min: 0, max: 100, step: 5 } as const;
 export const defaults = (layout: Layout): Settings => ({ version: 1, layout, general: DEFAULT_GENERAL, options: {}, shortcuts: {}, seen: placed(layout), extensions: [] });
 
 const ids = z.array(z.string()).transform((list) => [...new Set(list)]);
+const ID = /^[a-z][a-z0-9-]{1,31}$/;
 const within = (range: { min: number; max: number }) => (fallback: number) => z.number().int().min(range.min).max(range.max).catch(fallback);
 const delay = within(DELAY_RANGE);
 const color = (fallback: string) =>
@@ -87,6 +94,12 @@ const color = (fallback: string) =>
     .refine(isHex)
     .transform((c) => c.toLowerCase())
     .catch(fallback);
+
+/** Settings saved before pill styles had `autoHide: true` for what is now the Hidden style. */
+const legacyStyle = (raw: unknown): string | undefined => {
+  const general = typeof raw === "object" && raw !== null ? (raw as { general?: unknown }).general : undefined;
+  return typeof general === "object" && general !== null && (general as { autoHide?: unknown }).autoHide === true ? HIDDEN_STYLE : undefined;
+};
 
 /** Reads whatever is stored, keeping every valid part and filling the rest from `fallback`. */
 export function parseSettings(raw: unknown, fallback: Settings): Settings {
@@ -101,12 +114,13 @@ export function parseSettings(raw: unknown, fallback: Settings): Settings {
         openDelay: delay(fallback.general.openDelay),
         closeDelay: delay(fallback.general.closeDelay),
         pillWidth: within(WIDTH_RANGE)(fallback.general.pillWidth),
+        pillSize: z.enum(PILL_SIZE_IDS).catch(fallback.general.pillSize),
+        style: z.string().regex(ID).catch(legacyStyle(raw) ?? fallback.general.style),
         pillCurve: within(CURVE_RANGE)(fallback.general.pillCurve),
         theme: z.string().min(1).catch(fallback.general.theme),
         pillColor: color(fallback.general.pillColor),
         accentColor: color(fallback.general.accentColor),
-        greeting: z.string().regex(/^[a-z][a-z0-9-]{1,31}$/).catch(fallback.general.greeting),
-        autoHide: z.boolean().catch(fallback.general.autoHide),
+        greeting: z.string().regex(ID).catch(fallback.general.greeting),
         revealDelay: within(REVEAL_RANGE)(fallback.general.revealDelay),
       })
       .catch(fallback.general),

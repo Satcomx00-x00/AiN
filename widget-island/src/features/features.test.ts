@@ -261,9 +261,10 @@ describe("dictation delivery", async () => {
 describe("what plugins from the plugins folder may use", async () => {
   const { catalogue, extensionRules } = await import(".");
 
-  it("keeps every built-in id for the built-in features and startup animations", async () => {
+  it("keeps every built-in id for the built-in features, startup animations and pill styles", async () => {
     const { greetings } = await import("./greetings");
-    expect([...extensionRules.taken].sort()).toEqual([...catalogue.map((p) => p.id), ...greetings.map((g) => g.id)].sort());
+    const { styles } = await import("./styles");
+    expect([...extensionRules.taken].sort()).toEqual([...catalogue.map((p) => p.id), ...greetings.map((g) => g.id), ...styles.map((s) => s.id)].sort());
   });
 
   it("never offers what reads the user's clipboard, screen or speech", () => {

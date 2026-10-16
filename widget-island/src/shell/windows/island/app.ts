@@ -2,10 +2,12 @@ import "./island.css";
 import { catalogue, extensionRules } from "../../../features";
 import { greetings } from "../../../features/greetings";
 import { layout } from "../../../features/layout";
+import { styles } from "../../../features/styles";
 import { type Services, tauriServices } from "../../../features/services";
 import type { Greeting } from "../../../sdk/greeting";
 import type { Fields } from "../../../sdk/options";
 import type { Plugin } from "../../../sdk/plugin";
+import type { AnyStyle } from "../../../sdk/style";
 import { type PopupPort, bindings, tauriPopup } from "../../commands";
 import { type Extension, type ExtensionsPort, type Importer, idOf, importSource, loadExtensions, tauriExtensions } from "../../extensions";
 import { type IslandHandle, mount } from "../../host";
@@ -62,6 +64,8 @@ export async function start(
   let loaded: { file: string; id: string }[] = [];
   /** Built-in startup animations, then those from enabled files. */
   let choices: readonly Greeting[] = greetings;
+  /** Built-in pill styles, then those from enabled files. */
+  let looks: readonly AnyStyle[] = styles;
 
   // Global shortcuts follow the settings; re-registered only when they actually change.
   let bound = "";
@@ -85,8 +89,9 @@ export async function start(
     loaded = all.flatMap((e) => (e.plugin ? [{ file: e.file, id: e.plugin.id }] : []));
     plugins = [...catalogue, ...all.flatMap((e) => (e.plugin ? [e.plugin as Plugin<Services, Fields>] : []))];
     choices = [...greetings, ...all.flatMap((e) => (e.greeting && settings.extensions.includes(e.file) ? [e.greeting] : []))];
+    looks = [...styles, ...all.flatMap((e) => (e.style && settings.extensions.includes(e.file) ? [e.style] : []))];
     // Newer settings may have arrived while loading; those win.
-    if (settings === latest) island?.configure(effective(settings), plugins, choices);
+    if (settings === latest) island?.configure(effective(settings), plugins, choices, looks);
   };
 
   await store.watch((raw) => {
@@ -106,7 +111,7 @@ export async function start(
   const quit = () => void store.quit().catch((e: unknown) => console.error("[island] could not quit", e));
   // The Play button in Settings.
   await store.onPlayGreeting((id) => island?.play(id));
-  island = await mount(root, plugins, services, win, effective(initial), { openSettings, saveOptions, quit, greetings: choices });
+  island = await mount(root, plugins, services, win, effective(initial), { openSettings, saveOptions, quit, greetings: choices, styles: looks });
   // Settings that changed while the island was starting.
   if (latest !== initial) island.configure(effective(latest), plugins);
   return island;

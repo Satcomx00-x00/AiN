@@ -8,12 +8,23 @@ const { follow, num } = await import("./follow");
 describe("the SDK handed to plugins", () => {
   it("can't be changed by a plugin, at any level", () => {
     expect(Object.isFrozen(sdk)).toBe(true);
-    for (const part of [sdk.options, sdk.dom, sdk.chart, sdk.color]) expect(Object.isFrozen(part)).toBe(true);
+    for (const part of [sdk.options, sdk.dom, sdk.chart, sdk.color, sdk.ui]) expect(Object.isFrozen(part)).toBe(true);
   });
 
   it("defines plugins as given", () => {
     const def = { id: "x", label: "X", description: "", icon: "", slots: ["tab"] as const, setup: () => ({}) };
     expect(sdk.definePlugin(def)).toBe(def);
+  });
+
+  it("defines pill styles as given", () => {
+    const def = { id: "neon", label: "Neon", mount: () => ({ draw() {} }) };
+    expect(sdk.defineStyle(def)).toBe(def);
+  });
+
+  it("offers the glance spot the built-in Pill draws, for styles", async () => {
+    const { glanceSlot } = await import("./glance");
+    expect(sdk.ui.glanceSlot).toBe(glanceSlot);
+    expect(Object.keys(sdk.ui).sort()).toEqual(["glanceSlot", "select"]);
   });
 
   it("offers the same option builders as the built-in features use", async () => {

@@ -12,7 +12,7 @@ export const HELLO_MS = 2300;
 export const hello = defineGreeting({
   id: "hello",
   label: "Hello",
-  async play({ island, surface, glance, size: { width, height } }) {
+  async play({ island, surface, glance, size: { width, height }, scale }) {
     const face = h("div", { class: "hello-face", "aria-hidden": "true" }, h("i", { class: "eye" }), h("i", { class: "eye" }), h("i", { class: "cheek" }), h("i", { class: "cheek" }));
     surface.append(face);
     const at = (ms: number) => ms / HELLO_MS;
@@ -28,7 +28,7 @@ export const hello = defineGreeting({
             { width: `${width}px`, transform: "none", offset: at(1120) },
             // A little happy hop before the face goes.
             { width: `${width}px`, transform: "none", offset: at(1600), easing: "ease-out" },
-            { width: `${width}px`, transform: "translateY(2px) scaleY(0.92)", offset: at(1680), easing: SPRING },
+            { width: `${width}px`, transform: `translateY(${2 * scale}px) scaleY(0.92)`, offset: at(1680), easing: SPRING },
             { width: `${width}px`, transform: "none", offset: at(1860) },
             { width: `${width}px`, transform: "none", offset: 1 },
           ],
@@ -44,9 +44,9 @@ export const hello = defineGreeting({
               { transform: "scaleY(1)", offset: at(1040) },
               { transform: "scaleY(0.1)", offset: at(1100) },
               { transform: "scaleY(1)", offset: at(1170) },
-              { transform: "translateX(-3px)", offset: at(1260), easing: EASE },
-              { transform: "translateX(-3px)", offset: at(1400), easing: EASE },
-              { transform: "translateX(3px)", offset: at(1500), easing: EASE },
+              { transform: `translateX(${-3 * scale}px)`, offset: at(1260), easing: EASE },
+              { transform: `translateX(${-3 * scale}px)`, offset: at(1400), easing: EASE },
+              { transform: `translateX(${3 * scale}px)`, offset: at(1500), easing: EASE },
               { transform: "translateX(0) scaleY(1)", offset: at(1600) },
               { transform: "scaleY(0.35)", offset: at(1700) },
               { opacity: 1, transform: "scaleY(0.35)", offset: at(1900) },

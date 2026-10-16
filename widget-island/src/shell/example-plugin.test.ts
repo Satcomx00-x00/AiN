@@ -44,7 +44,7 @@ describe("the example startup animation", async () => {
     const pill = document.createElement("div");
     pill.innerHTML = `<div class="surface"><div class="glance"></div></div>`;
     const surface = pill.querySelector<HTMLElement>(".surface")!;
-    await checked.play({ island: pill, surface, glance: pill.querySelector(".glance"), size: { width: 200, height: 32 } });
+    await checked.play({ island: pill, surface, glance: pill.querySelector(".glance"), size: { width: 200, height: 32 }, scale: 1 });
     const own = animate.mock.contexts.indexOf(pill);
     expect(animate.mock.calls[own]?.[0]).toEqual([expect.objectContaining({ width: "32px" }), expect.anything(), expect.objectContaining({ width: "200px" })]);
     expect(surface.children).toHaveLength(1);

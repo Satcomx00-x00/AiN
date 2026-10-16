@@ -22,12 +22,12 @@ const STAR = `<path d="M5 0 6.2 3.8 10 5 6.2 6.2 5 10 3.8 6.2 0 5 3.8 3.8Z"/>`;
 export const sparkle = defineGreeting({
   id: "sparkle",
   label: "Sparkle",
-  async play({ island, surface, glance, size: { width, height } }) {
+  async play({ island, surface, glance, size: { width, height }, scale }) {
     const at = (ms: number) => ms / SPARKLE_MS;
     const sky = h("div", { class: "sparkle-sky", "aria-hidden": "true" });
     const stars = STARS.map(({ x, y, size }) => {
       const star = h("span", { class: "sparkle-star" }, svg("0 0 10 10", STAR));
-      Object.assign(star.style, { left: `${x * 100}%`, top: `${y * 100}%`, width: `${size}px`, height: `${size}px` });
+      Object.assign(star.style, { left: `${x * 100}%`, top: `${y * 100}%`, width: `${size * scale}px`, height: `${size * scale}px` });
       sky.append(star);
       return star;
     });

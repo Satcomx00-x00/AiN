@@ -31,6 +31,13 @@ body {
   initial-value: #0a84ff;
 }
 
+/* The pill size's content scale (1 = Normal). Registered so text, icons and ears ease to a new size with the pill. */
+@property --scale {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 1;
+}
+
 #island {
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --spring: cubic-bezier(0.34, 1.3, 0.64, 1);
@@ -63,6 +70,10 @@ body {
   --round: 36px;
   --round-lg: 44px;
   --mini: 16px;
+  /* The ears grow with the pill size, but never past a thin style's height; text and icons grow
+     less steeply than the pill, so a low pill stays readable. */
+  --ear: min(calc(10px * var(--scale)), var(--h, 32px));
+  --type: calc(0.4 + 0.6 * var(--scale));
 
   position: relative;
   width: var(--w);
@@ -70,7 +81,8 @@ body {
   background: var(--bg);
   color: var(--fg);
   border-radius: 0 0 calc(var(--h) / 2 * var(--curve)) calc(var(--h) / 2 * var(--curve));
-  font: 500 13px/1.2 system-ui, "Segoe UI Variable Text", "Segoe UI", -apple-system, sans-serif;
+  /* The folded pill's text follows the pill size; the panel sets its own. */
+  font: 500 calc(13px * var(--type))/1.2 system-ui, "Segoe UI Variable Text", "Segoe UI", -apple-system, sans-serif;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
   cursor: default;
@@ -81,6 +93,7 @@ body {
     border-radius 0.5s var(--settle),
     box-shadow 0.5s var(--settle),
     --ambient 0.9s ease,
+    --scale 0.5s var(--settle),
     opacity 0.3s ease,
     translate 0.3s var(--settle);
 }
@@ -176,21 +189,31 @@ body {
 
 /* ---------- Collapsed glance ---------- */
 
+/* Where the pill style draws. Its measures follow the pill size through --scale. */
 .glance {
+  --mini: calc(16px * var(--type));
   flex: 0 0 var(--glance-h);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: calc(8px * var(--scale));
   padding: 0 calc(var(--glance-h) / 2);
   font-weight: 600;
   white-space: nowrap;
+  transition:
+    flex-basis 0.5s var(--settle),
+    padding 0.5s var(--settle);
+}
+
+/* Open, the row is at least as tall as the pill, so the panel sits the same under every style. */
+#island[data-open="true"] .glance {
+  flex-basis: var(--glance-open-h, var(--glance-h));
 }
 
 .g {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: calc(6px * var(--scale));
   transition: color 0.3s;
 }
 
@@ -212,15 +235,15 @@ body {
 .g-art {
   width: var(--mini);
   height: var(--mini);
-  border-radius: 4px;
+  border-radius: calc(4px * var(--scale));
   object-fit: cover;
   box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--fg) 15%, transparent);
 }
 
 .g-bar {
-  width: 64px;
-  height: 4px;
-  border-radius: 2px;
+  width: calc(64px * var(--scale));
+  height: calc(4px * var(--scale));
+  border-radius: calc(2px * var(--scale));
   background: var(--track);
   overflow: hidden;
 }
@@ -307,6 +330,7 @@ body {
   flex-direction: column;
   gap: var(--gap);
   padding: 0 var(--pad) var(--pad);
+  font-size: 13px;
   opacity: 0;
   visibility: hidden;
   transform: translateY(-8px) scale(0.97);
@@ -927,8 +951,8 @@ button:focus-visible {
 .mark[data-kind="mic"],
 .mark[data-kind="camera"] {
   display: inline-block;
-  width: 8px;
-  height: 8px;
+  width: calc(8px * var(--scale));
+  height: calc(8px * var(--scale));
   border-radius: 50%;
   background: var(--done);
   box-shadow: 0 0 6px var(--done);
@@ -947,8 +971,8 @@ button:focus-visible {
 /* Recording: a red dot that breathes. */
 .mark[data-kind="rec"] {
   display: inline-block;
-  width: 8px;
-  height: 8px;
+  width: calc(8px * var(--scale));
+  height: calc(8px * var(--scale));
   border-radius: 50%;
   background: var(--hot);
   box-shadow: 0 0 6px var(--hot);
@@ -969,12 +993,12 @@ button:focus-visible {
 .mark[data-kind="eq"] {
   display: inline-flex;
   align-items: flex-end;
-  gap: 2px;
+  gap: calc(2px * var(--scale));
   height: calc(var(--mini) * 0.75);
 }
 
 .mark[data-kind="eq"] i {
-  width: 2.5px;
+  width: calc(2.5px * var(--scale));
   height: 100%;
   border-radius: 1px;
   background: var(--ambient);

@@ -73,9 +73,22 @@ describe("settings", () => {
   });
 
   it("keeps the pill shown unless asked, and the reveal delay within range", () => {
-    expect(DEFAULT_GENERAL).toMatchObject({ autoHide: false, revealDelay: 500 });
-    expect(parseSettings({ general: { autoHide: true, revealDelay: 1000 } }, fallback).general).toMatchObject({ autoHide: true, revealDelay: 1000 });
-    expect(parseSettings({ general: { autoHide: "yes", revealDelay: 50 } }, fallback).general).toEqual(DEFAULT_GENERAL);
+    expect(DEFAULT_GENERAL).toMatchObject({ style: "pill", revealDelay: 500 });
+    expect(parseSettings({ general: { style: "hidden", revealDelay: 1000 } }, fallback).general).toMatchObject({ style: "hidden", revealDelay: 1000 });
+    expect(parseSettings({ general: { style: "Neon line", revealDelay: 50 } }, fallback).general).toEqual(DEFAULT_GENERAL);
+  });
+
+  it("turns the old “Hide the pill” switch into the Hidden style, unless a style was picked since", () => {
+    expect(parseSettings({ general: { autoHide: true } }, fallback).general.style).toBe("hidden");
+    expect(parseSettings({ general: { autoHide: false } }, fallback).general.style).toBe("pill");
+    expect(parseSettings({ general: { autoHide: true, style: "neon" } }, fallback).general.style).toBe("neon");
+    expect(parseSettings({ general: { autoHide: true } }, fallback).general).not.toHaveProperty("autoHide");
+  });
+
+  it("keeps the pill size, normal unless one of the three", () => {
+    expect(DEFAULT_GENERAL.pillSize).toBe("normal");
+    for (const size of ["low", "normal", "large"]) expect(parseSettings({ general: { pillSize: size } }, fallback).general.pillSize).toBe(size);
+    for (const bad of ["huge", 2, null]) expect(parseSettings({ general: { pillSize: bad } }, fallback).general.pillSize).toBe("normal");
   });
 
   it("removes duplicate ids in a placement", () =>

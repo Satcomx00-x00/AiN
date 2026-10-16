@@ -25,11 +25,14 @@ import type { Found } from "../../bindings/extensions";
 import { layout as defaultLayout } from "../../../features/layout";
 import { catalogue, extensionRules } from "../../../features";
 import { greetings } from "../../../features/greetings";
+import { styles } from "../../../features/styles";
+import type { AnyStyle, PillSize } from "../../../sdk/style";
+import { styleById } from "../../styles";
 import { NO_GREETING } from "../../greet";
-import { select } from "../../../sdk/select";
+import { type SelectOption, select } from "../../../sdk/select";
 import { tauriServices } from "../../../features/services";
 import { THEMES, themeById } from "../../themes";
-import { aroundPanel, colorPicker, field, optionControl, rangeControl, standardFields, switchControl, themeGrid } from "./controls";
+import { aroundPanel, colorPicker, field, optionControl, rangeControl, segmented, standardFields, switchControl, themeGrid } from "./controls";
 import type { Field } from "../../../sdk/options";
 import { slotList } from "./slots";
 
@@ -156,20 +159,49 @@ function general(): Node[] {
       { class: "card" },
       field(
         "Hide the pill",
-        "It shows only while the cursor rests at the top center of the screen, so it stays out of games and other apps.",
-        switchControl(settings.general.autoHide, (on) => setGeneral({ autoHide: on }, true), "Hide the pill"),
+        "Pick the Hidden style in Appearance: the pill then shows only while the cursor rests at the top center of the screen.",
+        button("Appearance", () => goTo("appearance"), { class: "secondary" }),
       ),
-      ...(settings.general.autoHide
-        ? [
-            field(
-              "Show after",
-              "How long the cursor must rest there.",
-              rangeControl(settings.general.revealDelay, { ...REVEAL_RANGE, unit: "ms" }, (v) => setGeneral({ revealDelay: v }), "Show after"),
-            ),
-          ]
-        : []),
     ),
   ];
+}
+
+const PILL_SIZES: readonly { value: PillSize; label: string }[] = [
+  { value: "low", label: "Low profile" },
+  { value: "normal", label: "Normal" },
+  { value: "large", label: "Large" },
+];
+
+/** The pill's style and size, the reveal delay of a hidden style, and the style's own options. */
+function pillCard(): HTMLElement {
+  const choices = styleChoices();
+  const style = styleById(choices.styles, settings.general.style);
+  const values = resolve(style.options ?? {}, settings.options[style.id]) as Record<string, unknown>;
+  return h(
+    "section",
+    { class: "card" },
+    field(
+      "Pill style",
+      style.hidden ? "It shows only while the cursor rests at the top center of the screen, so it stays out of games and other apps." : undefined,
+      select(choices.options, style.id, (id) => setGeneral({ style: id }, true), "Pill style").el,
+      true,
+    ),
+    field(
+      "Size",
+      "A hardware notch keeps its own size.",
+      segmented(settings.general.pillSize, PILL_SIZES, (v) => setGeneral({ pillSize: v as PillSize }), "Pill size"),
+    ),
+    ...(style.hidden
+      ? [
+          field(
+            "Show after",
+            "How long the cursor must rest there.",
+            rangeControl(settings.general.revealDelay, { ...REVEAL_RANGE, unit: "ms" }, (v) => setGeneral({ revealDelay: v }), "Show after"),
+          ),
+        ]
+      : []),
+    ...standardFields(style.options ?? {}).map(([key, f]) => optionControl(f, values[key], (v) => setOption(style.id, key, v), pickFolder)),
+  );
 }
 
 function appearance(): Node[] {
@@ -179,6 +211,7 @@ function appearance(): Node[] {
   const chosen = choices.some((c) => c.value === settings.general.greeting) ? settings.general.greeting : greetings[0]!.id;
   return [
     ...header("Appearance"),
+    pillCard(),
     h(
       "section",
       { class: "card" },
@@ -203,7 +236,7 @@ function appearance(): Node[] {
       { class: "card" },
       field(
         "Pill width",
-        undefined,
+        "At the Normal size.",
         rangeControl(settings.general.pillWidth, { ...WIDTH_RANGE, unit: "px" }, (v) => setGeneral({ pillWidth: v }), "Pill width"),
       ),
       field(
@@ -420,6 +453,7 @@ async function toggleFile(file: string, on: boolean): Promise<void> {
 const FILE = `<path d="M4 2.5h5.5L12 5v8.5H4z"/><path d="M9.5 2.5V5H12"/>`;
 const PLAY = `<path d="M5 3.5v9l7.5-4.5z"/>`;
 const SPARKLE = `<path d="M8 2.5 9.3 6.7 13.5 8 9.3 9.3 8 13.5 6.7 9.3 2.5 8 6.7 6.7Z"/>`;
+const PILL = `<path d="M2.5 4.5h11v1.5a3 3 0 0 1-3 3h-5a3 3 0 0 1-3-3z"/>`;
 
 /** The startup animations to pick from: built-in ones, then those from enabled files. */
 const greetingChoices = () => [
@@ -427,6 +461,18 @@ const greetingChoices = () => [
   ...[...loaded.values()].flatMap((e) => (e.greeting && settings.extensions.includes(e.file) ? [{ value: e.greeting.id, label: e.greeting.label, badge: "Plugin" }] : [])),
   { value: NO_GREETING, label: "None" },
 ];
+
+/** The pill styles to pick from: built-in ones, then those from enabled files. */
+function styleChoices(): { styles: readonly AnyStyle[]; options: SelectOption[] } {
+  const extra = [...loaded.values()].flatMap((e) => (e.style && settings.extensions.includes(e.file) ? [e.style] : []));
+  return {
+    styles: [...styles, ...extra],
+    options: [
+      ...styles.map((st) => ({ value: st.id, label: st.label, detail: st.description })),
+      ...extra.map((st) => ({ value: st.id, label: st.label, detail: st.description, badge: "Plugin" })),
+    ],
+  };
+}
 
 /** The startup animation's drop-down, and a button that plays the one shown on the island. */
 function greetingPicker(choices: ReturnType<typeof greetingChoices>, chosen: string): HTMLElement {
@@ -447,13 +493,15 @@ function greetingPicker(choices: ReturnType<typeof greetingChoices>, chosen: str
 function pluginsSection(): Node[] {
   const rows = fileRows(found.plugins, settings.extensions, loaded);
   const list = rows.map((row) => {
-    const title = row.plugin?.label ?? row.greeting?.label ?? row.file;
+    const title = row.plugin?.label ?? row.greeting?.label ?? row.style?.label ?? row.file;
     const detail = row.problem
       ? `Can't be used: ${row.problem}`
       : row.plugin
         ? `${row.plugin.description}${row.needs.length ? ` Uses: ${row.needs.join(", ")}.` : ""}`
         : row.greeting
           ? "Startup animation, chosen in Appearance."
+          : row.style
+            ? "Pill style, chosen in Appearance."
           : row.on
           ? "Loading…"
           : "Off";
@@ -463,7 +511,7 @@ function pluginsSection(): Node[] {
       h(
         "div",
         { class: "card-head" },
-        h("span", { class: "ico", "aria-hidden": "true" }, icon(row.plugin?.icon ?? (row.greeting ? SPARKLE : FILE))),
+        h("span", { class: "ico", "aria-hidden": "true" }, icon(row.plugin?.icon ?? (row.greeting ? SPARKLE : row.style ? PILL : FILE))),
         h("div", { class: "grow" }, h("h2", {}, title), h("p", {}, detail)),
         switchControl(row.on, (on) => void toggleFile(row.file, on).then(render), `Use ${title}`),
       ),

@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { Greeting } from "../sdk/greeting";
+import type { Greeting, Stage } from "../sdk/greeting";
+import type { AnyStyle, Folded } from "../sdk/style";
 import { mount } from "./host";
 import { type Settings, defaults } from "./settings";
 import type { WindowPort } from "./window";
@@ -10,17 +11,18 @@ const settings = (greeting: string): Settings => {
   const base = defaults(EMPTY as never);
   return { ...base, general: { ...base.general, greeting } };
 };
-/** A window that records the auto-hide rules it is sent, and can show or hide the pill on cue. */
+/** A window that records the auto-hide rules and input regions it is sent, and can show or hide the pill on cue. */
 function fakeWindow() {
   const rules: [number | null, number][] = [];
+  const regions: { width: number; height: number }[] = [];
   let reveal: (shown: boolean) => void = () => {};
   const port: WindowPort = {
     island: async () => ({ width: 200, height: 32, hasNotch: false }),
-    layout: async () => {},
+    layout: async (_, region) => void regions.push(region),
     autoHide: async (dwell, grace) => void rules.push([dwell, grace]),
     onReveal: async (onReveal) => ((reveal = onReveal), () => {}),
   };
-  return { port, rules, reveal: (shown: boolean) => reveal(shown) };
+  return { port, rules, regions, reveal: (shown: boolean) => reveal(shown) };
 }
 let win = fakeWindow();
 
@@ -36,14 +38,41 @@ const settleAll = () => new Promise((r) => setTimeout(r, 0));
 
 afterEach(() => vi.restoreAllMocks());
 
+/** A style that records what it is asked to draw. */
+function recording(id: string, extra: Partial<AnyStyle> = {}) {
+  const drawn: Folded[] = [];
+  const mounts: HTMLElement[] = [];
+  let destroyed = 0;
+  const style: AnyStyle = {
+    id,
+    label: id,
+    mount: (root) => {
+      mounts.push(root);
+      root.append(document.createElement("i"));
+      return { draw: (f) => void drawn.push(f), destroy: () => void destroyed++ };
+    },
+    ...extra,
+  };
+  return { style, drawn, mounts, destroyed: () => destroyed };
+}
+
+const PILL = recording("pill");
+const HIDDEN = recording("hidden", { hidden: true });
+
 async function start(chosen: string | Settings, ...gs: Greeting[]) {
+  return startWith(chosen, gs, [PILL.style, HIDDEN.style]);
+}
+
+async function startWith(chosen: string | Settings, gs: Greeting[], styles: AnyStyle[]) {
   vi.spyOn(window, "matchMedia").mockReturnValue({ matches: false } as MediaQueryList);
   const el = document.createElement("div");
   document.body.replaceChildren(el);
   win = fakeWindow();
-  const handle = await mount(el, [], {}, win.port, typeof chosen === "string" ? settings(chosen) : chosen, { greetings: gs });
+  const handle = await mount(el, [], {}, win.port, typeof chosen === "string" ? settings(chosen) : chosen, { greetings: gs, styles });
   return { el, handle };
 }
+
+const withGeneral = (patch: Partial<Settings["general"]>, base = settings("one")): Settings => ({ ...base, general: { ...base.general, ...patch } });
 
 describe("the island's startup animation", () => {
   it("plays the chosen one at startup, and the pill doesn't open before it's over", async () => {
@@ -189,10 +218,7 @@ describe("the island's startup animation", () => {
 });
 
 describe("the hidden pill", () => {
-  const hiding = (on: boolean, revealDelay = 500): Settings => {
-    const base = settings("one");
-    return { ...base, general: { ...base.general, autoHide: on, revealDelay } };
-  };
+  const hiding = (on: boolean, revealDelay = 500): Settings => withGeneral({ style: on ? "hidden" : "pill", revealDelay });
 
   it("starts hiding only once the startup animation is over", async () => {
     const a = controlled("one");
@@ -231,5 +257,278 @@ describe("the hidden pill", () => {
     expect([el.dataset.hidden, el.dataset.open]).toEqual(["true", "false"]);
     win.reveal(true);
     expect(el.dataset.hidden).toBe("false");
+  });
+});
+
+describe("pill styles", () => {
+  it("draws the folded island with the chosen style, in the pill's glance row", async () => {
+    const a = recording("a");
+    const b = recording("b");
+    const { el } = await startWith(withGeneral({ style: "b" }), [], [a.style, b.style]);
+    await settleAll();
+    expect(a.mounts).toHaveLength(0);
+    expect(b.mounts).toEqual([el.querySelector(".surface > .glance")]);
+    expect(el.dataset.style).toBe("b");
+    expect(b.drawn.at(-1)).toMatchObject({ left: null, right: null, ambient: null, alert: false, wide: false });
+  });
+
+  it("falls back to the first style when the chosen one is gone", async () => {
+    const a = recording("a");
+    const { el } = await startWith(withGeneral({ style: "removed-plugin" }), [], [a.style]);
+    expect(el.dataset.style).toBe("a");
+  });
+
+  it("swaps styles live, clearing the old one's look", async () => {
+    const a = recording("a");
+    const b = recording("b");
+    const { el, handle } = await startWith(withGeneral({ style: "a" }), [], [a.style, b.style]);
+    handle.configure(withGeneral({ style: "b" }));
+    expect([a.destroyed(), b.mounts.length, el.dataset.style]).toEqual([1, 1, "b"]);
+    expect(el.querySelector(".glance")?.children).toHaveLength(1);
+    // The same style again isn't mounted again.
+    handle.configure(withGeneral({ style: "b", pillCurve: 50 }));
+    expect(b.mounts).toHaveLength(1);
+  });
+
+  it("takes the styles given with the settings, e.g. once a plugin's is loaded", async () => {
+    const a = recording("a");
+    const late = recording("late");
+    const { el, handle } = await startWith(withGeneral({ style: "late" }), [], [a.style]);
+    expect(el.dataset.style).toBe("a");
+    handle.configure(withGeneral({ style: "late" }), undefined, undefined, [a.style, late.style]);
+    expect(el.dataset.style).toBe("late");
+  });
+
+  it("sizes the pill from the style, within limits", async () => {
+    const thin = recording("thin", { size: (p) => ({ width: p.width * 0.7, height: 6 }) });
+    const { el } = await startWith(withGeneral({ style: "thin" }), [], [thin.style]);
+    expect([el.style.getPropertyValue("--w"), el.style.getPropertyValue("--h")]).toEqual(["140px", "6px"]);
+    const huge = recording("huge", { size: () => ({ width: 5000, height: 5000 }) });
+    const { el: big } = await startWith(withGeneral({ style: "huge" }), [], [huge.style]);
+    expect([big.style.getPropertyValue("--w"), big.style.getPropertyValue("--h")]).toEqual(["960px", "120px"]);
+  });
+
+  it("sets a style aside when it fails, and carries on with the default", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const a = recording("a");
+    const mountFails = recording("m", {
+      mount: () => {
+        throw new Error("boom");
+      },
+    });
+    const { el } = await startWith(withGeneral({ style: "m" }), [], [a.style, mountFails.style]);
+    expect(el.dataset.style).toBe("a");
+    const drawFails = recording("d", {
+      mount: () => ({
+        draw: () => {
+          throw new Error("bang");
+        },
+      }),
+    });
+    const { el: other } = await startWith(withGeneral({ style: "d" }), [], [a.style, drawFails.style]);
+    await settleAll();
+    expect(other.dataset.style).toBe("a");
+    expect(console.error).toHaveBeenCalledWith(expect.stringContaining(`"d": draw failed`));
+  });
+
+  it("keeps running with no style at all", async () => {
+    const { el } = await startWith(settings("one"), [], []);
+    expect(el.dataset.style).toBe("bare");
+  });
+});
+
+describe("pill sizes", () => {
+  it("scales the pill, its content and its ears", async () => {
+    const sizes = [
+      ["low", "160px", "20px", "0.625"],
+      ["normal", "200px", "32px", "1"],
+      ["large", "260px", "44px", "1.375"],
+    ] as const;
+    for (const [size, w, h, scale] of sizes) {
+      const { el } = await start(withGeneral({ pillSize: size }));
+      expect([el.style.getPropertyValue("--w"), el.style.getPropertyValue("--h"), el.style.getPropertyValue("--scale")]).toEqual([w, h, scale]);
+      expect(el.style.getPropertyValue("--glance-h")).toBe(h);
+    }
+  });
+
+  it("resizes live: the input region grows before the pill, and shrinks after it", async () => {
+    const { el, handle } = await start(withGeneral({ pillSize: "normal" }));
+    win.regions.length = 0;
+    handle.configure(withGeneral({ pillSize: "large" }));
+    // Growing: the pill keeps its size until the region has grown.
+    expect(el.style.getPropertyValue("--h")).toBe("32px");
+    await settleAll();
+    expect(el.style.getPropertyValue("--h")).toBe("44px");
+    expect(win.regions.at(-1)).toMatchObject({ height: 44 });
+    handle.configure(withGeneral({ pillSize: "low" }));
+    expect(el.style.getPropertyValue("--h")).toBe("20px");
+    expect(win.regions.at(-1)).toMatchObject({ height: 20 });
+  });
+
+  it("plays the startup animation at the chosen size", async () => {
+    const stages: Stage[] = [];
+    const greeting: Greeting = { id: "one", label: "one", play: (s) => void stages.push(s) };
+    await start(withGeneral({ pillSize: "large", greeting: "one" }), greeting);
+    expect(stages[0]).toMatchObject({ size: { width: 260, height: 44 }, scale: 1.375 });
+  });
+
+  it("opens below the folded pill, whatever its size", async () => {
+    const { el } = await start(withGeneral({ pillSize: "low", greeting: "none" }));
+    await settleAll();
+    el.dispatchEvent(new MouseEvent("click"));
+    await settleAll();
+    expect(el.dataset.open).toBe("true");
+    expect(el.style.getPropertyValue("--h")).toBe("176px");
+  });
+});
+
+describe("short and textless styles", () => {
+  const strip = () => recording("strip", { widens: false, size: (p) => ({ width: p.width, height: 6 }) });
+
+  it("aren't widened by a live activity when they say so", async () => {
+    const s = strip();
+    const media = {
+      id: "media",
+      label: "Media",
+      description: "",
+      icon: "",
+      slots: ["glance"] as const,
+      setup: () => ({ glance: () => ({ text: "Song", wide: true }) }),
+    };
+    vi.spyOn(window, "matchMedia").mockReturnValue({ matches: false } as MediaQueryList);
+    const el = document.createElement("div");
+    document.body.replaceChildren(el);
+    win = fakeWindow();
+    const base = withGeneral({ style: "strip" });
+    await mount(el, [media as never], {}, win.port, { ...base, layout: { glance: { left: [], right: ["media"] }, tabs: [] } }, { styles: [s.style] });
+    await settleAll();
+    expect(el.dataset.wide).toBe("true");
+    expect(el.style.getPropertyValue("--w")).toBe("200px");
+  });
+
+  it("open to the same panel as the pill, below a row as tall as the pill", async () => {
+    const s = strip();
+    const { el } = await startWith(withGeneral({ style: "strip", greeting: "none" }), [], [s.style]);
+    expect(el.style.getPropertyValue("--h")).toBe("6px");
+    expect(el.style.getPropertyValue("--glance-open-h")).toBe("32px");
+    el.dispatchEvent(new MouseEvent("click"));
+    await settleAll();
+    expect(el.style.getPropertyValue("--h")).toBe(`${32 + 156}px`);
+  });
+});
+
+describe("pill styles, live", () => {
+  it("reads the style's options for its size and while drawing, as they change", async () => {
+    const seen: unknown[] = [];
+    const s = recording("opt", {
+      options: { thick: { kind: "number", label: "Thickness", default: 4, min: 2, max: 12, step: 1 } },
+      size: (p, o) => ({ width: p.width, height: (o as { thick: number }).thick }),
+      mount: (_, ctx) => ({ draw: () => void seen.push(ctx.options()) }),
+    });
+    const base = withGeneral({ style: "opt" });
+    const { el, handle } = await startWith(base, [], [s.style]);
+    await settleAll();
+    expect(el.style.getPropertyValue("--h")).toBe("4px");
+    expect(seen.at(-1)).toEqual({ thick: 4 });
+    handle.configure({ ...base, options: { opt: { thick: 9 } } });
+    await settleAll();
+    expect(el.style.getPropertyValue("--h")).toBe("9px");
+    expect(seen.at(-1)).toEqual({ thick: 9 });
+  });
+
+  it("starts or stops hiding when a hidden style is picked or left", async () => {
+    const a = controlled("one");
+    const { handle } = await start(withGeneral({ style: "pill", greeting: "one" }), a.greeting);
+    a.finish();
+    await settleAll();
+    handle.configure(withGeneral({ style: "hidden", greeting: "one" }));
+    handle.configure(withGeneral({ style: "pill", greeting: "one" }));
+    expect(win.rules).toEqual([
+      [null, 760],
+      [500, 760],
+      [null, 760],
+    ]);
+  });
+
+  it("pops the new style in once the island has started, not at startup", async () => {
+    const a = recording("a");
+    const b = recording("b");
+    vi.spyOn(window, "matchMedia").mockReturnValue({ matches: false } as MediaQueryList);
+    const animate = vi.spyOn(Element.prototype, "animate").mockImplementation(() => ({ finished: Promise.resolve(), cancel() {} }) as unknown as Animation);
+    const el = document.createElement("div");
+    document.body.replaceChildren(el);
+    win = fakeWindow();
+    const handle = await mount(el, [], {}, win.port, withGeneral({ style: "a", greeting: "none" }), { styles: [a.style, b.style] });
+    await settleAll();
+    const glance = el.querySelector(".glance");
+    expect(animate.mock.contexts.filter((c) => c === glance)).toHaveLength(0);
+    handle.configure(withGeneral({ style: "b", greeting: "none" }));
+    expect(animate.mock.contexts.filter((c) => c === glance)).toHaveLength(1);
+  });
+
+  it("gives each style a clean row: no class, style or element left by the last one", async () => {
+    const messy = recording("messy", {
+      mount: (root) => {
+        root.classList.add("messy");
+        root.style.padding = "0";
+        root.append(document.createElement("b"));
+        return { draw() {} };
+      },
+    });
+    const b = recording("b");
+    const { el, handle } = await startWith(withGeneral({ style: "messy" }), [], [messy.style, b.style]);
+    handle.configure(withGeneral({ style: "b" }));
+    const glance = el.querySelector<HTMLElement>(".glance")!;
+    expect([glance.className, glance.getAttribute("style"), glance.querySelector("b")]).toEqual(["glance", null, null]);
+  });
+
+  it("carries on when a style's destroy throws", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const bad = recording("bad", {
+      mount: () => ({
+        draw() {},
+        destroy() {
+          throw new Error("x");
+        },
+      }),
+    });
+    const b = recording("b");
+    const { el, handle } = await startWith(withGeneral({ style: "bad" }), [], [bad.style, b.style]);
+    handle.configure(withGeneral({ style: "b" }));
+    expect(el.dataset.style).toBe("b");
+    expect(console.error).toHaveBeenCalledWith(expect.stringContaining(`"bad": destroy failed`));
+  });
+
+  it("doesn't come back to a style set aside this session, even when picked again", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const a = recording("a");
+    let mounts = 0;
+    const flaky = recording("flaky", {
+      mount: () => {
+        mounts++;
+        throw new Error("boom");
+      },
+    });
+    const { el, handle } = await startWith(withGeneral({ style: "flaky" }), [], [a.style, flaky.style]);
+    handle.configure(withGeneral({ style: "a" }));
+    handle.configure(withGeneral({ style: "flaky" }));
+    expect([el.dataset.style, mounts]).toEqual(["a", 1]);
+  });
+});
+
+describe("pill sizes and a hardware notch", () => {
+  it("keeps the notch's height whatever the size, with room for glances beside it", async () => {
+    vi.spyOn(window, "matchMedia").mockReturnValue({ matches: false } as MediaQueryList);
+    const el = document.createElement("div");
+    document.body.replaceChildren(el);
+    win = fakeWindow();
+    const port = { ...win.port, island: async () => ({ width: 185, height: 32, hasNotch: true }) };
+    await mount(el, [], {}, port, withGeneral({ pillSize: "low" }), { styles: [PILL.style] });
+    expect([el.style.getPropertyValue("--w"), el.style.getPropertyValue("--h"), el.style.getPropertyValue("--scale")]).toEqual(["313px", "32px", "1"]);
+  });
+
+  it("follows the width setting at the chosen size", async () => {
+    const { el } = await start(withGeneral({ pillSize: "large", pillWidth: 300 }));
+    expect(el.style.getPropertyValue("--w")).toBe("390px");
   });
 });

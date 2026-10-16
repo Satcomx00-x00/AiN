@@ -78,3 +78,18 @@ describe("extensionLoader", () => {
     expect(log).toHaveBeenCalledWith("[island] can't list plugins: Error: denied");
   });
 });
+
+describe("extensionLoader, with pill styles", () => {
+  it("loads a pill style file once it is turned on, and refuses a built-in style's id", async () => {
+    const log = vi.fn();
+    const style = (id: string) => ({ id, label: id, mount: () => ({ draw() {} }) });
+    const list = vi.fn(async () => ({ dir: "/plugins", plugins: ["neon.js", "fake.js"].map((file) => ({ file, source: file, problem: null })) }));
+    const importer = vi.fn(async (source: string) => ({ default: () => style(source === "neon.js" ? "neon" : "pill") }));
+    const loaded = await extensionLoader({ list, openDir: async () => {} }, importer, log).sync(["neon.js", "fake.js"]);
+    expect(loaded.map((e) => [e.file, e.style?.id ?? null, e.problem])).toEqual([
+      ["neon.js", "neon", null],
+      ["fake.js", null, `the id "pill" is already used`],
+    ]);
+    expect(log).toHaveBeenCalledWith(`[island] plugin fake.js: the id "pill" is already used`);
+  });
+});

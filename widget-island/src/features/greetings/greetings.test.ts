@@ -6,14 +6,21 @@ const { greetings } = await import(".");
 const { HELLO_MS } = await import("./hello");
 const { TYPEWRITER_TEXT } = await import("./typewriter");
 
-/** The island's markup as the host builds it. */
-function stage(): Stage {
+/** The island's markup as the host builds it, at the Normal size unless given another. */
+function stage(size = { width: 200, height: 32 }, scale = 1): Stage {
   const island = document.createElement("div");
   island.id = "island";
   island.innerHTML = `<div class="surface"><div class="glance"></div></div>`;
   document.body.replaceChildren(island);
-  return { island, surface: island.querySelector(".surface")!, glance: island.querySelector(".glance"), size: { width: 200, height: 32 } };
+  return { island, surface: island.querySelector(".surface")!, glance: island.querySelector(".glance"), size, scale };
 }
+
+/** Each pill size, as the island hands it to a startup animation. */
+const SIZES = [
+  ["low profile", { width: 160, height: 20 }, 0.625],
+  ["large", { width: 260, height: 44 }, 1.375],
+  ["a stub", { width: 35, height: 9 }, 0.625],
+] as const;
 
 type Call = { el: Element; keyframes: Keyframe[]; options: KeyframeAnimationOptions };
 
@@ -89,6 +96,16 @@ describe("the built-in startup animations", () => {
       await expect(greeting.play(s)).resolves.toBeUndefined();
       expect(s.surface.children).toHaveLength(1);
       expect(s.surface.firstElementChild).toBe(s.glance);
+    });
+
+    it.each(SIZES)("grows from a drop to the full pill at %s size", async (_, size, scale) => {
+      const calls = recordAnimations();
+      const s = stage(size, scale);
+      await greeting.play(s);
+      const pill = calls.find((c) => c.el === s.island)!;
+      expect(pill.keyframes[0]).toMatchObject({ width: `${size.height}px` });
+      expect(pill.keyframes.at(-1)).toMatchObject({ width: `${size.width}px` });
+      expect(s.surface.children).toHaveLength(1);
     });
 
     it("works without glances", async () => {
@@ -178,5 +195,35 @@ describe("boing", () => {
     // Narrow while it bounces, wide only at the end.
     const firstWide = frames.findIndex((k) => k.width === "200px");
     expect(frames.slice(0, firstWide).every((k) => k.width === "32px")).toBe(true);
+  });
+});
+
+describe("at another pill size", () => {
+  it("hello moves its eyes and hops by the pill's scale", async () => {
+    const calls = recordAnimations();
+    const s = stage({ width: 260, height: 44 }, 1.5);
+    await greetings[0]!.play(s);
+    const eye = calls.find((c) => (c.el as HTMLElement).classList?.contains("eye"))!;
+    const moves = eye.keyframes.map((k) => k.transform).filter((t) => typeof t === "string" && t.startsWith("translateX(") && t !== "translateX(0) scaleY(1)");
+    expect(moves).toEqual(["translateX(-4.5px)", "translateX(-4.5px)", "translateX(4.5px)"]);
+    const pill = calls.find((c) => c.el === s.island)!;
+    expect(pill.keyframes.some((k) => k.transform === "translateY(3px) scaleY(0.92)")).toBe(true);
+  });
+
+  it("sparkle sizes its stars by the pill's scale", async () => {
+    let finish: () => void = () => {};
+    const done = new Promise<void>((r) => (finish = r));
+    recordAnimations(() => done);
+    const normal = stage();
+    const playing = greetings.find((g) => g.id === "sparkle")!.play(normal);
+    const at1 = [...normal.surface.querySelectorAll<HTMLElement>(".sparkle-star")].map((s) => parseFloat(s.style.width));
+    finish();
+    await playing;
+    recordAnimations();
+    const big = stage({ width: 260, height: 44 }, 2);
+    const again = greetings.find((g) => g.id === "sparkle")!.play(big);
+    const at2 = [...big.surface.querySelectorAll<HTMLElement>(".sparkle-star")].map((s) => parseFloat(s.style.width));
+    await again;
+    expect(at2).toEqual(at1.map((w) => w * 2));
   });
 });

@@ -1,6 +1,7 @@
 /**
  * Third-party plugins: ES modules from the app's plugins folder. Each default-exports a function
- * that receives the SDK and returns a plugin definition, which is checked before use. A plugin
+ * that receives the SDK and returns a plugin definition (or a startup animation, or a pill style),
+ * which is checked before use. A plugin
  * gets only the services it declares in `needs` (from those the app offers), and its widget is
  * isolated: if one of its parts throws, that part is switched off rather than breaking the island.
  *
@@ -11,6 +12,7 @@ import { type Sdk, sdk } from "../sdk";
 import type { Greeting, Stage } from "../sdk/greeting";
 import type { Field } from "../sdk/options";
 import type { AnyPlugin, Host, Widget } from "../sdk/plugin";
+import type { AnyStyle } from "../sdk/style";
 import { type Found, commands } from "./bindings/extensions";
 
 export interface Extension {
@@ -20,6 +22,8 @@ export interface Extension {
   readonly plugin: AnyPlugin | null;
   /** Or the startup animation, for a file that defines one instead. */
   readonly greeting: Greeting | null;
+  /** Or the pill style, for a file that defines one instead. */
+  readonly style: AnyStyle | null;
   /** Services it asked for. */
   readonly needs: readonly string[];
   /** Why it can't be used, when it can't. */
@@ -27,10 +31,10 @@ export interface Extension {
 }
 
 /** The id a loaded file claims, if any. */
-export const idOf = (ext: Extension): string | null => ext.plugin?.id ?? ext.greeting?.id ?? null;
+export const idOf = (ext: Extension): string | null => ext.plugin?.id ?? ext.greeting?.id ?? ext.style?.id ?? null;
 
 export interface Rules {
-  /** Ids already in use (the built-in features and startup animations). */
+  /** Ids already in use (the built-in features, startup animations and pill styles). */
   readonly taken: ReadonlySet<string>;
   /** Services a plugin may ask for. */
   readonly services: readonly string[];
@@ -124,6 +128,58 @@ export function confineGreeting(greeting: Greeting, log: (message: string) => vo
   };
 }
 
+/** Checks a pill style's definition; returns the problem, or the style. */
+export function checkStyle(def: Record<string, unknown>, taken: ReadonlySet<string>): AnyStyle | string {
+  const { id, label, description, widens, mount, size, hidden } = def;
+  if (typeof id !== "string" || !ID.test(id)) return "id must be 2–32 lowercase letters, digits or dashes, starting with a letter";
+  if (taken.has(id)) return `the id "${id}" is already used`;
+  if (typeof label !== "string" || !label.trim() || label.length > 40) return "label must be 1–40 characters";
+  if (description !== undefined && typeof description !== "string") return "description must be a string";
+  if (widens !== undefined && typeof widens !== "boolean") return "widens must be true or false";
+  if (typeof mount !== "function") return "mount must be a function";
+  if (size !== undefined && typeof size !== "function") return "size must be a function";
+  if (hidden !== undefined && typeof hidden !== "boolean") return "hidden must be true or false";
+  const problem = optionsProblem(def.options);
+  if (problem) return problem;
+  return {
+    id,
+    label,
+    mount: mount as AnyStyle["mount"],
+    ...(description !== undefined && { description }),
+    ...(widens !== undefined && { widens }),
+    ...(size !== undefined && { size: size as NonNullable<AnyStyle["size"]> }),
+    ...(hidden !== undefined && { hidden }),
+    ...(def.options !== undefined && { options: def.options as NonNullable<AnyStyle["options"]> }),
+  };
+}
+
+/**
+ * The style as the island runs it: a failing `size` is reported and gives the plain pill, and its
+ * view's failures are reported; the island then sets the style aside for another one.
+ */
+export function confineStyle(style: AnyStyle, log: (message: string) => void = console.error): AnyStyle {
+  const report = (what: string, e: unknown) => log(`[island] pill style "${style.id}": ${what} failed: ${String(e)}`);
+  const size = style.size;
+  return {
+    ...style,
+    ...(size && {
+      size(pill, options) {
+        try {
+          return size.call(style, pill, options);
+        } catch (e) {
+          report("size", e);
+          return { width: pill.width, height: pill.height };
+        }
+      },
+    }),
+    mount(root, ctx) {
+      const view = style.mount.call(style, root, ctx);
+      if (!isObject(view) || typeof view.draw !== "function") throw new Error("mount must return a view with draw()");
+      return view;
+    },
+  };
+}
+
 /** Wraps `fn` so that its first failure is reported and switches it off. */
 function fuse<A extends unknown[], R>(what: string, fn: (...args: A) => R, fallback: R, report: (what: string, e: unknown) => void) {
   let blown = false;
@@ -190,12 +246,12 @@ export function confine(plugin: AnyPlugin, needs: readonly string[], log: (messa
   };
 }
 
-/** Loads and checks every plugin (or startup animation) found, in order; later duplicates of an id are refused. */
+/** Loads and checks every plugin (startup animation, pill style) found, in order; later duplicates of an id are refused. */
 export async function loadExtensions(found: readonly Found[], rules: Rules, importer: Importer = importSource, api: Sdk = sdk): Promise<Extension[]> {
   const taken = new Set(rules.taken);
   const out: Extension[] = [];
   for (const { file, source, problem } of found) {
-    const fail = (why: string) => out.push({ file, plugin: null, greeting: null, needs: [], problem: why });
+    const fail = (why: string) => out.push({ file, plugin: null, greeting: null, style: null, needs: [], problem: why });
     if (source === null) {
       fail(problem ?? "couldn't be read");
       continue;
@@ -221,7 +277,18 @@ export async function loadExtensions(found: readonly Found[], rules: Rules, impo
         continue;
       }
       taken.add(greeting.id);
-      out.push({ file, plugin: null, greeting: confineGreeting(greeting), needs: [], problem: null });
+      out.push({ file, plugin: null, greeting: confineGreeting(greeting), style: null, needs: [], problem: null });
+      continue;
+    }
+    // A definition with `mount` and no `setup` is a pill style.
+    if (isObject(def) && "mount" in def && !("setup" in def)) {
+      const style = checkStyle(def, taken);
+      if (typeof style === "string") {
+        fail(style);
+        continue;
+      }
+      taken.add(style.id);
+      out.push({ file, plugin: null, greeting: null, style: confineStyle(style), needs: [], problem: null });
       continue;
     }
     const checked = check(def, { ...rules, taken });
@@ -230,7 +297,7 @@ export async function loadExtensions(found: readonly Found[], rules: Rules, impo
       continue;
     }
     taken.add(checked.plugin.id);
-    out.push({ file, plugin: confine(checked.plugin, checked.needs), greeting: null, needs: checked.needs, problem: null });
+    out.push({ file, plugin: confine(checked.plugin, checked.needs), greeting: null, style: null, needs: checked.needs, problem: null });
   }
   return out;
 }
@@ -242,6 +309,7 @@ export interface FileRow {
   /** Known only for files that are on and loaded fine: a file's code doesn't run before it is turned on. */
   readonly plugin: AnyPlugin | null;
   readonly greeting: Greeting | null;
+  readonly style: AnyStyle | null;
   readonly needs: readonly string[];
   readonly problem: string | null;
 }
@@ -255,7 +323,7 @@ export function fileRows(found: readonly Pick<Found, "file">[], enabled: readonl
     const ext = on ? loaded.get(file) : undefined;
     const problem = on && !present.has(file) ? "No longer in the plugins folder" : (ext?.problem ?? null);
     const shown = present.has(file) ? ext : undefined;
-    return { file, on, plugin: shown?.plugin ?? null, greeting: shown?.greeting ?? null, needs: ext?.needs ?? [], problem };
+    return { file, on, plugin: shown?.plugin ?? null, greeting: shown?.greeting ?? null, style: shown?.style ?? null, needs: ext?.needs ?? [], problem };
   });
 }
 
