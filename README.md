@@ -33,6 +33,10 @@ system stats, clipboard history and more, then folds back when you leave.
 ### The pill
 
 Folded, the island is a pill showing one widget on each side. You choose which in **Settings → Layout**.
+In **Settings → Appearance** you can make it low profile, normal or large, and pick its style: the
+Pill, Solo (one glance in the middle), Stub (a small tab with one mark), Sliver (a thin strip without
+text) or Hidden, which shows only while the cursor rests at the top center of the screen. Plugins can
+add more pill styles.
 
 <p align="center"><img src="img/pill.png" alt="The folded pill showing the time and CPU load" width="460"></p>
 
