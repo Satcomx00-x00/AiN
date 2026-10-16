@@ -18,5 +18,5 @@
     "allowJs": true,
     "checkJs": true
   },
-  "include": ["src", "examples", "e2e", "smoke", "vite.config.ts", "vitest.config.ts", "playwright.config.ts", "playwright.smoke.config.ts"]
+  "include": ["src", "examples", "e2e", "smoke", "screenshots", "vite.config.ts", "vitest.config.ts", "playwright.config.ts", "playwright.smoke.config.ts", "playwright.screenshots.config.ts"]
 }
