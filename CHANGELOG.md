@@ -52,11 +52,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ### Build
 
 - **deps:** Add Playwright and Vitest coverage for the tests ([930daff](https://github.com/Satcomx00-x00/AiN/commit/930daff3e4137ca65b77bf06489547b91108d1c0))
+- Put Cargo.lock at version 0.2.0, like Cargo.toml ([47dabe1](https://github.com/Satcomx00-x00/AiN/commit/47dabe1689cd0d1a9cab969bffbf5a16143292e4))
 
 ### CI
 
 - Run the end-to-end and smoke tests ([e30808b](https://github.com/Satcomx00-x00/AiN/commit/e30808b28e7f6a7d20bf0fa19b7a811667a8954c))
 - Launch the AppImage on a virtual display ([c8a6c0e](https://github.com/Satcomx00-x00/AiN/commit/c8a6c0e2a7239651d49a4f51263ac66d8dddc496))
+- **release:** Bump the ain package's version in Cargo.lock ([57de010](https://github.com/Satcomx00-x00/AiN/commit/57de0107f137a525b069402c66c3e9478535a339))
 ## [0.1.2](https://github.com/Satcomx00-x00/AiN/compare/v0.1.1..v0.1.2) - 2026-10-16
 
 ### CI
