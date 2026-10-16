@@ -9,6 +9,12 @@ JavaScript file: no build step, no dependencies.
 
 ## Install one
 
+From the community store: **Settings → Plugins → Community store**, then **Install**. The plugin's
+file is downloaded from its repository into the plugins folder, off: read it (**Repository** opens
+it), then turn it on above. **Update** downloads the latest version again; restart AiN to load it.
+
+By hand:
+
 1. **Settings → Plugins → Open plugins folder.**
 2. Put the plugin there: a `.js` file, or a folder with an `index.js`.
 3. Back in **Settings → Plugins**, click **Refresh**, then turn the plugin on. It is placed in the
@@ -181,6 +187,30 @@ See [`examples/plugins/neon-line.js`](../ain/examples/plugins/neon-line.js).
 | `island.ui.select(options, value, onChange, label)` | a drop-down list styled like the island: each option has a `label`, and optionally a `detail` line, a `meta` fact on the right and a `badge`. Returns `{ el, set, setOptions }` |
 | `island.ui.glanceSlot()` | a glance spot drawn as on the Pill, for styles: `{ el, draw(glance, from) }` |
 | `island.version` | `1`; it changes when the SDK changes in a way that could break plugins |
+
+## Publish one in the community store
+
+The store is [`store.yaml`](https://github.com/Satcomx00-x00/AiN/blob/store/store.yaml), alone on the
+repository's `store` branch. AiN reads it from
+`https://raw.githubusercontent.com/Satcomx00-x00/AiN/store/store.yaml` each time **Settings → Plugins**
+opens; it isn't built into the app.
+
+1. Start from the [`plugin-template`](https://github.com/Satcomx00-x00/AiN/tree/plugin-template)
+   branch: a complete plugin (an analog clock) in one `index.js`, in its own GitHub repository.
+2. Open a pull request against the `store` branch adding an entry:
+
+   ```yaml
+   - id: my-plugin          # 2–32 lowercase letters, digits or dashes: its folder, plugins/my-plugin/
+     name: My plugin        # shown in Settings
+     description: What it does, in one line.
+     repo: https://github.com/you/my-plugin
+     branch: main           # optional: the branch, tag or commit to install (default branch otherwise)
+     entry: index.js        # optional: the plugin's file in the repository (index.js otherwise)
+   ```
+
+Installing downloads `entry` from `raw.githubusercontent.com`, so only GitHub repositories can be
+installed from the app; others are listed with a link to install by hand. Entries are reviewed
+before they're merged, since a plugin runs with the island's permissions.
 
 ## What a plugin can't do
 

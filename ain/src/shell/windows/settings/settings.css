@@ -842,8 +842,20 @@ kbd {
 }
 
 /* A plugin file that can't be used: say why in the warning color. */
-.card.failed .card-head p {
+.card.failed .card-head p,
+.note.failed {
   color: var(--hot);
+}
+
+/* The community store, under the plugins folder's files. */
+.subhead {
+  margin: 28px 0 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.subhead + .note {
+  margin-bottom: 14px;
 }
 
 /* A progress bar for plugins' settings panels: set --p (0–1) on it. */

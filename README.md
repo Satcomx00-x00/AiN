@@ -92,7 +92,7 @@ Changes apply immediately and are saved automatically.
 ## Features
 
 Everything below is **built in**: it comes with the app, nothing to install. [Plugins](#plugins) made by others
-will come on top of it later.
+add to it, from the community store.
 
 ✅ works · ⚠️ works, with the limit noted · — doesn't apply
 
@@ -145,8 +145,14 @@ On Wayland, Linux gives apps no global shortcuts: the island and its tabs work, 
 ### Plugins
 
 The app can load widgets, startup animations and pill styles from a plugins folder (**Settings → Plugins**), on
-every OS. None ship with it yet: community plugins will come later. To write one, see
-[writing a plugin](docs/plugins.md) and the examples in `ain/examples/plugins/`.
+every OS. None ship with it: install them from the **community store** at the bottom of that page, or drop a file
+in the folder yourself.
+
+The store is [`store.yaml`](https://github.com/Satcomx00-x00/AiN/blob/store/store.yaml) on the `store` branch, read
+over the internet, so new plugins show up without a new release. To write one, start from the
+[`plugin-template`](https://github.com/Satcomx00-x00/AiN/tree/plugin-template) branch (an analog clock), read
+[writing a plugin](docs/plugins.md) and the examples in `ain/examples/plugins/`, then open a pull request against
+the `store` branch to list it.
 
 ## Shortcuts
 

@@ -19,6 +19,7 @@ import {
 } from "../../settings";
 import { type Extension, fileRows, idOf, loadExtensions } from "../../extensions";
 import type { Found } from "../../bindings/extensions";
+import { type Offer, noCommunity, offerState } from "../../community";
 import { layout as defaultLayout } from "../../../features/layout";
 import { catalogue, extensionRules } from "../../../features";
 import { greetings } from "../../../features/greetings";
@@ -39,7 +40,7 @@ const SAVE_DELAY = 250;
 let plugins: readonly AnyPlugin[] = catalogue;
 const fallback = defaults(defaultLayout);
 // The app's backend, or in-memory stand-ins outside Tauri (the browser preview, integration tests).
-const { store, popup, folder, importer, inApp: inTauri } = settingsPorts();
+const { store, popup, folder, importer, community = noCommunity, inApp: inTauri } = settingsPorts();
 // Only built-in features offer shortcuts.
 const entries = commandsOf(catalogue);
 /** Shortcuts the island couldn't register, and why. */
@@ -485,6 +486,80 @@ function greetingPicker(choices: ReturnType<typeof greetingChoices>, chosen: str
   return h("div", { class: "greeting-picker" }, list.el, play);
 }
 
+// ---------- the community store ----------
+
+/** The store's plugins, read when the Plugins section first opens and again on Refresh; `null` until then. */
+let shelf: { offers: Offer[]; problem: string | null } | null = null;
+let readingShelf = false;
+/** The store plugin being downloaded, and why the last downloads failed. */
+let installing: string | null = null;
+const installFailures = new Map<string, string>();
+const STORE = `<path d="M2.5 6 3.5 2.5h9l1 3.5"/><path d="M2.5 6a1.85 1.85 0 0 0 3.7 0 1.85 1.85 0 0 0 3.6 0 1.85 1.85 0 0 0 3.7 0"/><path d="M3.5 8v5.5h9V8M6.5 13.5V10h3v3.5"/>`;
+
+const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
+
+async function readShelf(): Promise<void> {
+  readingShelf = true;
+  shelf = await community.catalog().then(
+    (s) => ({ offers: s.plugins, problem: null }),
+    (e: unknown) => ({ offers: [], problem: message(e) }),
+  );
+  readingShelf = false;
+}
+
+/** Downloads a store plugin into the folder; it then shows above, off, like any file put there. */
+async function installOffer(offer: Offer): Promise<void> {
+  installing = offer.id;
+  installFailures.delete(offer.id);
+  render();
+  try {
+    await community.install(offer.id);
+    await rescan();
+  } catch (e) {
+    installFailures.set(offer.id, message(e));
+  } finally {
+    installing = null;
+    render();
+  }
+}
+
+function storeCards(): Node[] {
+  if (!shelf) {
+    if (!readingShelf) void readShelf().then(() => section === "plugins" && render());
+    return [h("p", { class: "lead" }, "Reading the store…")];
+  }
+  if (shelf.problem) return [h("p", { class: "note failed" }, `Couldn't read the store: ${shelf.problem}`)];
+  if (!shelf.offers.length) return [h("p", { class: "lead" }, "The store has no plugins yet.")];
+  const files = found.plugins.map((p) => p.file);
+  return shelf.offers.map((offer) => {
+    const state = offerState(offer, files);
+    const failure = installFailures.get(offer.id);
+    const busy = installing === offer.id;
+    const action = button(
+      busy ? "Installing…" : state === "update" ? "Update" : "Install",
+      () => void installOffer(offer),
+      { class: "secondary", ...(state === "unavailable" || installing ? { disabled: "" } : {}) },
+    );
+    const repo = button("Repository", () => void community.openRepo(offer.id).catch(() => {}), { class: "secondary", title: offer.repo });
+    const detail = failure ? `Couldn't install it: ${failure}` : offer.problem ? `Install it by hand: ${offer.problem}.` : offer.description;
+    const card = h(
+      "section",
+      { class: "card store-card" },
+      h(
+        "div",
+        { class: "card-head" },
+        h("span", { class: "ico", "aria-hidden": "true" }, icon(STORE)),
+        h("div", { class: "grow" }, h("h2", {}, offer.name), h("p", {}, detail)),
+        ...(state === "update" ? [h("span", { class: "badge", "data-placed": "true" }, "Installed")] : []),
+        repo,
+        action,
+      ),
+    );
+    if (failure || offer.problem) card.classList.add("failed");
+    return card;
+  });
+}
+
 function pluginsSection(): Node[] {
   const rows = fileRows(found.plugins, settings.extensions, loaded);
   const list = rows.map((row) => {
@@ -522,9 +597,12 @@ function pluginsSection(): Node[] {
       "div",
       { class: "actions" },
       button("Open plugins folder", () => void folder.openDir().then(rescan).then(render).catch(() => {}), { class: "secondary", ...(inTauri ? {} : { disabled: "" }) }),
-      button("Refresh", () => void rescan().then(render), { class: "secondary" }),
+      button("Refresh", () => void Promise.all([rescan(), readShelf()]).then(render), { class: "secondary" }),
     ),
     ...(found.dir ? [h("p", { class: "note" }, found.dir)] : []),
+    h("h2", { class: "subhead" }, "Community store"),
+    h("p", { class: "note" }, "Plugins made by others, downloaded from their repository. They are installed off: read the code, then turn them on above."),
+    ...storeCards(),
   ];
 }
 

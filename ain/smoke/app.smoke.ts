@@ -35,6 +35,8 @@ test("the settings window draws every section and saves a change", async ({ page
     await page.locator("nav button", { hasText: section }).click();
     await expect(page.locator("main h1")).toHaveText(section);
   }
+  await page.locator("nav button", { hasText: "Plugins" }).click();
+  await expect(page.locator(".store-card h2")).toHaveText(["Orbit clock"]);
   await page.locator("nav button", { hasText: "Appearance" }).click();
   await page.getByRole("radio", { name: "Large" }).click();
   await expect(page.locator(".status")).toHaveText("Saved");

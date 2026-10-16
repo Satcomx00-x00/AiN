@@ -2871,6 +2871,48 @@
           "markdownDescription": "Denies the latest command without any pre-configured scope."
         },
         {
+          "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-catalog`\n- `allow-install`\n- `allow-open-repo`",
+          "type": "string",
+          "const": "store:default",
+          "markdownDescription": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-catalog`\n- `allow-install`\n- `allow-open-repo`"
+        },
+        {
+          "description": "Enables the catalog command without any pre-configured scope.",
+          "type": "string",
+          "const": "store:allow-catalog",
+          "markdownDescription": "Enables the catalog command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the install command without any pre-configured scope.",
+          "type": "string",
+          "const": "store:allow-install",
+          "markdownDescription": "Enables the install command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the open_repo command without any pre-configured scope.",
+          "type": "string",
+          "const": "store:allow-open-repo",
+          "markdownDescription": "Enables the open_repo command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the catalog command without any pre-configured scope.",
+          "type": "string",
+          "const": "store:deny-catalog",
+          "markdownDescription": "Denies the catalog command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the install command without any pre-configured scope.",
+          "type": "string",
+          "const": "store:deny-install",
+          "markdownDescription": "Denies the install command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the open_repo command without any pre-configured scope.",
+          "type": "string",
+          "const": "store:deny-open-repo",
+          "markdownDescription": "Denies the open_repo command without any pre-configured scope."
+        },
+        {
           "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-state`\n- `allow-peak`\n- `allow-sources`\n- `allow-set-level`\n- `allow-set-muted`",
           "type": "string",
           "const": "volume:default",
