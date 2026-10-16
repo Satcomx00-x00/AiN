@@ -10,6 +10,7 @@
     "test:integration": "vitest run src/integration",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
+    "test:smoke": "vite build && playwright test -c playwright.smoke.config.ts",
     "typecheck": "tsc",
     "tauri": "tauri",
     "commitlint": "commitlint --edit"
