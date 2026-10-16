@@ -122,13 +122,25 @@ test.describe("animations", () => {
   test("a new size eases in: text, icons and the pill move together", async ({ page }) => {
     const island = await openIsland(page);
     await greeted(page);
+    // Samples the pill on every frame while it changes size, however late the change starts.
+    const frames = page.evaluate(
+      () =>
+        new Promise<{ height: number; scale: number }[]>((resolve) => {
+          const el = document.querySelector("#island")!;
+          const seen: { height: number; scale: number }[] = [];
+          const start = performance.now();
+          const sample = () => {
+            seen.push({ height: el.getBoundingClientRect().height, scale: parseFloat(getComputedStyle(el).getPropertyValue("--scale")) });
+            if (performance.now() - start < 3000 && seen.at(-1)!.height < 44) requestAnimationFrame(sample);
+            else resolve(seen);
+          };
+          requestAnimationFrame(sample);
+        }),
+    );
     await update(page, { pillSize: "large" });
-    await page.waitForTimeout(150);
-    const mid = await island.evaluate((el) => ({ height: el.getBoundingClientRect().height, scale: parseFloat(getComputedStyle(el).getPropertyValue("--scale")) }));
-    expect(mid.height).toBeGreaterThan(32);
-    expect(mid.height).toBeLessThan(44);
-    expect(mid.scale).toBeGreaterThan(1);
-    expect(mid.scale).toBeLessThan(1.375);
+    const seen = await frames;
+    expect(seen.some((f) => f.height > 32 && f.height < 44), "a height between the two sizes").toBe(true);
+    expect(seen.some((f) => f.scale > 1 && f.scale < 1.375), "a scale between the two sizes").toBe(true);
     await expect.poll(() => box(island)).toMatchObject({ height: 44 });
     await expect.poll(() => island.evaluate((el) => getComputedStyle(el).getPropertyValue("--scale").trim())).toBe("1.375");
   });
