@@ -4,8 +4,8 @@
 #
 # This is a workspace: this file checks the whole repository, and the projects below add their
 # own hooks, which run in their own folder on their own files:
-#   widget-island/prek.toml             TypeScript: types, related tests
-#   widget-island/src-tauri/prek.toml   Rust: format, clippy, tests and generated bindings
+#   ain/prek.toml             TypeScript: types, related tests
+#   ain/src-tauri/prek.toml   Rust: format, clippy, tests and generated bindings
 #
 # Hooks are cheap on commit and thorough on push:
 #   pre-commit  fixes and fast checks on the staged files only
@@ -26,8 +26,8 @@ hide_status = ["skipped"]
 exclude = { glob = [
   "**/bindings.ts",
   "**/bindings/*.ts",
-  "widget-island/src-tauri/gen/**",
-  "widget-island/src-tauri/icons/**",
+  "ain/src-tauri/gen/**",
+  "ain/src-tauri/icons/**",
   "**/*.lock",
   "CHANGELOG.md",
 ] }
@@ -189,13 +189,13 @@ priority = "check"
 
 [[repos.hooks]]
 # Conventional Commits, checked by the frontend's commitlint (`commitlint --edit <file>`): run from
-# widget-island for its config and dependencies, given the message file Git hands the hook.
-# Lives here, not in widget-island/prek.toml, because commitlint resolves that path from the
+# ain for its config and dependencies, given the message file Git hands the hook.
+# Lives here, not in ain/prek.toml, because commitlint resolves that path from the
 # repository root, which is how prek passes it to root hooks.
 id = "commitlint"
 name = "commitlint"
 language = "system"
-entry = "bun run --cwd widget-island commitlint"
+entry = "bun run --cwd ain commitlint"
 stages = ["commit-msg"]
 
 # ---------- shell scripts ----------

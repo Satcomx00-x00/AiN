@@ -3,7 +3,7 @@
 AiN is a Tauri app: a Rust backend talks to the OS, and a TypeScript frontend draws the island
 and its windows. Both sides are split the same way:
 
-| | Frontend (`widget-island/src`) | Backend (`widget-island/src-tauri/src`) |
+| | Frontend (`ain/src`) | Backend (`ain/src-tauri/src`) |
 | --- | --- | --- |
 | **shell**: the app itself | `shell/`: island host, layout, settings, shortcuts, the windows' entry points | `shell/`: island window, popup and capture overlay, settings file, tray, plugins folder |
 | **features**: what the island shows | `features/<id>/`: one folder each, with its generated `bindings.ts` | `features/<id>`: one module each, with one backend per OS |
@@ -14,7 +14,7 @@ their own backend.
 
 ## The contract between the two sides
 
-[`src-tauri/src/manifest.rs`](../widget-island/src-tauri/src/manifest.rs) lists every command and
+[`src-tauri/src/manifest.rs`](../ain/src-tauri/src/manifest.rs) lists every command and
 event once. From it:
 
 - `build.rs` generates each plugin's permissions (`<plugin>:allow-<command>`, and a `default` set);

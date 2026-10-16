@@ -119,7 +119,7 @@ jobs:
         env:
           VERSION: ${{ needs.plan.outputs.version }}
         run: |
-          cd widget-island
+          cd ain
           jq --arg v "$VERSION" '.version = $v' package.json > package.json.tmp && mv package.json.tmp package.json
           sed -i "0,/^version = \".*\"/s//version = \"$VERSION\"/" src-tauri/Cargo.toml
           awk -v v="$VERSION" 'prev == "name = \"widget\"" && /^version = / { $0 = "version = \"" v "\"" } { print; prev = $0 }' \
@@ -139,7 +139,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add CHANGELOG.md widget-island/package.json widget-island/src-tauri/Cargo.toml widget-island/src-tauri/Cargo.lock
+          git add CHANGELOG.md ain/package.json ain/src-tauri/Cargo.toml ain/src-tauri/Cargo.lock
           git commit -m "chore(release): $TAG"
           git tag -a "$TAG" -m "$TAG"
           git push --atomic origin HEAD:main "$TAG"
@@ -197,24 +197,24 @@ jobs:
           targets: ${{ matrix.target }}
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
-          workspaces: widget-island/src-tauri -> target
+          workspaces: ain/src-tauri -> target
           key: release
       # rust-cache keeps sherpa-onnx-sys's build output but prunes the native libraries it extracted
       # under target/, which it then never fetches again: make it start over.
       - name: Refetch sherpa-onnx's native libraries
         shell: bash
-        working-directory: widget-island/src-tauri
+        working-directory: ain/src-tauri
         run: |
           rm -rf target/sherpa-onnx-prebuilt
           cargo clean --locked -p sherpa-onnx-sys --target ${{ matrix.target }}
       - name: Install frontend dependencies
-        working-directory: widget-island
+        working-directory: ain
         run: bun install --frozen-lockfile
       - uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0
         env:
           GITHUB_TOKEN: ${{ github.token }}
         with:
-          projectPath: widget-island
+          projectPath: ain
           tauriScript: bun run tauri
           args: --target ${{ matrix.target }}${{ matrix.bundles && format(' --bundles {0}', matrix.bundles) || '' }}
           releaseId: ${{ needs.prepare.outputs.release_id }}

@@ -124,7 +124,7 @@ On Wayland, Linux gives apps no global shortcuts: the island and its tabs work, 
 
 The app can load widgets, startup animations and pill styles from a plugins folder (**Settings → Plugins**), on
 every OS. None ship with it yet: community plugins will come later. To write one, see
-[writing a plugin](docs/plugins.md) and the examples in `widget-island/examples/plugins/`.
+[writing a plugin](docs/plugins.md) and the examples in `ain/examples/plugins/`.
 
 ## Shortcuts
 
@@ -172,7 +172,7 @@ Requirements: [Bun](https://bun.sh) 1.3+, Rust stable, and the [Tauri prerequisi
 (on Debian/Ubuntu: `.github/scripts/linux-deps.sh`).
 
 ```sh
-cd widget-island
+cd ain
 bun install
 bun run tauri dev      # run the app
 bun run typecheck      # tsc
@@ -192,7 +192,7 @@ Tests:
 The browser tests run in Chromium (the engine of Windows' WebView2) and WebKit (the engine of macOS' WKWebView and
 Linux's WebKitGTK). Install them once: `bunx playwright install chromium webkit`.
 
-Rust checks (from `widget-island/src-tauri`):
+Rust checks (from `ain/src-tauri`):
 
 ```sh
 cargo fmt --check
@@ -206,13 +206,13 @@ How the code is organized, and how to add a feature: [docs/architecture.md](docs
 
 | Path | Content |
 | --- | --- |
-| `widget-island/src/sdk/` | The plugin API, shared by built-in features and third-party plugins |
-| `widget-island/src/shell/` | The app itself: island host, layout, settings, shortcuts and each window's entry point |
-| `widget-island/src/features/` | One folder per feature (UI side), each with its generated `bindings.ts` |
-| `widget-island/src-tauri/src/manifest.rs` | Every IPC command and event, listed once |
-| `widget-island/src-tauri/src/shell/` | Native side of the app: island window, popup, capture, settings, tray, plugin folder |
-| `widget-island/src-tauri/src/features/` | Native side of each feature, with one backend per OS (`windows.rs`, `linux.rs`, `macos.rs`) |
-| `widget-island/examples/plugins/` | Example third-party plugins: a widget, a startup animation, a pill style |
+| `ain/src/sdk/` | The plugin API, shared by built-in features and third-party plugins |
+| `ain/src/shell/` | The app itself: island host, layout, settings, shortcuts and each window's entry point |
+| `ain/src/features/` | One folder per feature (UI side), each with its generated `bindings.ts` |
+| `ain/src-tauri/src/manifest.rs` | Every IPC command and event, listed once |
+| `ain/src-tauri/src/shell/` | Native side of the app: island window, popup, capture, settings, tray, plugin folder |
+| `ain/src-tauri/src/features/` | Native side of each feature, with one backend per OS (`windows.rs`, `linux.rs`, `macos.rs`) |
+| `ain/examples/plugins/` | Example third-party plugins: a widget, a startup animation, a pill style |
 | `cliff.toml` | [git-cliff](https://git-cliff.org) changelog configuration |
 | `.github/workflows/` | CI and release pipelines |
 
@@ -235,8 +235,8 @@ Hooks only run where the change is, and keep the slow ones for `git push`:
 | | Every commit (staged files) | Every push (files in the pushed commits) |
 | --- | --- | --- |
 | Anywhere | whitespace, line endings, large files, merge markers, private keys, secrets (gitleaks), spelling (typos) | |
-| `widget-island/src` | `tsc` | the Vitest tests that import what changed |
-| `widget-island/src-tauri` | `cargo fmt` (fixes) | `cargo clippy`, `cargo test` (which also regenerates the bindings) |
+| `ain/src` | `tsc` | the Vitest tests that import what changed |
+| `ain/src-tauri` | `cargo fmt` (fixes) | `cargo clippy`, `cargo test` (which also regenerates the bindings) |
 | `.github/workflows` | actionlint, zizmor | |
 | Commit message | commitlint | |
 

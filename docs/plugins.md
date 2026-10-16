@@ -44,7 +44,7 @@ export default (island) =>
   });
 ```
 
-[`examples/plugins/cpu-alarm.js`](../widget-island/examples/plugins/cpu-alarm.js) is a complete,
+[`examples/plugins/cpu-alarm.js`](../ain/examples/plugins/cpu-alarm.js) is a complete,
 working plugin.
 
 ### What `setup` receives
@@ -117,7 +117,7 @@ export default (island) =>
 - Its id can't be one a built-in animation (`hello`, `boing`, `sparkle`, `typewriter`), a
   feature or another plugin uses.
 
-See [`examples/plugins/wave.js`](../widget-island/examples/plugins/wave.js).
+See [`examples/plugins/wave.js`](../ain/examples/plugins/wave.js).
 
 ## A pill style
 
@@ -164,7 +164,7 @@ export default (island) =>
   `--scale` for sizes, so the style follows the theme and the pill size.
 - If `mount` or `draw` throws, the island sets the style aside and shows the Pill.
 
-See [`examples/plugins/neon-line.js`](../widget-island/examples/plugins/neon-line.js).
+See [`examples/plugins/neon-line.js`](../ain/examples/plugins/neon-line.js).
 
 ## The SDK
 
