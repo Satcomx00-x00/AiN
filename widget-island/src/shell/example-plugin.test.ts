@@ -51,3 +51,30 @@ describe("the example startup animation", async () => {
     animate.mockRestore();
   });
 });
+
+describe("the example pill style", async () => {
+  const { checkStyle, confineStyle } = await import("./extensions");
+  const { extensionRules } = await import("../features");
+  const { default: neon } = await import("../../examples/plugins/neon-line.js");
+
+  it("passes the checks, follows the pill size and fills with progress", () => {
+    const checked = checkStyle(neon(sdk) as never, extensionRules.taken);
+    if (typeof checked === "string") throw new Error(checked);
+    const log = vi.fn();
+    const style = confineStyle(checked, log);
+    let values = { thickness: 4, progress: true };
+    expect(style.size?.({ width: 200, height: 32, hasNotch: false, scale: 1.375 }, values)).toEqual({ width: 200, height: 6 });
+
+    const root = document.createElement("div");
+    const view = style.mount(root, { options: () => values });
+    const fill = root.querySelector("i")!;
+    const folded = { left: null, right: null, ambient: null, alert: false, wide: false, now: 0 };
+    view.draw({ ...folded, right: { text: "04:12", progress: 0.7 } });
+    expect(fill.style.width).toBe("70%");
+    values = { ...values, progress: false };
+    view.draw({ ...folded, right: { text: "04:12", progress: 0.7 }, alert: true });
+    expect(fill.style.width).toBe("100%");
+    expect(fill.style.backgroundColor).toBe("var(--done)");
+    expect(log).not.toHaveBeenCalled();
+  });
+});
