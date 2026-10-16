@@ -76,6 +76,12 @@ function install(backend: Backend): void {
     "plugin:capture|save_png": () => "/Pictures/AiN/capture.png",
     "plugin:extensions|list": () => ({ dir: "/plugins", plugins: [] }),
     "plugin:extensions|open_dir": () => null,
+    "plugin:store|catalog": () => ({
+      url: "https://store.test/store.yaml",
+      plugins: [{ id: "orbit-clock", name: "Orbit clock", description: "An analog clock.", repo: "https://github.com/o/r", file: "orbit-clock/index.js", problem: null }],
+    }),
+    "plugin:store|install": () => "orbit-clock/index.js",
+    "plugin:store|open_repo": () => null,
     "plugin:popup|bind": () => ({}),
     "plugin:popup|failures": () => ({}),
     "plugin:popup|open": () => null,
