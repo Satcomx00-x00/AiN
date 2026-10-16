@@ -1,4 +1,5 @@
 import { type PopupPort, idlePopup, tauriPopup } from "../../commands";
+import { type CommunityPort, noCommunity, tauriCommunity } from "../../community";
 import { type ExtensionsPort, type Importer, importSource, noExtensions, tauriExtensions } from "../../extensions";
 import { type SettingsPort, memorySettings, tauriSettings } from "../../settings";
 
@@ -8,6 +9,8 @@ export interface SettingsPorts {
   readonly popup: PopupPort;
   readonly folder: ExtensionsPort;
   readonly importer: Importer;
+  /** The community plugin store; without it (e.g. in a test), the Plugins section shows none. */
+  readonly community?: CommunityPort;
   /** True inside the app: shortcuts can be tried, folders picked and plugins set up with real services. */
   readonly inApp: boolean;
 }
@@ -20,6 +23,7 @@ export function appPorts(): SettingsPorts {
     popup: inApp ? tauriPopup : idlePopup,
     folder: inApp ? tauriExtensions : noExtensions,
     importer: importSource,
+    community: inApp ? tauriCommunity : noCommunity,
     inApp,
   };
 }
