@@ -215,3 +215,15 @@ jobs:
           path: widget-island/src-tauri/target/release/bundle/appimage/*.AppImage
           if-no-files-found: error
           retention-days: 7
+      # Starts the AppImage on a virtual display: it must come up, lay out its window and keep running.
+      - name: Launch the app
+        run: |
+          sudo apt-get install -y --no-install-recommends xvfb x11-utils dbus-x11 imagemagick
+          ../.github/scripts/launch-check.sh "$(ls src-tauri/target/release/bundle/appimage/*.AppImage)" launch-check
+      - if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: launch-check
+          path: widget-island/launch-check
+          if-no-files-found: ignore
+          retention-days: 7

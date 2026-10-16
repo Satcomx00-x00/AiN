@@ -208,7 +208,8 @@ Every push to `main` and every pull request runs:
 - browser tests: end-to-end tests and smoke tests of the production build, in Chromium and WebKit
 - Rust: `rustfmt`, then `clippy -D warnings` and `cargo test` on Linux, Windows and macOS (x64), and a check that the
   committed TypeScript bindings match the Rust code
-- an AppImage build, uploaded as a workflow artifact
+- an AppImage build, uploaded as a workflow artifact, then launched on a virtual display: it must start, lay out its
+  window and keep running (`.github/scripts/launch-check.sh`)
 
 Releases are continuous: every green CI run on `main` (a merged pull request, a push) can cut one.
 
