@@ -3,6 +3,11 @@
 All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.1.2](https://github.com/Satcomx00-x00/AiN/compare/v0.1.1..v0.1.2) - 2026-10-16
+
+### CI
+
+- **release:** Upload the builds to the release, never publish it empty ([c0c6af3](https://github.com/Satcomx00-x00/AiN/commit/c0c6af3a5e285b8750a0d70b02d4f97baa34d220))
 ## [0.1.1](https://github.com/Satcomx00-x00/AiN/compare/v0.1.0..v0.1.1) - 2026-10-16
 
 ### CI
