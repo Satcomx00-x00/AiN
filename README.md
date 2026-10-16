@@ -37,6 +37,26 @@ and its [style and size](#the-island) in **Settings → Appearance**.
 
 <p align="center"><img src="img/pill.png" alt="The folded pill showing the time and CPU load" width="460"></p>
 
+Five styles, here with music playing:
+
+| Pill | Solo |
+| :---: | :---: |
+| <img src="img/style-pill.png" alt="The Pill style: the time on the left, the track on the right"> | <img src="img/style-solo.png" alt="The Solo style: only the track, in the middle"> |
+| **Stub** | **Sliver** |
+| <img src="img/style-stub.png" alt="The Stub style: a small tab with the music bars"> | <img src="img/style-sliver.png" alt="The Sliver style: a thin strip with a glowing line"> |
+
+The fifth, Hidden, is the Pill kept out of sight until the cursor rests at the top center of the screen.
+
+Three sizes, for every style:
+
+| Low profile | Normal | Large |
+| :---: | :---: | :---: |
+| <img src="img/size-low.png" alt="The pill at the low profile size"> | <img src="img/size-normal.png" alt="The pill at the normal size"> | <img src="img/size-large.png" alt="The pill at the large size"> |
+
+When it starts, the island greets you with a short animation (Hello, here):
+
+<p align="center"><img src="img/startup-hello.png" alt="The Hello startup animation: a little face in the pill" width="460"></p>
+
 ### Tabs
 
 Hover the pill to open it. Each widget has its own tab.
@@ -66,6 +86,8 @@ Changes apply immediately and are saved automatically.
 | <img src="img/settings-general.png" alt="General settings: launch at login, hover delays"> | <img src="img/settings-layout.png" alt="Layout settings: pill slots and tab order"> |
 | **Shortcuts** | **Widgets** |
 | <img src="img/settings-shortcuts.png" alt="Shortcut settings with rebindable keys"> | <img src="img/settings-widgets.png" alt="Per-widget options"> |
+| **Appearance** | |
+| <img src="img/settings-appearance.png" alt="Appearance settings: pill style and size, startup animation, colors, width and corner curve"> | |
 
 ## Features
 
@@ -188,6 +210,7 @@ Tests:
 | `bun run test:coverage` | The same, with a coverage report in `coverage/` |
 | `bun run test:e2e` | End-to-end tests in Chromium (`e2e/`): the island, settings, clipboard popup and capture editor on the dev server, with real layout, pointer and animations |
 | `bun run test:smoke` | Smoke tests (`smoke/`): builds, then opens each window of the production build with a stand-in for the Tauri backend |
+| `bun run screenshots` | Retakes the README's pictures of the pill styles, sizes, startup animation and appearance settings (`screenshots/`), into `img/` |
 
 The browser tests run in Chromium (the engine of Windows' WebView2) and WebKit (the engine of macOS' WKWebView and
 Linux's WebKitGTK). Install them once: `bunx playwright install chromium webkit`.
