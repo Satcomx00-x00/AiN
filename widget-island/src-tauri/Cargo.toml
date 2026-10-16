@@ -1,10 +1,10 @@
 [package]
-name = "widget"
+name = "ain"
 version = "0.1.2"
 edition = "2024"
 
 [lib]
-name = "widget_lib"
+name = "ain_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
@@ -17,6 +17,10 @@ thiserror = "2"
 sysinfo = { version = "0.39.6", default-features = false, features = ["system", "network"] }
 arboard = { version = "3.6.1", default-features = false, features = ["image-data"] }
 tauri-plugin-autostart = "2"
+# Removes the launch-at-login entry the app had under its old name (see shell/renamed.rs).
+auto-launch = "0.6"
+# Where the old name's folders are, before the app starts (see shell/renamed.rs).
+dirs = "6"
 serde_json = "1.0.154"
 xcap = "0.9.8"
 cpal = "0.18.2"

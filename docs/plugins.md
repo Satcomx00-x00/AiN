@@ -14,7 +14,7 @@ JavaScript file: no build step, no dependencies.
 3. Back in **Settings → Plugins**, click **Refresh**, then turn the plugin on. It is placed in the
    tabs (or on the pill) right away; move it in **Settings → Layout**.
 
-After changing a plugin's file, restart Island.
+After changing a plugin's file, restart AiN.
 
 ## The shape of a plugin
 

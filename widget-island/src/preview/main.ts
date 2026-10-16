@@ -134,7 +134,7 @@ const fake: Services = {
     watchModel: async (onChange) => {
       const mode = params.get("dictate");
       const total = 670_478_772;
-      const at = { model: "parakeet-v3", dir: "C:\\Users\\you\\AppData\\Roaming\\Island\\models\\parakeet-tdt-0.6b-v3-int8", installed: ["parakeet-v3"] };
+      const at = { model: "parakeet-v3", dir: "C:\\Users\\you\\AppData\\Roaming\\dev.satcom.ain\\models\\parakeet-tdt-0.6b-v3-int8", installed: ["parakeet-v3"] };
       onChange(
         mode === "missing"
           ? { ...at, model: "whisper-small", installed: [], state: "missing", size: 375_485_327 }

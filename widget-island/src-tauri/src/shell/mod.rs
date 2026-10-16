@@ -5,6 +5,7 @@ pub mod capture;
 pub mod extensions;
 pub mod island;
 pub mod popup;
+pub mod renamed;
 pub mod settings;
 pub mod tray;
 

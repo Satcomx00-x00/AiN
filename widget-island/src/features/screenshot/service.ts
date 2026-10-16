@@ -6,7 +6,7 @@ const HEADER = 8;
 export interface CapturePort {
   /** The capture taken when the shortcut fired, or null if there is none. */
   latest(): Promise<ImageData | null>;
-  /** Saves a PNG to Pictures/Island under `name`; resolves with the file's path. */
+  /** Saves a PNG to Pictures/AiN under `name`; resolves with the file's path. */
   save(png: Uint8Array, name: string): Promise<string>;
 }
 

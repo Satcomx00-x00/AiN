@@ -21,11 +21,11 @@ pub fn init() -> TauriPlugin<Wry> {
                 &[
                     &MenuItem::with_id(app, SETTINGS, "Settings…", true, None::<&str>)?,
                     &PredefinedMenuItem::separator(app)?,
-                    &MenuItem::with_id(app, QUIT, "Quit Island", true, None::<&str>)?,
+                    &MenuItem::with_id(app, QUIT, "Quit AiN", true, None::<&str>)?,
                 ],
             )?;
             let mut tray = TrayIconBuilder::with_id("island")
-                .tooltip("Island")
+                .tooltip("AiN")
                 .menu(&menu)
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| match event.id().as_ref() {

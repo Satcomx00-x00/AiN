@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "widget",
-  "identifier": "dev.satcom.widget",
+  "productName": "AiN",
+  "identifier": "dev.satcom.ain",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:5173",

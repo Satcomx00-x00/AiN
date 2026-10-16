@@ -168,7 +168,7 @@ pub fn show(app: &AppHandle, target: Option<&str>) -> Res<()> {
     }
     let url = target.map_or_else(|| "settings.html".to_string(), |t| format!("settings.html#{t}"));
     WebviewWindowBuilder::new(app, WINDOW, WebviewUrl::App(url.into()))
-        .title("Island settings")
+        .title("AiN settings")
         .inner_size(820.0, 600.0)
         .min_inner_size(640.0, 480.0)
         .center()

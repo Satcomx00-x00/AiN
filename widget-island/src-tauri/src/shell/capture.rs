@@ -92,10 +92,10 @@ pub fn safe_name(name: &str) -> Option<String> {
 
 fn screenshots_dir(app: &AppHandle) -> Res<PathBuf> {
     let base = app.path().picture_dir().or_else(|_| app.path().home_dir())?;
-    Ok(base.join("Island"))
+    Ok(base.join("AiN"))
 }
 
-/// Saves the PNG in the request body to Pictures/Island, named by the `x-name` header; returns the path.
+/// Saves the PNG in the request body to Pictures/AiN, named by the `x-name` header; returns the path.
 #[tauri::command]
 async fn save_png(app: AppHandle, request: Request<'_>) -> Res<String> {
     let InvokeBody::Raw(png) = request.body() else { return Err(Error::msg("expected PNG bytes")) };

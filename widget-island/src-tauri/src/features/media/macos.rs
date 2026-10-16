@@ -1,6 +1,6 @@
 //! macOS keeps the system's Now Playing to itself (MediaRemote is closed to other apps since 15.4),
 //! so we ask the players that can be scripted, Spotify and Music, through `osascript`. Each one asks
-//! the user once whether Island may control it.
+//! the user once whether AiN may control it.
 
 use std::{
     fs,

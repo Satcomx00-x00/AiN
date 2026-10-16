@@ -198,7 +198,7 @@ mod tests {
                 json!({ "index": 42, "corked": false, "mute": false, "volume": vol(65536),
                         "properties": { "application.name": "Firefox", "application.process.binary": "firefox", "application.process.id": "200" } }),
                 json!({ "index": 43, "corked": false, "mute": false, "volume": vol(65536),
-                        "properties": { "application.name": "Island", "application.process.binary": "widget", "application.process.id": "999" } }),
+                        "properties": { "application.name": "AiN", "application.process.binary": "ain", "application.process.id": "999" } }),
             ],
         }
     }

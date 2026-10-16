@@ -203,7 +203,7 @@ pub fn show(app: &AppHandle, command: &str) -> Res<()> {
     let window = match app.get_webview_window(WINDOW) {
         Some(w) => w,
         None => WebviewWindowBuilder::new(app, WINDOW, WebviewUrl::App(format!("popup.html#{command}").into()))
-            .title("Island")
+            .title("AiN")
             .inner_size(SIZE.width, SIZE.height)
             .decorations(false)
             .transparent(true)
@@ -240,7 +240,7 @@ fn capture(app: &AppHandle, command: &str) -> Res<()> {
     let window = match app.get_webview_window(OVERLAY) {
         Some(w) => w,
         None => WebviewWindowBuilder::new(app, OVERLAY, WebviewUrl::App(format!("overlay.html#{command}").into()))
-            .title("Island capture")
+            .title("AiN capture")
             .decorations(false)
             .shadow(false)
             .resizable(false)

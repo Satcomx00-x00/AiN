@@ -1,6 +1,6 @@
 # Architecture
 
-Island is a Tauri app: a Rust backend talks to the OS, and a TypeScript frontend draws the island
+AiN is a Tauri app: a Rust backend talks to the OS, and a TypeScript frontend draws the island
 and its windows. Both sides are split the same way:
 
 | | Frontend (`widget-island/src`) | Backend (`widget-island/src-tauri/src`) |

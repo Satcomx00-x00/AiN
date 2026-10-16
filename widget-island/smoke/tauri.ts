@@ -73,7 +73,7 @@ function install(backend: Backend): void {
     "plugin:dictation|delete_model": () => null,
     "plugin:dictation|open_model_dir": () => null,
     "plugin:capture|latest": () => new ArrayBuffer(0),
-    "plugin:capture|save_png": () => "/Pictures/Island/capture.png",
+    "plugin:capture|save_png": () => "/Pictures/AiN/capture.png",
     "plugin:extensions|list": () => ({ dir: "/plugins", plugins: [] }),
     "plugin:extensions|open_dir": () => null,
     "plugin:popup|bind": () => ({}),

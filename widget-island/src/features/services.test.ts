@@ -144,8 +144,8 @@ describe("capture", () => {
   });
 
   it("names the file in a header and returns where it was saved", async () => {
-    vi.mocked(invoke).mockResolvedValueOnce("C:/Pictures/Island/a.png");
-    expect(await tauriCapture.save(new Uint8Array([1]), "a.png")).toBe("C:/Pictures/Island/a.png");
+    vi.mocked(invoke).mockResolvedValueOnce("C:/Pictures/AiN/a.png");
+    expect(await tauriCapture.save(new Uint8Array([1]), "a.png")).toBe("C:/Pictures/AiN/a.png");
     expect(invoke).toHaveBeenLastCalledWith("plugin:capture|save_png", new Uint8Array([1]), { headers: { "x-name": "a.png" } });
   });
 });

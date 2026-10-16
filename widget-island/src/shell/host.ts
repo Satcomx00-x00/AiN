@@ -153,7 +153,7 @@ export async function mount<S>(
   let look: StyleView = { draw() {} };
   const panel = h("div", { class: "panel" });
   const gear = openSettings && button(icon(GEAR), () => openSettings(), { class: "gear", "aria-label": "Settings", title: "Settings" });
-  const power = quit && armedButton(POWER, quit, { label: "Quit Island", armed: "Click again to quit Island" }, "gear quit");
+  const power = quit && armedButton(POWER, quit, { label: "Quit AiN", armed: "Click again to quit AiN" }, "gear quit");
   let view: Tabs | undefined;
   const alerting = (now: number) => active.find((m) => m.widget.glance?.(now)?.tone === "alert");
 

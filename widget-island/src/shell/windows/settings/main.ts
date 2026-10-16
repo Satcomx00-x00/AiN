@@ -134,7 +134,7 @@ function general(): Node[] {
       { class: "card" },
       field("Launch at login", undefined, autostart),
       field(
-        "Quit Island",
+        "Quit AiN",
         undefined,
         button("Quit", () => void store.quit().catch((e: unknown) => setStatus("error", `Couldn't quit: ${String(e)}`)), { class: "secondary danger" }),
       ),
@@ -540,7 +540,7 @@ function about(): Node[] {
     commit(fallback, true);
   }, { class: "secondary" });
   return [
-    ...header("About", "Island — a Dynamic Island for your desktop."),
+    ...header("About", "AiN, All I Needed — a Dynamic Island for your desktop."),
     h("section", { class: "card" }, field("Reset all settings", undefined, reset)),
   ];
 }
@@ -581,7 +581,7 @@ function goTo(target: string) {
 // ---------- bootstrap ----------
 
 nav.append(
-  h("div", { class: "brand" }, h("span", { class: "brand-pill", "aria-hidden": "true" }), "Island"),
+  h("div", { class: "brand" }, h("span", { class: "brand-pill", "aria-hidden": "true" }), "AiN"),
   ...(Object.keys(SECTIONS) as Section[]).map((key) =>
     button(h("span", { class: "nav-in" }, icon(SECTIONS[key].icon), SECTIONS[key].label), () => {
       section = key;

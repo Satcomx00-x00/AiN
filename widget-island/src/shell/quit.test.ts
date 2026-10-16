@@ -8,7 +8,7 @@ const { invoke } = await import("@tauri-apps/api/core");
 const { POWER, armedButton } = await import("./quit");
 const { tauriSettings } = await import("./settings");
 
-const labels = { label: "Quit Island", armed: "Click again to quit Island" };
+const labels = { label: "Quit AiN", armed: "Click again to quit AiN" };
 
 afterEach(() => vi.useRealTimers());
 
@@ -16,11 +16,11 @@ describe("the quit button", () => {
   it("doesn't quit on a single click, only says what a second one does", () => {
     const quit = vi.fn();
     const el = armedButton(POWER, quit, labels);
-    expect(el.getAttribute("aria-label")).toBe("Quit Island");
+    expect(el.getAttribute("aria-label")).toBe("Quit AiN");
     el.click();
     expect(quit).not.toHaveBeenCalled();
     expect(el.dataset.armed).toBe("true");
-    expect(el.getAttribute("aria-label")).toBe("Click again to quit Island");
+    expect(el.getAttribute("aria-label")).toBe("Click again to quit AiN");
   });
 
   it("quits on a second click, once", () => {
