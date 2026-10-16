@@ -122,7 +122,7 @@ jobs:
           cd ain
           jq --arg v "$VERSION" '.version = $v' package.json > package.json.tmp && mv package.json.tmp package.json
           sed -i "0,/^version = \".*\"/s//version = \"$VERSION\"/" src-tauri/Cargo.toml
-          awk -v v="$VERSION" 'prev == "name = \"widget\"" && /^version = / { $0 = "version = \"" v "\"" } { print; prev = $0 }' \
+          awk -v v="$VERSION" 'prev == "name = \"ain\"" && /^version = / { $0 = "version = \"" v "\"" } { print; prev = $0 }' \
             src-tauri/Cargo.lock > Cargo.lock.tmp && mv Cargo.lock.tmp src-tauri/Cargo.lock
           git diff --stat
 
