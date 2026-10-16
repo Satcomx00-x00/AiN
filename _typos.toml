@@ -5,7 +5,7 @@ extend-exclude = [
   # Generated: fixed by regenerating, not by hand.
   "**/bindings.ts",
   "**/bindings/*.ts",
-  "widget-island/src-tauri/gen/",
+  "ain/src-tauri/gen/",
   "CHANGELOG.md",
   # Lockfiles hold hashes and package names.
   "*.lock",
@@ -15,3 +15,5 @@ extend-exclude = [
 [default.extend-words]
 # JetBrains' "Darcula" theme, not a misspelt Dracula.
 darcula = "darcula"
+# Core Audio's four-letter property codes ('inpt' is the input scope).
+inpt = "inpt"

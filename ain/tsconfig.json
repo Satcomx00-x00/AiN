@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["vite/client"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    // The example plugins are plain JS, checked against the SDK through their JSDoc.
+    "allowJs": true,
+    "checkJs": true
+  },
+  "include": ["src", "examples", "e2e", "smoke", "screenshots", "vite.config.ts", "vitest.config.ts", "playwright.config.ts", "playwright.smoke.config.ts", "playwright.screenshots.config.ts"]
+}

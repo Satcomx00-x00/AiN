@@ -20,7 +20,7 @@ env:
 defaults:
   run:
     shell: bash
-    working-directory: widget-island
+    working-directory: ain
 
 jobs:
   commitlint:
@@ -89,6 +89,32 @@ jobs:
       - run: bun run test
       - run: bun run build
 
+  browser:
+    name: Browser tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - run: bun install --frozen-lockfile
+      # Chromium is the engine of Windows' WebView2; WebKit, of macOS' WKWebView and Linux's WebKitGTK.
+      - run: bunx playwright install --with-deps chromium webkit
+      # End to end: the island and its windows in both engines, on the dev server and the preview's fake backend.
+      - run: bun run test:e2e
+      # Smoke: the production build, each window opened with a stand-in for the Tauri backend.
+      - run: bun run test:smoke
+      - if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: playwright-report
+          path: |
+            ain/playwright-report
+            ain/test-results
+          retention-days: 7
+
   rust-fmt:
     name: Rust format
     runs-on: ubuntu-latest
@@ -134,12 +160,12 @@ jobs:
           components: clippy
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
-          workspaces: widget-island/src-tauri -> target
+          workspaces: ain/src-tauri -> target
       # rust-cache keeps sherpa-onnx-sys's build output but prunes the native libraries it extracted
       # under target/, which it then never fetches again: make it start over.
       - name: Refetch sherpa-onnx's native libraries
         shell: bash
-        working-directory: widget-island/src-tauri
+        working-directory: ain/src-tauri
         run: |
           rm -rf target/sherpa-onnx-prebuilt
           cargo clean --locked -p sherpa-onnx-sys --target ${{ matrix.target }}
@@ -147,10 +173,10 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run build
       - name: Clippy
-        working-directory: widget-island/src-tauri
+        working-directory: ain/src-tauri
         run: cargo clippy --locked --all-targets --target ${{ matrix.target }} -- -D warnings
       - name: Tests
-        working-directory: widget-island/src-tauri
+        working-directory: ain/src-tauri
         run: cargo test --locked --target ${{ matrix.target }}
 
   appimage:
@@ -171,13 +197,13 @@ jobs:
       - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
-          workspaces: widget-island/src-tauri -> target
+          workspaces: ain/src-tauri -> target
           key: appimage
       # rust-cache keeps sherpa-onnx-sys's build output but prunes the native libraries it extracted
       # under target/, which it then never fetches again: make it start over.
       - name: Refetch sherpa-onnx's native libraries
         shell: bash
-        working-directory: widget-island/src-tauri
+        working-directory: ain/src-tauri
         run: |
           rm -rf target/sherpa-onnx-prebuilt
           cargo clean --locked -p sherpa-onnx-sys
@@ -186,6 +212,18 @@ jobs:
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: appimage
-          path: widget-island/src-tauri/target/release/bundle/appimage/*.AppImage
+          path: ain/src-tauri/target/release/bundle/appimage/*.AppImage
           if-no-files-found: error
+          retention-days: 7
+      # Starts the AppImage on a virtual display: it must come up, lay out its window and keep running.
+      - name: Launch the app
+        run: |
+          sudo apt-get install -y --no-install-recommends xvfb x11-utils dbus-x11 imagemagick
+          ../.github/scripts/launch-check.sh "$(ls src-tauri/target/release/bundle/appimage/*.AppImage)" launch-check
+      - if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: launch-check
+          path: ain/launch-check
+          if-no-files-found: ignore
           retention-days: 7

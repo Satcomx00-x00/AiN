@@ -1,0 +1,132 @@
+// @vitest-environment happy-dom
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { AnyPlugin, Command } from "../sdk/plugin";
+import type { PopupPort } from "./commands";
+
+const { hostCommands } = await import("./surface");
+const { memorySettings, defaults } = await import("./settings");
+
+beforeEach(() => {
+  vi.spyOn(window, "matchMedia").mockReturnValue({ matches: true } as MediaQueryList);
+  document.body.replaceChildren();
+  document.title = "";
+  history.replaceState(null, "", "/");
+});
+afterEach(() => vi.restoreAllMocks());
+
+const LAYOUT = { glance: { left: [], right: [] }, tabs: [] };
+
+/** A plugin with one command whose view records how it was built and shown. */
+function withCommand(id: string, command: Partial<Record<keyof Command, unknown>> = {}) {
+  const built: unknown[] = [];
+  const shown = vi.fn();
+  const plugin = {
+    id,
+    label: id,
+    description: "",
+    icon: "",
+    slots: ["tab"],
+    options: { loud: { kind: "toggle", label: "Loud", default: false } },
+    setup: () => ({}),
+    commands: [
+      {
+        id: "go",
+        label: `${id} go`,
+        description: "",
+        shortcut: null,
+        popup: (root: HTMLElement, ctx: unknown) => {
+          built.push(ctx);
+          root.textContent = `${id} view`;
+          return { show: shown };
+        },
+        ...command,
+      },
+    ],
+  } as unknown as AnyPlugin;
+  return { plugin, built, shown };
+}
+
+/** A popup window that shows commands on cue and records being hidden. */
+function popupPort() {
+  let show: (id: string) => void = () => {};
+  const port: PopupPort & { hidden: number } = {
+    hidden: 0,
+    bind: async () => ({}),
+    watchFailures: async () => () => {},
+    open: async () => {},
+    hide: async () => void port.hidden++,
+    paste: async () => {},
+    onShow: async (onShow) => ((show = onShow), () => {}),
+  };
+  return { port, show: (id: string) => show(id) };
+}
+
+async function host(...plugins: AnyPlugin[]) {
+  const container = document.createElement("div");
+  document.body.append(container);
+  const popup = popupPort();
+  const store = memorySettings();
+  hostCommands({ container, catalogue: plugins, layout: LAYOUT, services: { svc: true }, popup: popup.port, store });
+  await Promise.resolve();
+  return { container, popup, store };
+}
+
+describe("the popup and overlay windows", () => {
+  it("show the command asked for, titled after it, and build its view only once", async () => {
+    const a = withCommand("a");
+    const { container, popup } = await host(a.plugin);
+    popup.show("a.go");
+    popup.show("a.go");
+    expect(container.textContent).toBe("a view");
+    expect(document.title).toBe("a go");
+    expect(a.built).toHaveLength(1);
+    expect(a.shown).toHaveBeenCalledTimes(2);
+  });
+
+  it("switch between commands, keeping each one's view", async () => {
+    const a = withCommand("a");
+    const b = withCommand("b");
+    const { container, popup } = await host(a.plugin, b.plugin);
+    popup.show("a.go");
+    const first = container.firstChild;
+    popup.show("b.go");
+    popup.show("a.go");
+    expect(container.firstChild).toBe(first);
+    expect([a.built.length, b.built.length]).toEqual([1, 1]);
+  });
+
+  it("give a command its services and its plugin's options, as currently stored", async () => {
+    const a = withCommand("a");
+    const { popup, store } = await host(a.plugin);
+    await store.save({ ...defaults(LAYOUT), options: { a: { loud: true } } });
+    popup.show("a.go");
+    const ctx = a.built[0] as { services: unknown; options: () => unknown };
+    expect(ctx.services).toEqual({ svc: true });
+    expect(ctx.options()).toEqual({ loud: true });
+  });
+
+  it("hide for a command they don't know, or one without a view", async () => {
+    const quiet = withCommand("q", { popup: undefined });
+    const { popup } = await host(quiet.plugin);
+    popup.show("nobody.here");
+    popup.show("q.go");
+    expect(popup.port.hidden).toBe(2);
+  });
+
+  it("hide on Esc, unless the view used it, and when they lose focus", async () => {
+    const { popup } = await host(withCommand("a").plugin);
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    const used = new KeyboardEvent("keydown", { key: "Escape", cancelable: true });
+    used.preventDefault();
+    document.dispatchEvent(used);
+    window.dispatchEvent(new Event("blur"));
+    expect(popup.port.hidden).toBe(2);
+  });
+
+  it("show the command in the address on their first appearance", async () => {
+    const a = withCommand("a");
+    history.replaceState(null, "", "/popup.html#a.go");
+    const { container } = await host(a.plugin);
+    expect(container.textContent).toBe("a view");
+  });
+});

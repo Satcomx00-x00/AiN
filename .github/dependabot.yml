@@ -15,7 +15,7 @@ updates:
         patterns: ["*"]
 
   - package-ecosystem: bun
-    directory: /widget-island
+    directory: /ain
     schedule:
       interval: weekly
     # Wait a week before taking a release, so a broken or compromised one can be pulled first
@@ -29,7 +29,7 @@ updates:
         patterns: ["*"]
 
   - package-ecosystem: cargo
-    directory: /widget-island/src-tauri
+    directory: /ain/src-tauri
     schedule:
       interval: weekly
     # Wait a week before taking a release, so a broken or compromised one can be pulled first

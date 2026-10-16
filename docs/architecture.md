@@ -1,9 +1,9 @@
 # Architecture
 
-Island is a Tauri app: a Rust backend talks to the OS, and a TypeScript frontend draws the island
+AiN is a Tauri app: a Rust backend talks to the OS, and a TypeScript frontend draws the island
 and its windows. Both sides are split the same way:
 
-| | Frontend (`widget-island/src`) | Backend (`widget-island/src-tauri/src`) |
+| | Frontend (`ain/src`) | Backend (`ain/src-tauri/src`) |
 | --- | --- | --- |
 | **shell**: the app itself | `shell/`: island host, layout, settings, shortcuts, the windows' entry points | `shell/`: island window, popup and capture overlay, settings file, tray, plugins folder |
 | **features**: what the island shows | `features/<id>/`: one folder each, with its generated `bindings.ts` | `features/<id>`: one module each, with one backend per OS |
@@ -14,7 +14,7 @@ their own backend.
 
 ## The contract between the two sides
 
-[`src-tauri/src/manifest.rs`](../widget-island/src-tauri/src/manifest.rs) lists every command and
+[`src-tauri/src/manifest.rs`](../ain/src-tauri/src/manifest.rs) lists every command and
 event once. From it:
 
 - `build.rs` generates each plugin's permissions (`<plugin>:allow-<command>`, and a `default` set);
@@ -50,11 +50,16 @@ disappears is tested on every platform.
 
 | Feature | Windows | Linux | macOS |
 | --- | --- | --- | --- |
-| media | Media transport controls | MPRIS (D-Bus) | none |
-| volume | Core Audio | PipeWire/PulseAudio (`pactl`) | none |
-| privacy | Capability Access Manager | recording streams (`pactl`) and open `/dev/video*` | none |
-| dictation | types the text | copies the text | copies the text |
+| media | Media transport controls | MPRIS (D-Bus) | Spotify and Music, scripted through `osascript` |
+| volume | Core Audio | PipeWire/PulseAudio (`pactl`) | Core Audio (output devices; macOS has no per-app volume) |
+| privacy | Capability Access Manager | recording streams (`pactl`) and open `/dev/video*` | Core Audio's process list (macOS 14+) and Core Media IO (camera on or off) |
+| dictation | types the text | types it with `xdotool`, `wtype` or `ydotool`, else copies it | types it once Accessibility is allowed, else copies it |
+| popup paste | `SendInput` | the same tools | Cmd+V, once Accessibility is allowed |
 | clipboard, stats, capture | all platforms | | |
+
+Helpers several backends share live in `platform/`: `pactl` and the key tools on Linux, Core Audio's
+property API and synthetic keys on macOS. macOS permission prompts are explained by the strings in
+`src-tauri/Info.plist`.
 
 ## Adding a feature
 
