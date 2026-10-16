@@ -144,7 +144,8 @@ Tests:
 | `bun run test:e2e` | End-to-end tests in Chromium (`e2e/`): the island, settings, clipboard popup and capture editor on the dev server, with real layout, pointer and animations |
 | `bun run test:smoke` | Smoke tests (`smoke/`): builds, then opens each window of the production build with a stand-in for the Tauri backend |
 
-The browser tests need Chromium once: `bunx playwright install chromium`.
+The browser tests run in Chromium (the engine of Windows' WebView2) and WebKit (the engine of macOS' WKWebView and
+Linux's WebKitGTK). Install them once: `bunx playwright install chromium webkit`.
 
 Rust checks (from `widget-island/src-tauri`):
 
@@ -204,7 +205,7 @@ Every push to `main` and every pull request runs:
 
 - commit message linting (commitlint)
 - frontend: typecheck, unit and integration tests, production build
-- browser tests: end-to-end tests and smoke tests of the production build, in Chromium
+- browser tests: end-to-end tests and smoke tests of the production build, in Chromium and WebKit
 - Rust: `rustfmt`, then `clippy -D warnings` and `cargo test` on Linux, Windows and macOS (x64), and a check that the
   committed TypeScript bindings match the Rust code
 - an AppImage build, uploaded as a workflow artifact

@@ -12,7 +12,12 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   reporter: "list",
-  use: { baseURL: `http://localhost:${PORT}`, trace: "retain-on-failure", ...devices["Desktop Chrome"], viewport: { width: 1280, height: 720 } },
+  use: { baseURL: `http://localhost:${PORT}`, trace: "retain-on-failure" },
+  // The engines of the app's web views: WebView2 on Windows; WKWebView and WebKitGTK on macOS and Linux.
+  projects: [
+    { name: "chromium", use: { ...devices["Desktop Chrome"], viewport: { width: 1280, height: 720 } } },
+    { name: "webkit", use: { ...devices["Desktop Safari"], viewport: { width: 1280, height: 720 } } },
+  ],
   webServer: {
     command: `node node_modules/vite/bin/vite.js preview --port ${PORT} --strictPort`,
     url: `http://localhost:${PORT}/index.html`,

@@ -100,8 +100,9 @@ jobs:
         with:
           bun-version: ${{ env.BUN_VERSION }}
       - run: bun install --frozen-lockfile
-      - run: bunx playwright install --with-deps chromium
-      # End to end: the island and its windows in Chromium, on the dev server and the preview's fake backend.
+      # Chromium is the engine of Windows' WebView2; WebKit, of macOS' WKWebView and Linux's WebKitGTK.
+      - run: bunx playwright install --with-deps chromium webkit
+      # End to end: the island and its windows in both engines, on the dev server and the preview's fake backend.
       - run: bun run test:e2e
       # Smoke: the production build, each window opened with a stand-in for the Tauri backend.
       - run: bun run test:smoke
