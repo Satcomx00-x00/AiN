@@ -36,7 +36,7 @@ export default (island) =>
     icon: `<path d="M8 2v7"/>`,   // inner SVG of a 16×16 stroke icon
     slots: ["glance", "tab"],     // where it can go: the pill, a tab, or both
     needs: ["stats"],             // the services `setup` receives
-    options: {                    // drawn in Settings → Widgets
+    options: {                    // drawn in Settings, under the plugin's switch
       limit: island.options.number("Alarm above", 85, { min: 10, max: 100, step: 5, unit: "%" }),
     },
     setup({ stats }, host) {
@@ -70,8 +70,8 @@ working plugin.
 
 - **host**: `host.options()` reads the plugin's options (read them when needed, the user can
   change them anytime), `host.setOptions(patch)` saves some, `host.refresh()` redraws the
-  pill now instead of at the next second, and `host.openSettings()` opens Settings at the
-  plugin's card.
+  pill now instead of at the next second, `host.openSettings()` opens Settings at the
+  plugin's card, and `host.appearance()` tells how the island looks (see below).
 
 ### What it returns
 
@@ -80,6 +80,27 @@ Every part is optional. A **glance** is `{ text }` plus, optionally, `progress` 
 (`"mic"`, `"camera"`, `"eq"` or `"rec"`), `tone` (`"alert"` or `"muted"`) and `wide` (widen the pill
 while shown). Several plugins can share a spot on the pill: the first one with something to say wins.
 
+### Following the island's look
+
+The island's colors are CSS variables on every plugin's tab: `--bg`, `--fg`, `--muted`,
+`--accent`, `--on-accent`, `--ok`, `--warn`, `--hot` and `--done`. Use them rather than fixed
+colors, and the plugin follows the theme and the user's pill and accent colors.
+
+For the rest, `host.appearance()` returns `{ style, size, theme, tone, notch }`:
+
+- `style`: the pill style drawing the folded island (`"pill"`, `"solo"`, `"stub"`, `"sliver"`,
+  `"hidden"` or a plugin's). Stub and Sliver show no text, only a ring, a bar or a mark, so give
+  them a `progress` or a `mark` to show anything at all.
+- `size`: `"low"`, `"normal"` or `"large"`; there is less room for text at Low profile.
+- `theme`: the theme's id, e.g. `"dracula"`.
+- `tone`: `"light"` or `"dark"`, after the pill color: a faint tint that shows on a dark pill
+  vanishes on a light one.
+- `notch`: true when a hardware notch sets the pill's height.
+
+Read it when drawing, in `glance` and `tick`: the user can change it anytime. Older versions of
+AiN don't have it; `host.appearance?.()` lets a plugin fall back to its plain look there. The
+[plugin template](https://github.com/Satcomx00-x00/AiN/tree/plugin-template) uses all of it.
+
 If a part throws, the island turns that part off and logs why (in the island's developer tools),
 rather than letting it break the island.
 
@@ -87,7 +108,7 @@ rather than letting it break the island.
 
 Options cover most settings. For setup they can't express (signing in, downloading something),
 add `settingsPanel(root, services)`: it draws extra controls under the options of the plugin's
-card in **Settings → Widgets**, with the same services as `setup`. Return a function that stops
+card, in **Settings → Plugins** under its switch and in **Settings → Widgets**, with the same services as `setup`. Return a function that stops
 whatever it watches; Settings calls it when the card is redrawn or the window closes. Its third
 argument, `host`, reads and saves the plugin's options; mark an option `inPanel: true` to draw it
 yourself there (e.g. a choice showing live state), in place of the standard control. The classes
