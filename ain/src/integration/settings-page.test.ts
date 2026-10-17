@@ -104,6 +104,70 @@ describe("Settings → Plugins", () => {
     await page.open("Appearance");
     expect([...page.page.querySelectorAll(".ui-select-option")].some((o) => o.textContent?.startsWith("Neon"))).toBe(true);
   });
+
+  const cardOf = (page: ParentNode, title: string) => [...page.querySelectorAll<HTMLElement>(".card")].find((c) => c.querySelector("h2")?.textContent === title);
+  const labels = (card: HTMLElement | undefined) => [...(card?.querySelectorAll(".field-label") ?? [])].map((l) => l.textContent);
+  const orbit = (island: Sdk) =>
+    island.definePlugin({
+      id: "orbit",
+      label: "Orbit",
+      description: "A clock.",
+      icon: "",
+      slots: ["glance"],
+      options: {
+        ring: island.options.toggle("Seconds ring", true),
+        face: island.options.choice("Face", "analog", [["analog", "Analog"], ["digital", "Digital"]]),
+      },
+      setup: () => ({ glance: () => null }),
+    });
+
+  it("sets a plugin's options right under its switch once it's on", async () => {
+    environment();
+    const sys = system();
+    sys.addFile("orbit.js", orbit);
+    await startIsland(sys);
+    const page = await startSettings(sys, "plugins");
+    const file = [...page.page.querySelectorAll<HTMLElement>(".card")].find((c) => c.textContent?.includes("orbit.js"))!;
+    expect(labels(file)).toEqual([]);
+
+    file.querySelector<HTMLElement>("[role=switch]")?.click();
+    await page.saved();
+    const card = cardOf(page.page, "Orbit")!;
+    expect(labels(card)).toEqual(["Seconds ring", "Face"]);
+    press(card, "Digital");
+    card.querySelectorAll<HTMLElement>(".field [role=switch]")[0]?.click();
+    await page.saved();
+    expect((await sys.settings()).options.orbit).toEqual({ face: "digital", ring: false });
+
+    // The same options, in Widgets.
+    await page.open("Widgets");
+    expect(labels(cardOf(page.page, "Orbit"))).toEqual(["Seconds ring", "Face"]);
+  });
+
+  it("hides them again when the plugin is turned off", async () => {
+    environment();
+    const sys = system();
+    sys.addFile("orbit.js", orbit);
+    const page = await startSettings(sys, "plugins");
+    [...page.page.querySelectorAll<HTMLElement>(".card")].find((c) => c.textContent?.includes("orbit.js"))!.querySelector<HTMLElement>("[role=switch]")?.click();
+    await page.saved();
+    cardOf(page.page, "Orbit")!.querySelector<HTMLElement>(".card-head [role=switch]")?.click();
+    await page.saved();
+    const file = [...page.page.querySelectorAll<HTMLElement>(".card")].find((c) => c.textContent?.includes("orbit.js"));
+    expect(labels(file)).toEqual([]);
+  });
+
+  it("sets a style file's options under its switch too", async () => {
+    environment();
+    const sys = system();
+    sys.addFile("neon.js", (island) =>
+      island.defineStyle({ id: "neon", label: "Neon", options: { glow: island.options.number("Glow", 4, { min: 0, max: 10 }) }, mount: () => ({ draw() {} }) }),
+    );
+    const page = await startSettings(sys, "plugins");
+    [...page.page.querySelectorAll<HTMLElement>(".card")].find((c) => c.textContent?.includes("neon.js"))!.querySelector<HTMLElement>("[role=switch]")?.click();
+    await page.saved();
+    expect(labels(cardOf(page.page, "Neon"))).toEqual(["Glow"]);
+  });
 });
 
 describe("Settings → Plugins → Community store", () => {

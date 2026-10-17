@@ -366,28 +366,37 @@ async function pickFolder(current: string): Promise<string | null> {
   return typeof chosen === "string" ? chosen : null;
 }
 
+/**
+ * The controls of a plugin's or a style's options, with the plugin's own settings panel among them:
+ * what its card shows under its head. Empty when it has nothing to set.
+ */
+function optionRows(p: AnyPlugin | AnyStyle): Node[] {
+  const { before, after } = aroundPanel(p.options ?? {});
+  const values = resolve(p.options ?? {}, settings.options[p.id]) as Record<string, unknown>;
+  const control = ([key, f]: [string, Field]) => optionControl(f, values[key], (v) => setOption(p.id, key, v), pickFolder);
+  // A plugin's own controls, under its options: given services in the app only (not the preview).
+  const setUp = "settingsPanel" in p ? p.settingsPanel : undefined;
+  const panel = setUp && h("div", { class: "plugin-panel" });
+  if (panel && setUp) {
+    if (!inTauri) panel.append(h("p", { class: "no-options" }, "More setup is available in the app."));
+    else {
+      const host = {
+        options: () => resolve(p.options ?? {}, settings.options[p.id]) as never,
+        setOptions: (patch: Readonly<Record<string, unknown>>) =>
+          commit({ ...settings, options: { ...settings.options, [p.id]: { ...settings.options[p.id], ...patch } } }),
+      };
+      const stop = setUp.call(p, panel, tauriServices as never, host);
+      if (stop) panelStops.push(stop);
+    }
+  }
+  return [...before.map(control), ...(panel ? [panel] : []), ...after.map(control)];
+}
+
 function widgets(): Node[] {
   return [
     ...header("Widgets"),
     ...plugins.map((p) => {
-      const fields = standardFields(p.options ?? {});
-      const { before, after } = aroundPanel(p.options ?? {});
-      const control = ([key, f]: [string, Field]) => optionControl(f, values[key], (v) => setOption(p.id, key, v), pickFolder);
-      const values = resolve(p.options ?? {}, settings.options[p.id]) as Record<string, unknown>;
-      // A plugin's own controls, under its options: given services in the app only (not the preview).
-      const panel = p.settingsPanel && h("div", { class: "plugin-panel" });
-      if (panel && p.settingsPanel) {
-        if (!inTauri) panel.append(h("p", { class: "no-options" }, "More setup is available in the app."));
-        else {
-          const host = {
-            options: () => resolve(p.options ?? {}, settings.options[p.id]) as never,
-            setOptions: (patch: Readonly<Record<string, unknown>>) =>
-              commit({ ...settings, options: { ...settings.options, [p.id]: { ...settings.options[p.id], ...patch } } }),
-          };
-          const stop = p.settingsPanel(panel, tauriServices as never, host);
-          if (stop) panelStops.push(stop);
-        }
-      }
+      const rows = optionRows(p);
       return h(
         "section",
         { class: "card", id: `card-${p.id}` },
@@ -402,10 +411,7 @@ function widgets(): Node[] {
             placesOf(p.id).join(" · ") || "Not placed",
           ),
         ),
-        ...before.map(control),
-        ...(panel ? [panel] : []),
-        ...after.map(control),
-        ...(!fields.length && !panel ? [h("p", { class: "no-options" }, "No options.")] : []),
+        ...(rows.length ? rows : [h("p", { class: "no-options" }, "No options.")]),
       );
     }),
   ];
@@ -585,6 +591,8 @@ function pluginsSection(): Node[] {
         h("div", { class: "grow" }, h("h2", {}, title), h("p", {}, detail)),
         switchControl(row.on, (on) => void toggleFile(row.file, on).then(render), `Use ${title}`),
       ),
+      // Once on, its options are set right here, under the switch.
+      ...(row.plugin ? optionRows(row.plugin) : row.style ? optionRows(row.style) : []),
     );
     if (row.problem) card.classList.add("failed");
     return card;
