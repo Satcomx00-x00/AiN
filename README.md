@@ -100,7 +100,7 @@ add to it, from the community store.
 
 | Feature | What it does | Windows | macOS | Linux |
 | --- | --- | :---: | :---: | :---: |
-| **The pill** | Sits at the top center of the screen, above other windows and on every workspace | ✅ | ✅ | ✅ X11<br>⚠️ Wayland: pinned to the top on compositors with layer-shell (KDE, Sway, Hyprland…); on GNOME the compositor places it |
+| **The pill** | Sits at the top center of the screen, above other windows and on every workspace | ✅ | ✅ | ✅ X11<br>⚠️ Wayland: pinned to the top on compositors with layer-shell (KDE, Sway, Hyprland…); on GNOME, through XWayland, just below the top bar |
 | **Hover to open** | Unfolds into one tab per widget, folds back when the pointer leaves; the delays are adjustable | ✅ | ✅ | ✅ |
 | **Live activities** | Music, a volume change or a dictation widens the pill for a moment, with a bounce | ✅ | ✅ | ✅ |
 | **Notch** | On a MacBook with a notch, the pill wraps around it, with a glance on each side | — | ✅ | — |
@@ -192,7 +192,7 @@ allow in some conditions. When they can't, the text stays on the clipboard for y
 | --- | --- |
 | macOS | Allow AiN under **System Settings → Privacy & Security → Accessibility** (macOS asks the first time). Now playing asks once to control Spotify or Music, and dictation to use the microphone. |
 | Linux, X11 | [`xdotool`](https://github.com/jordansissel/xdotool) |
-| Linux, Wayland | [`wtype`](https://github.com/atx/wtype) (wlroots compositors, KDE), or [`ydotool`](https://github.com/ReimuNotMoe/ydotool) with its daemon running (any compositor, GNOME included) |
+| Linux, Wayland | [`wtype`](https://github.com/atx/wtype) (wlroots compositors, KDE), or [`ydotool`](https://github.com/ReimuNotMoe/ydotool) with its daemon running and its socket open to you (any compositor, GNOME included; Fedora's `ydotool.service` keeps its socket root-only in `/tmp`, where the client doesn't look: run `ydotoold --socket-path=$XDG_RUNTIME_DIR/.ydotool_socket --socket-own=$(id -u):$(id -g)` instead) |
 
 ## Development
 

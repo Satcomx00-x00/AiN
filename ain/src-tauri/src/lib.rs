@@ -11,6 +11,8 @@ pub(crate) use error::{Error, Res};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    #[cfg(target_os = "linux")]
+    platform::linux::prefer_xwayland();
     // Before anything reads its folders: the app's data from when it had its old name.
     shell::renamed::move_data();
     let app = tauri::Builder::default()

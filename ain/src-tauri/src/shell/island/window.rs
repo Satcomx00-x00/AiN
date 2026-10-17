@@ -31,6 +31,16 @@ pub fn is_wayland() -> bool {
     cfg!(target_os = "linux") && std::env::var_os("WAYLAND_DISPLAY").is_some()
 }
 
+/// The window is a Wayland surface, which only the compositor (through layer-shell) can place.
+/// Through XWayland it is an X11 window we place ourselves, though the session is still Wayland.
+fn is_wayland_surface() -> bool {
+    #[cfg(target_os = "linux")]
+    let xwayland = crate::platform::linux::xwayland();
+    #[cfg(not(target_os = "linux"))]
+    let xwayland = false;
+    is_wayland() && !xwayland
+}
+
 /// Where the window ended up, in desktop pixels.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Placement {
@@ -40,14 +50,25 @@ pub struct Placement {
 }
 
 pub fn place<R: Runtime>(w: &Window<R>, size: LogicalSize<f64>) -> Res<Placement> {
+    if is_wayland() {
+        // GTK sizes a non-resizable window to at least its content's natural size, 200×200 for the
+        // webview, which left an invisible strip under the folded pill taking clicks. Resizable,
+        // with min = max, it takes the size asked for and still can't be resized by hand.
+        w.set_resizable(true)?;
+        w.set_max_size(None::<LogicalSize<f64>>)?;
+        w.set_min_size(Some(size))?;
+        w.set_max_size(Some(size))?;
+    }
     w.set_size(size)?;
-    let m = match w.current_monitor()? {
+    // An unmapped window has no current monitor, and GDK has no primary one on Wayland (GNOME):
+    // fall back to the first monitor listed.
+    let m = match w.current_monitor()?.or(w.primary_monitor()?) {
         Some(m) => m,
-        None => w.primary_monitor()?.ok_or_else(|| Error::msg("no monitor available"))?,
+        None => w.available_monitors()?.into_iter().next().ok_or_else(|| Error::msg("no monitor available"))?,
     };
     let (scale, physical) = (m.scale_factor(), size.to_physical(m.scale_factor()));
     let origin = top_center(*m.position(), *m.size(), physical);
-    if !is_wayland() {
+    if !is_wayland_surface() {
         w.set_position(origin)?;
     }
     Ok(Placement { origin, size: physical, scale })
@@ -72,7 +93,7 @@ pub fn native<R: Runtime>(w: &Window<R>) -> Res<Island> {
 #[cfg(target_os = "linux")]
 pub fn native<R: Runtime>(w: &Window<R>) -> Res<Island> {
     use gtk_layer_shell::{Edge, KeyboardMode, Layer, LayerShell};
-    if is_wayland() && gtk_layer_shell::is_supported() {
+    if is_wayland_surface() && gtk_layer_shell::is_supported() {
         let g = w.gtk_window()?;
         g.init_layer_shell();
         g.set_layer(Layer::Overlay);

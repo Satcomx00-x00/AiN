@@ -228,17 +228,36 @@ fn type_text(text: &str) -> bool {
     }
 }
 
-/// Hands the recognized text over: typed at the cursor where the OS allows it, else copied.
+/// Hands the recognized text over: typed at the cursor where the OS allows it, else copied, and
+/// pasted where only a paste key can be pressed.
 fn deliver(app: &AppHandle, text: &str) -> Delivery {
     if type_text(text) {
         return Delivery::Typed;
     }
-    if let Some(clipboard) = app.try_state::<Arc<super::clipboard::Clipboard>>()
-        && let Err(e) = clipboard.copy(text.to_string())
-    {
-        eprintln!("island: dictation: couldn't copy the text: {e}");
+    let copied = match app.try_state::<Arc<super::clipboard::Clipboard>>().map(|c| c.copy(text.to_string())) {
+        Some(Ok(())) => true,
+        Some(Err(e)) => {
+            eprintln!("island: dictation: couldn't copy the text: {e}");
+            false
+        }
+        None => false,
+    };
+    if copied && paste_copied() {
+        return Delivery::Typed;
     }
     Delivery::Copied
+}
+
+/// Presses the paste key where typing isn't possible but that is (ydotool on GNOME).
+fn paste_copied() -> bool {
+    #[cfg(target_os = "linux")]
+    {
+        // Lets the compositor see the new clipboard before the target app asks for it.
+        std::thread::sleep(Duration::from_millis(80));
+        crate::platform::linux::keys::paste(None)
+    }
+    #[cfg(not(target_os = "linux"))]
+    false
 }
 
 #[tauri::command]
