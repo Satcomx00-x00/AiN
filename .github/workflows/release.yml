@@ -240,7 +240,7 @@ jobs:
 
   publish:
     name: Publish release
-    needs: [plan, build]
+    needs: [plan, prepare, build]
     if: ${{ !cancelled() && needs.build.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
@@ -262,6 +262,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.plan.outputs.tag }}
           VERSION: ${{ needs.plan.outputs.version }}
+          RELEASE_ID: ${{ needs.prepare.outputs.release_id }}
           HAS_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
         run: |
           if [[ "$HAS_KEY" != true ]]; then
@@ -271,6 +272,10 @@ jobs:
           assets="$RUNNER_TEMP/assets"
           gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir "$assets"
           [[ -f "$assets/latest.json" ]] || { echo "::error::$TAG has no latest.json: installed apps won't see it"; exit 1; }
+          # Uploaded to a draft, entries point at asset ids: name them (the tags endpoint skips drafts).
+          export ASSET_IDS="$RUNNER_TEMP/asset-ids.json"
+          gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" \
+            --jq '[.assets[] | {key: (.id | tostring), value: .name}] | from_entries' > "$ASSET_IDS"
           "$RUNNER_TEMP/venv/bin/python" .github/scripts/check-update-manifest.py "$assets/latest.json" "$assets" \
             ain/src-tauri/tauri.conf.json "$VERSION" windows-x86_64 darwin-x86_64 linux-x86_64
       - env:

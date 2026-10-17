@@ -9,6 +9,12 @@ Fails unless `latest.json`:
 
 Signatures are minisign's (what `tauri signer` makes), base64-encoded once more by Tauri.
 
+Entries point at a file either by name (`…/releases/download/<tag>/<name>`) or, as tauri-action
+writes them when uploading to a draft, by asset id
+(`https://api.github.com/repos/<owner>/<repo>/releases/assets/<id>`, which the updater downloads
+with `Accept: application/octet-stream`). For those, set ASSET_IDS to a JSON file mapping each
+asset id to its file name.
+
 Usage: check-update-manifest.py MANIFEST ASSETS_DIR PUBKEY_FILE_OR_TAURI_CONF VERSION PLATFORM...
 Needs the `cryptography` package.
 """
@@ -16,6 +22,8 @@ Needs the `cryptography` package.
 import base64
 import hashlib
 import json
+import os
+import re
 import sys
 from pathlib import Path
 from urllib.parse import unquote, urlparse
@@ -49,6 +57,16 @@ def verify(data: bytes, tauri_sig: str, key_id: bytes, key: Ed25519PublicKey) ->
     key.verify(base64.b64decode(sig_lines[3]), signature + trusted)
 
 
+API_ASSET = re.compile(r"^https://api\.github\.com/repos/[^/]+/[^/]+/releases/assets/(\d+)$")
+
+
+def file_name(url: str, asset_ids: dict[str, str]) -> str | None:
+    """The release file an entry's URL points at; None for an asset id that names no file."""
+    if match := API_ASSET.match(url):
+        return asset_ids.get(match.group(1))
+    return unquote(Path(urlparse(url).path).name)
+
+
 def load_pubkey(path: Path) -> str:
     text = path.read_text().strip()
     if path.suffix == ".json":
@@ -60,6 +78,8 @@ def main(manifest_path: str, assets: str, pubkey_path: str, version: str, *platf
     manifest = json.loads(Path(manifest_path).read_text())
     key_id, key = public_key(load_pubkey(Path(pubkey_path)))
     errors = []
+    ids_file = os.environ.get("ASSET_IDS")
+    asset_ids = {str(k): v for k, v in json.loads(Path(ids_file).read_text()).items()} if ids_file else {}
 
     if manifest.get("version") != version:
         errors.append(f"announces version {manifest.get('version')!r}, releasing {version!r}")
@@ -68,7 +88,10 @@ def main(manifest_path: str, assets: str, pubkey_path: str, version: str, *platf
         errors.append(f"{missing}: no entry, so those apps won't update")
 
     for target, entry in sorted(entries.items()):
-        name = unquote(Path(urlparse(entry["url"]).path).name)
+        name = file_name(entry["url"], asset_ids)
+        if name is None:
+            errors.append(f"{target}: {entry['url']} is an asset id that names none of the release's files")
+            continue
         file = Path(assets) / name
         if not file.is_file():
             errors.append(f"{target}: {name} is not among the release's files")
