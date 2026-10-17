@@ -3,6 +3,24 @@
 All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.4.0](https://github.com/Satcomx00-x00/AiN/compare/v0.3.0..v0.4.0) - 2026-10-17
+
+### Features
+
+- **updater:** Self-update on Windows, macOS and Linux from GitHub releases ([22e3869](https://github.com/Satcomx00-x00/AiN/commit/22e38699bab64d55867eeb1391c7f4ed429084cf))
+- **settings:** Updates card in About ([d088e62](https://github.com/Satcomx00-x00/AiN/commit/d088e62a8bb3610807e4a7002e555f1d35576c68))
+
+### Documentation
+
+- **updater:** How updates work, set up and test ([0dc613f](https://github.com/Satcomx00-x00/AiN/commit/0dc613f2c102fa009d524603d24b49c99ddc35c8))
+
+### Tests
+
+- **updater:** Run the update flow against a local server ([028bf54](https://github.com/Satcomx00-x00/AiN/commit/028bf540ca9eef81a1b569b2f988bbe40bd2a828))
+
+### CI
+
+- **release:** Sign updates and check latest.json before publishing ([da90ccd](https://github.com/Satcomx00-x00/AiN/commit/da90ccd9e4b2e5300dc9832b1d887ebf9aadb0c2))
 ## [0.3.0](https://github.com/Satcomx00-x00/AiN/compare/v0.2.0..v0.3.0) - 2026-10-16
 
 ### Features
