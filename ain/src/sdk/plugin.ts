@@ -1,4 +1,5 @@
 import type { Fields, Values } from "./options";
+import type { PillSize } from "./style";
 
 export type Tone = "alert" | "muted";
 
@@ -43,6 +44,20 @@ export interface Widget {
   readonly ambient?: () => string | null;
 }
 
+/** How the island looks right now, for plugins that adapt to it. */
+export interface Appearance {
+  /** The pill style drawing the folded island: "pill", "solo", "stub", "sliver", "hidden" or a plugin's id. */
+  readonly style: string;
+  /** The pill size picked in Settings → Appearance. */
+  readonly size: PillSize;
+  /** The color theme's id, e.g. "dracula"; the colors themselves are the island's CSS variables. */
+  readonly theme: string;
+  /** Whether the pill is light or dark, after the user's own pill color. */
+  readonly tone: "light" | "dark";
+  /** True when a hardware notch sets the pill's height. */
+  readonly notch: boolean;
+}
+
 /** What the host offers plugins. */
 export interface Host<Options = unknown> {
   /** Redraws glances and the visible panel now, e.g. after pushed data arrives. */
@@ -53,6 +68,8 @@ export interface Host<Options = unknown> {
   setOptions(patch: Partial<Options>): void;
   /** Opens Settings at this plugin's card: where to set it up, rather than in the island. */
   openSettings(): void;
+  /** How the island looks now; read it when drawing, since the user can change it anytime. */
+  appearance(): Appearance;
 }
 
 /** What a plugin's settings panel can do with its options. */

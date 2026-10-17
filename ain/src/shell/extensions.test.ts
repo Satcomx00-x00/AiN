@@ -175,7 +175,7 @@ describe("loadExtensions", () => {
 });
 
 describe("confine", () => {
-  const host = { refresh() {}, options: () => ({}) as never, setOptions() {}, openSettings() {} };
+  const host = { refresh() {}, options: () => ({}) as never, setOptions() {}, openSettings() {}, appearance: () => ({ style: "pill", size: "normal", theme: "island", tone: "dark", notch: false }) as const };
 
   it("gives a plugin only the services it declared, frozen", () => {
     let got: Record<string, unknown> = {};

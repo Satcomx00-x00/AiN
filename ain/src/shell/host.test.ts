@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Greeting, Stage } from "../sdk/greeting";
+import type { Host } from "../sdk/plugin";
 import type { AnyStyle, Folded } from "../sdk/style";
 import { mount } from "./host";
 import { type Settings, defaults } from "./settings";
@@ -530,5 +531,25 @@ describe("pill sizes and a hardware notch", () => {
   it("follows the width setting at the chosen size", async () => {
     const { el } = await start(withGeneral({ pillSize: "large", pillWidth: 300 }));
     expect(el.style.getPropertyValue("--w")).toBe("390px");
+  });
+});
+
+describe("what plugins see of the island", () => {
+  it("tells a plugin the style drawing the pill, its size, the theme and the tone, as they change", async () => {
+    let host: Host<never> | undefined;
+    const spy = { id: "spy", label: "Spy", description: "", icon: "", slots: ["glance"] as const, setup: (_: unknown, h: Host<never>) => ((host = h), {}) };
+    vi.spyOn(window, "matchMedia").mockReturnValue({ matches: false } as MediaQueryList);
+    const el = document.createElement("div");
+    document.body.replaceChildren(el);
+    win = fakeWindow();
+    const [a, b] = [recording("a"), recording("b")];
+    const base = withGeneral({ style: "b", pillSize: "large", theme: "dracula", pillColor: "#282a36" });
+    const placed = { ...base, layout: { glance: { left: [], right: ["spy"] }, tabs: [] } };
+    const handle = await mount(el, [spy as never], {}, win.port, placed, { styles: [a.style, b.style] });
+    expect(host?.appearance()).toEqual({ style: "b", size: "large", theme: "dracula", tone: "dark", notch: false });
+
+    // A style that's gone gives the first one: the plugin is told what is actually drawn.
+    handle.configure({ ...placed, general: { ...placed.general, style: "gone", pillSize: "low", theme: "one-light", pillColor: "#fafafa" } });
+    expect(host?.appearance()).toEqual({ style: "a", size: "low", theme: "one-light", tone: "light", notch: false });
   });
 });
