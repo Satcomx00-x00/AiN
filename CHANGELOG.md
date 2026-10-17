@@ -3,6 +3,14 @@
 All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.5.1](https://github.com/Satcomx00-x00/AiN/compare/v0.5.0..v0.5.1) - 2026-10-17
+
+### Bug fixes
+
+- **island:** Place the window on GNOME Wayland ([03f4ccc](https://github.com/Satcomx00-x00/AiN/commit/03f4ccc0f49950388c65552be61ea29c1d8aa3c5))
+- **island:** Stop the folded pill's window from eating clicks on Wayland ([84805a6](https://github.com/Satcomx00-x00/AiN/commit/84805a6c7097060c33b47d524c2006c4adb9a563))
+- **island:** Keep the pill at the top of GNOME through XWayland ([99d6434](https://github.com/Satcomx00-x00/AiN/commit/99d643411263c4d8315010fc52de7f04b70cc9d4))
+- **dictation:** Paste instead of typing with ydotool on Wayland ([a4d6374](https://github.com/Satcomx00-x00/AiN/commit/a4d637434a5c53277dbfb04b2dfdcb94c69b6c0d))
 ## [0.5.0](https://github.com/Satcomx00-x00/AiN/compare/v0.4.0..v0.5.0) - 2026-10-17
 
 ### Features
