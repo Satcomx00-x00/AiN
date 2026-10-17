@@ -40,6 +40,15 @@ pub struct Placement {
 }
 
 pub fn place<R: Runtime>(w: &Window<R>, size: LogicalSize<f64>) -> Res<Placement> {
+    if is_wayland() {
+        // GTK sizes a non-resizable window to at least its content's natural size, 200×200 for the
+        // webview, which left an invisible strip under the folded pill taking clicks. Resizable,
+        // with min = max, it takes the size asked for and still can't be resized by hand.
+        w.set_resizable(true)?;
+        w.set_max_size(None::<LogicalSize<f64>>)?;
+        w.set_min_size(Some(size))?;
+        w.set_max_size(Some(size))?;
+    }
     w.set_size(size)?;
     // An unmapped window has no current monitor, and GDK has no primary one on Wayland (GNOME):
     // fall back to the first monitor listed.
