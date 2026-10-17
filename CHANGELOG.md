@@ -3,6 +3,20 @@
 All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.5.0](https://github.com/Satcomx00-x00/AiN/compare/v0.4.0..v0.5.0) - 2026-10-17
+
+### Features
+
+- **sdk:** Tell plugins how the island looks with host.appearance() ([d8e99ae](https://github.com/Satcomx00-x00/AiN/commit/d8e99ae543de1fc4c4d1e946ea6452023e310878))
+- **settings:** Set a plugin's options under its switch in Plugins ([704bed4](https://github.com/Satcomx00-x00/AiN/commit/704bed4c176c1866d0618cc71109eda4aa562501))
+
+### Documentation
+
+- **plugins:** Explain host.appearance() and options under the switch ([3b740df](https://github.com/Satcomx00-x00/AiN/commit/3b740dff6b7585b0b7864080cee89e1e0e1ec5ee))
+
+### CI
+
+- **release:** Check latest.json entries that point at draft asset ids ([cd754f5](https://github.com/Satcomx00-x00/AiN/commit/cd754f5851992456ae52cdb672879f743a1ab57b))
 ## [0.4.0](https://github.com/Satcomx00-x00/AiN/compare/v0.3.0..v0.4.0) - 2026-10-17
 
 ### Features
