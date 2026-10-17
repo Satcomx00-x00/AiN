@@ -24,8 +24,9 @@ pub fn xwayland() -> bool {
 }
 
 /// Synthetic key presses, through whichever tool the session allows: `xdotool` on X11; on Wayland,
-/// which lets no app type into another by itself, `wtype` (wlroots and KDE compositors) or `ydotool`
-/// (any, with its daemon running). Without one, callers fall back to the clipboard.
+/// which lets no app type into another by itself, `wtype` (wlroots and KDE compositors) or, for
+/// Ctrl+V only, `ydotool` (any, with its daemon running). Without one, callers fall back to the
+/// clipboard.
 pub mod keys {
     use std::process::{Command, Stdio};
 
@@ -52,7 +53,9 @@ pub mod keys {
     /// Types `text` where the cursor is; false when no tool could.
     pub fn type_text(text: &str) -> bool {
         if wayland() {
-            run("wtype", &["--", text]).is_some() || run("ydotool", &["type", "--", text]).is_some()
+            // Not `ydotool type`: it presses US-layout keys, so on AZERTY "as" comes out "qs".
+            // Callers paste instead, and Ctrl+V sits on the same key in the common layouts.
+            run("wtype", &["--", text]).is_some()
         } else {
             run("xdotool", &["type", "--clearmodifiers", "--", text]).is_some()
         }
