@@ -41,9 +41,11 @@ pub struct Placement {
 
 pub fn place<R: Runtime>(w: &Window<R>, size: LogicalSize<f64>) -> Res<Placement> {
     w.set_size(size)?;
-    let m = match w.current_monitor()? {
+    // An unmapped window has no current monitor, and GDK has no primary one on Wayland (GNOME):
+    // fall back to the first monitor listed.
+    let m = match w.current_monitor()?.or(w.primary_monitor()?) {
         Some(m) => m,
-        None => w.primary_monitor()?.ok_or_else(|| Error::msg("no monitor available"))?,
+        None => w.available_monitors()?.into_iter().next().ok_or_else(|| Error::msg("no monitor available"))?,
     };
     let (scale, physical) = (m.scale_factor(), size.to_physical(m.scale_factor()));
     let origin = top_center(*m.position(), *m.size(), physical);
