@@ -1,5 +1,28 @@
 //! Linux specifics shared by several backends.
 
+use std::sync::atomic::{AtomicBool, Ordering};
+
+static XWAYLAND: AtomicBool = AtomicBool::new(false);
+
+/// GNOME has no layer-shell, so there a Wayland window can be neither placed nor kept above others;
+/// an XWayland one can. Opens our windows through XWayland on GNOME, unless `GDK_BACKEND` already
+/// picks a backend. Call it before GTK starts.
+pub fn prefer_xwayland() {
+    let set = |name| std::env::var_os(name).is_some_and(|v| !v.is_empty());
+    let gnome = std::env::var("XDG_CURRENT_DESKTOP").is_ok_and(|d| d.split(':').any(|d| d.eq_ignore_ascii_case("gnome")));
+    if gnome && set("WAYLAND_DISPLAY") && set("DISPLAY") && !set("GDK_BACKEND") {
+        // Unlike GDK_BACKEND, this doesn't reach the apps we start, which stay on Wayland.
+        gtk::gdk::set_allowed_backends("x11");
+        XWAYLAND.store(true, Ordering::Relaxed);
+    }
+}
+
+/// Our windows are X11 ones in a Wayland session: placed like on X11, but the cursor is still out
+/// of sight outside them.
+pub fn xwayland() -> bool {
+    XWAYLAND.load(Ordering::Relaxed) || std::env::var("GDK_BACKEND").is_ok_and(|b| b.starts_with("x11"))
+}
+
 /// Synthetic key presses, through whichever tool the session allows: `xdotool` on X11; on Wayland,
 /// which lets no app type into another by itself, `wtype` (wlroots and KDE compositors) or `ydotool`
 /// (any, with its daemon running). Without one, callers fall back to the clipboard.

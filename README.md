@@ -100,7 +100,7 @@ add to it, from the community store.
 
 | Feature | What it does | Windows | macOS | Linux |
 | --- | --- | :---: | :---: | :---: |
-| **The pill** | Sits at the top center of the screen, above other windows and on every workspace | ✅ | ✅ | ✅ X11<br>⚠️ Wayland: pinned to the top on compositors with layer-shell (KDE, Sway, Hyprland…); on GNOME the compositor places it |
+| **The pill** | Sits at the top center of the screen, above other windows and on every workspace | ✅ | ✅ | ✅ X11<br>⚠️ Wayland: pinned to the top on compositors with layer-shell (KDE, Sway, Hyprland…); on GNOME, through XWayland, just below the top bar |
 | **Hover to open** | Unfolds into one tab per widget, folds back when the pointer leaves; the delays are adjustable | ✅ | ✅ | ✅ |
 | **Live activities** | Music, a volume change or a dictation widens the pill for a moment, with a bounce | ✅ | ✅ | ✅ |
 | **Notch** | On a MacBook with a notch, the pill wraps around it, with a glance on each side | — | ✅ | — |

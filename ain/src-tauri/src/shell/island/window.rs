@@ -31,6 +31,16 @@ pub fn is_wayland() -> bool {
     cfg!(target_os = "linux") && std::env::var_os("WAYLAND_DISPLAY").is_some()
 }
 
+/// The window is a Wayland surface, which only the compositor (through layer-shell) can place.
+/// Through XWayland it is an X11 window we place ourselves, though the session is still Wayland.
+fn is_wayland_surface() -> bool {
+    #[cfg(target_os = "linux")]
+    let xwayland = crate::platform::linux::xwayland();
+    #[cfg(not(target_os = "linux"))]
+    let xwayland = false;
+    is_wayland() && !xwayland
+}
+
 /// Where the window ended up, in desktop pixels.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Placement {
@@ -58,7 +68,7 @@ pub fn place<R: Runtime>(w: &Window<R>, size: LogicalSize<f64>) -> Res<Placement
     };
     let (scale, physical) = (m.scale_factor(), size.to_physical(m.scale_factor()));
     let origin = top_center(*m.position(), *m.size(), physical);
-    if !is_wayland() {
+    if !is_wayland_surface() {
         w.set_position(origin)?;
     }
     Ok(Placement { origin, size: physical, scale })
@@ -83,7 +93,7 @@ pub fn native<R: Runtime>(w: &Window<R>) -> Res<Island> {
 #[cfg(target_os = "linux")]
 pub fn native<R: Runtime>(w: &Window<R>) -> Res<Island> {
     use gtk_layer_shell::{Edge, KeyboardMode, Layer, LayerShell};
-    if is_wayland() && gtk_layer_shell::is_supported() {
+    if is_wayland_surface() && gtk_layer_shell::is_supported() {
         let g = w.gtk_window()?;
         g.init_layer_shell();
         g.set_layer(Layer::Overlay);
