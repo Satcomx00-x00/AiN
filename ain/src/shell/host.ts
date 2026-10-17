@@ -5,7 +5,7 @@ import { EXPANDED, frame, pillOf, sizeFor } from "./geometry";
 import { intent } from "./intent";
 import { type Fields, resolve } from "../sdk/options";
 import { type Layout, type Placement, pickFrom, place, placedIds } from "./placement";
-import type { AnyPlugin, Host, Mounted, Plugin } from "../sdk/plugin";
+import type { AnyPlugin, Appearance, Host, Mounted, Plugin } from "../sdk/plugin";
 import { POWER, armedButton } from "./quit";
 import type { Greeting } from "../sdk/greeting";
 import { greet } from "./greet";
@@ -30,6 +30,7 @@ const IDLE_HOST: Host<never> = {
   options: () => ({}) as never,
   setOptions() {},
   openSettings() {},
+  appearance: (): Appearance => ({ style: "pill", size: "normal", theme: "island", tone: "dark", notch: false }),
 };
 
 /**
@@ -104,6 +105,14 @@ export async function mount<S>(
     options: () => resolve(plugin.options ?? {}, settings.options[plugin.id]) as never,
     setOptions: (patch) => saveOptions?.(plugin.id, patch),
     openSettings: () => openSettings?.(`widgets:${plugin.id}`),
+    // The style actually drawing, which differs from the chosen one while that one is broken.
+    appearance: () => ({
+      style: style?.id ?? settings.general.style,
+      size: settings.general.pillSize,
+      theme: settings.general.theme,
+      tone: isLight(settings.general.pillColor) ? "light" : "dark",
+      notch: i.hasNotch,
+    }),
   });
   const mounted = new Map<string, Mounted>();
   let placement: Placement = { left: [], right: [], tabs: [] };
