@@ -9,6 +9,7 @@ const { idlePopup, tauriPopup } = await import("../../commands");
 const { importSource, noExtensions, tauriExtensions } = await import("../../extensions");
 const { noCommunity, tauriCommunity } = await import("../../community");
 const { tauriSettings } = await import("../../settings");
+const { tauriUpdater } = await import("../../updater");
 
 afterEach(() => {
   usePorts(undefined);
@@ -22,12 +23,13 @@ describe("the settings page's ports", () => {
     expect([ports.popup, ports.folder, ports.importer]).toEqual([idlePopup, noExtensions, importSource]);
     expect(ports.store).not.toBe(tauriSettings);
     expect(ports.community).toBe(noCommunity);
+    expect(ports.updater).not.toBe(tauriUpdater);
   });
 
   it("are the app's backend inside Tauri", () => {
     Object.assign(window, { __TAURI_INTERNALS__: {} });
     const ports = appPorts();
-    expect([ports.inApp, ports.store, ports.popup, ports.folder, ports.community]).toEqual([true, tauriSettings, tauriPopup, tauriExtensions, tauriCommunity]);
+    expect([ports.inApp, ports.store, ports.popup, ports.folder, ports.community, ports.updater]).toEqual([true, tauriSettings, tauriPopup, tauriExtensions, tauriCommunity, tauriUpdater]);
   });
 
   it("can be replaced, e.g. by an integration test, and given back", () => {

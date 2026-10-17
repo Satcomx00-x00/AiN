@@ -28,6 +28,8 @@ exclude = { glob = [
   "**/bindings/*.ts",
   "ain/src-tauri/gen/**",
   "ain/src-tauri/icons/**",
+  # Signed test fixtures: a "fixed" byte would break their signature.
+  "ain/src-tauri/tests/fixtures/**",
   "**/*.lock",
   "CHANGELOG.md",
 ] }

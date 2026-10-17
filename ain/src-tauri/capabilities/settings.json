@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "settings",
-  "description": "The settings window: read and write settings, toggle launch at login, try shortcuts, and list or open the third-party plugins folder, and browse and install from the community store.",
+  "description": "The settings window: read and write settings, toggle launch at login, try shortcuts, list or open the third-party plugins folder, browse and install from the community store, and check for and install updates.",
   "windows": [
     "settings"
   ],
@@ -13,6 +13,7 @@
     "popup:allow-failures",
     "popup:allow-open",
     "extensions:default",
-    "store:default"
+    "store:default",
+    "updates:default"
   ]
 }

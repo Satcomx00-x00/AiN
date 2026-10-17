@@ -87,6 +87,10 @@ function install(backend: Backend): void {
     "plugin:popup|open": () => null,
     "plugin:popup|hide": () => null,
     "plugin:popup|paste": () => null,
+    "plugin:updates|status": () => ({ current: "0.2.0", state: { kind: "upToDate" }, releases: "https://github.com/Satcomx00-x00/AiN/releases" }),
+    "plugin:updates|check": () => ({ current: "0.2.0", state: { kind: "upToDate" }, releases: "https://github.com/Satcomx00-x00/AiN/releases" }),
+    "plugin:updates|install": () => null,
+    "plugin:updates|open_releases": () => null,
   };
   Object.assign(window, {
     __smoke: calls,

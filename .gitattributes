@@ -2,3 +2,5 @@
 *.png binary
 *.ico binary
 *.icns binary
+# Signed test fixtures: their bytes must stay exactly as signed.
+ain/src-tauri/tests/fixtures/updater/** binary

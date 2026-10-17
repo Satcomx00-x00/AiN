@@ -34,13 +34,16 @@ import { aroundPanel, colorPicker, field, optionControl, rangeControl, segmented
 import type { Field } from "../../../sdk/options";
 import { settingsPorts } from "./ports";
 import { slotList } from "./slots";
+import { type Report, type Tone, demoUpdater, describe, noteLines } from "../../updater";
 
 const SAVE_DELAY = 250;
 /** Built-in features, then plugins from enabled files that loaded fine. */
 let plugins: readonly AnyPlugin[] = catalogue;
 const fallback = defaults(defaultLayout);
 // The app's backend, or in-memory stand-ins outside Tauri (the browser preview, integration tests).
-const { store, popup, folder, importer, community = noCommunity, inApp: inTauri } = settingsPorts();
+const { store, popup, folder, importer, community = noCommunity, updater = demoUpdater(), inApp: inTauri } = settingsPorts();
+/** The updater's last report, kept current by its events; null until the first one arrives. */
+let update: Report | null = null;
 // Only built-in features offer shortcuts.
 const entries = commandsOf(catalogue);
 /** Shortcuts the island couldn't register, and why. */
@@ -606,6 +609,79 @@ function pluginsSection(): Node[] {
   ];
 }
 
+const UPDATE_ICONS: Record<Tone, string> = {
+  ok: `<circle cx="8" cy="8" r="6"/><path d="M5.6 8.1l1.7 1.7 3.2-3.5"/>`,
+  accent: `<path d="M8 2.5v7M5 6.75l3 3 3-3"/><path d="M3 11v1.25c0 .7.55 1.25 1.25 1.25h7.5c.7 0 1.25-.55 1.25-1.25V11"/>`,
+  busy: `<path d="M13.25 8A5.25 5.25 0 1 1 11.7 4.3"/><path d="M13.25 2.5v2.75H10.5"/>`,
+  hot: `<circle cx="8" cy="8" r="6"/><path d="M8 5v3.5M8 10.9v.01"/>`,
+  muted: `<path d="M13.25 8A5.25 5.25 0 1 1 11.7 4.3"/><path d="M13.25 2.5v2.75H10.5"/>`,
+};
+
+/** Label of the disabled button while the updater is busy, so the row keeps its shape. */
+const BUSY_LABEL: Partial<Record<Report["state"]["kind"], string>> = { checking: "Checking…", downloading: "Installing…", installing: "Installing…" };
+
+/** The Updates card: running version, what the updater is doing, its progress, the notes of what's new, and the one action it offers. */
+function updatesCard(): HTMLElement {
+  const card = h("section", { class: "card update", id: "card-updates" });
+  if (!update) {
+    card.append(h("div", { class: "update-head" }, h("div", { class: "grow" }, h("p", { class: "update-text" }, "Loading…"))));
+    return card;
+  }
+  const { state } = update;
+  const view = describe(state);
+  card.dataset.tone = view.tone;
+  const fail = (e: unknown) => setStatus("error", `Update: ${String(e)}`);
+
+  const control =
+    view.action === "install"
+      ? button("Install and restart", () => void updater.install().catch(fail), { class: "primary" })
+      : button(BUSY_LABEL[state.kind] ?? "Check now", () => void updater.check().catch(fail), { class: "secondary", ...(view.action ? {} : { disabled: "" }) });
+
+  card.append(
+    h(
+      "div",
+      { class: "update-head" },
+      h("span", { class: "ico update-ico", "aria-hidden": "true" }, icon(UPDATE_ICONS[view.tone])),
+      h(
+        "div",
+        { class: "grow" },
+        h("div", { class: "update-title" }, h("h2", {}, `AiN ${update.current}`), ...(view.badge ? [h("span", { class: "update-badge" }, view.badge)] : [])),
+        h("p", { class: "update-text", role: "status" }, view.text),
+      ),
+      control,
+    ),
+  );
+
+  if (view.progress !== null) {
+    const bar = h("div", { class: "progress update-progress", role: "progressbar", "aria-valuemin": "0", "aria-valuemax": "100", "aria-valuenow": String(Math.round(view.progress * 100)) }, h("i"));
+    bar.style.setProperty("--p", String(view.progress));
+    card.append(bar);
+  }
+
+  if (state.kind === "available" && state.notes) {
+    const lines = noteLines(state.notes).map((l) => (l.heading ? h("h3", {}, l.text) : l.text ? h("p", {}, l.text) : h("div", { class: "gap" })));
+    card.append(h("div", { class: "update-notes" }, h("div", { class: "update-notes-label" }, `What's new in ${state.version}`), h("div", { class: "update-notes-body" }, ...lines)));
+  }
+
+  card.append(
+    h(
+      "div",
+      { class: "update-foot" },
+      h("span", {}, state.kind === "disabled" ? "Download new versions by hand from the releases page." : "Checked at launch, then every 6 hours. Nothing installs without you."),
+      ...(update.releases ? [button("All releases ↗", () => void updater.openReleases().catch(fail), { class: "link" })] : []),
+    ),
+  );
+  return card;
+}
+
+/** Redraws just the Updates card, so download progress doesn't rebuild the whole section. */
+function paintUpdates() {
+  if (section !== "about") return;
+  const card = document.getElementById("card-updates");
+  if (card) card.replaceWith(updatesCard());
+  else render();
+}
+
 function about(): Node[] {
   let armed = false;
   const reset = button("Reset", () => {
@@ -619,6 +695,7 @@ function about(): Node[] {
   }, { class: "secondary" });
   return [
     ...header("About", "AiN, All I Needed — a Dynamic Island for your desktop."),
+    updatesCard(),
     h("section", { class: "card" }, field("Reset all settings", undefined, reset)),
   ];
 }
@@ -689,4 +766,10 @@ void store.watch((raw) => {
 });
 
 void store.onNavigate(goTo);
+const showUpdate = (report: Report) => {
+  update = report;
+  paintUpdates();
+};
+void updater.watch(showUpdate);
+void updater.status().then(showUpdate, () => {});
 void rescan().then(render);

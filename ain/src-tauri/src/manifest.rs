@@ -25,6 +25,7 @@ macro_rules! manifest {
                 capture: shell::capture { typed: [], raw: [latest, save_png], events: [] }
                 extensions: shell::extensions { typed: [list, open_dir], raw: [], events: [] }
                 store: shell::store { typed: [catalog, install, open_repo], raw: [], events: [] }
+                updates: shell::updater { typed: [status, check, install, open_releases], raw: [], events: [UpdateChanged] }
             }
             features {
                 clipboard: features::clipboard { typed: [history, copy, clear], raw: [copy_image], events: [] }

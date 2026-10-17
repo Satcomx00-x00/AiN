@@ -115,6 +115,24 @@ jobs:
             ain/test-results
           retention-days: 7
 
+  # The update flow itself (check, download, signature) runs in the Rust tests below, on every OS
+  # (src-tauri/tests/update_flow.rs). This checks the checker Release runs on `latest.json`.
+  update-manifest:
+    name: Update manifest check
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install cryptography
+        run: |
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install --quiet cryptography==49.0.0
+      - run: PYTHON="$RUNNER_TEMP/venv/bin/python" ./.github/scripts/test-check-update-manifest.sh
+
   rust-fmt:
     name: Rust format
     runs-on: ubuntu-latest

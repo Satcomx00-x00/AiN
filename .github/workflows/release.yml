@@ -210,14 +210,33 @@ jobs:
       - name: Install frontend dependencies
         working-directory: ain
         run: bun install --frozen-lockfile
+      # Self-update: with the signing key, each build also signs its installer and tauri-action adds
+      # the platform to the release's `latest.json`, which installed apps read (see docs/updates.md).
+      # Without it, releases still build, just without updates.
+      - name: Enable updater artifacts
+        shell: bash
+        working-directory: ain/src-tauri
+        env:
+          HAS_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
+        run: |
+          if [[ "$HAS_KEY" == true ]]; then
+            jq '.bundle.createUpdaterArtifacts = true' tauri.conf.json > tauri.conf.json.tmp && mv tauri.conf.json.tmp tauri.conf.json
+          else
+            echo "::warning::No TAURI_SIGNING_PRIVATE_KEY secret: this release won't offer itself as an update."
+          fi
       - uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1.0.0
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: ain
           tauriScript: bun run tauri
           args: --target ${{ matrix.target }}${{ matrix.bundles && format(' --bundles {0}', matrix.bundles) || '' }}
           releaseId: ${{ needs.prepare.outputs.release_id }}
+          # latest.json's plain `windows-x86_64` entry: the per-user NSIS installer (no admin
+          # prompt), not the MSI. (The updater looks for `windows-x86_64-<nsis|msi>` first.)
+          updaterJsonPreferNsis: true
 
   publish:
     name: Publish release
@@ -227,6 +246,33 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.plan.outputs.tag }}
+          persist-credentials: false
+      - name: Install cryptography
+        run: |
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install --quiet cryptography==49.0.0
+      # Installed apps read `latest.json` the moment the release is public: check, while it is
+      # still a draft, that it announces this version for every platform, that each entry points
+      # at a file of the release, and that each signature verifies against the app's public key.
+      - name: Check the update manifest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.plan.outputs.tag }}
+          VERSION: ${{ needs.plan.outputs.version }}
+          HAS_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
+        run: |
+          if [[ "$HAS_KEY" != true ]]; then
+            echo "::warning::No TAURI_SIGNING_PRIVATE_KEY secret: $TAG has no update manifest to check."
+            exit 0
+          fi
+          assets="$RUNNER_TEMP/assets"
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir "$assets"
+          [[ -f "$assets/latest.json" ]] || { echo "::error::$TAG has no latest.json: installed apps won't see it"; exit 1; }
+          "$RUNNER_TEMP/venv/bin/python" .github/scripts/check-update-manifest.py "$assets/latest.json" "$assets" \
+            ain/src-tauri/tauri.conf.json "$VERSION" windows-x86_64 darwin-x86_64 linux-x86_64
       - env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.plan.outputs.tag }}
