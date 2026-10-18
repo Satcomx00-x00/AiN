@@ -4,7 +4,7 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 
 const { invoke } = await import("@tauri-apps/api/core");
 const { checkIsland, tauriWindow } = await import("./window");
-const { EAR, EXPANDED, GLANCE, PILL_SIZES, SLACK, WIDE, earFor, frame, pillOf, sizeFor } = await import("./geometry");
+const { EAR, EXPANDED, GLANCE, PILL_SIZES, SLACK, TALLEST, WIDE, earFor, frame, panelHeight, pillOf, sizeFor } = await import("./geometry");
 const { pick, pickFrom, place, placedIds } = await import("./placement");
 const { pickColor, toHsl, vivid } = await import("../sdk/color");
 const { load } = await import("./host");
@@ -57,6 +57,16 @@ describe("geometry", () => {
   it("opens at least as wide as the panel, whatever the folded width", () => {
     expect(sizeFor(true, { width: 35, height: 9 })).toEqual({ width: EXPANDED.width, height: 9 + EXPANDED.height });
     expect(sizeFor(true, { width: 600, height: 44 }).width).toBe(600);
+  });
+  it("opens to the panel a tab asks for, between the usual one and the tallest", () => {
+    expect(sizeFor(true, { width: 200, height: 32 }, false, 1, 300)).toEqual({ width: EXPANDED.width, height: 332 });
+    expect([panelHeight(), panelHeight(300.4), panelHeight(20), panelHeight(9999), panelHeight(Number.NaN)]).toEqual([
+      EXPANDED.height,
+      300,
+      EXPANDED.height,
+      TALLEST,
+      EXPANDED.height,
+    ]);
   });
 });
 

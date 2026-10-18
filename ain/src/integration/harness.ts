@@ -305,12 +305,12 @@ export async function startIsland(sys: System): Promise<Island> {
  * Loads the settings page in the same document, on the same settings store and plugins folder as
  * the island, so a change made there reaches the island as it would through the app.
  */
-export async function startSettings(sys: System, at = "") {
+export async function startSettings(sys: System, at = "", { inApp = false } = {}) {
   history.replaceState(null, "", at ? `/#${at}` : "/");
   // The page sets itself up when its module loads: load a fresh copy, reading the ports given here.
   vi.resetModules();
   const ports = await import("../shell/windows/settings/ports");
-  ports.usePorts({ store: sys.store, popup: sys.popup, folder: sys.folder, importer: sys.importer, community: sys.community, secrets: sys.secrets, inApp: false });
+  ports.usePorts({ store: sys.store, popup: sys.popup, folder: sys.folder, importer: sys.importer, community: sys.community, secrets: sys.secrets, services: sys.services, inApp });
   await import("../shell/windows/settings/main");
   await advance(0);
   const page = document.querySelector<HTMLElement>(".app")!;

@@ -4,6 +4,7 @@ import { type ExtensionsPort, type Importer, importSource, noExtensions, tauriEx
 import { type SettingsPort, memorySettings, tauriSettings } from "../../settings";
 import { type SecretsPort, memorySecrets, tauriSecrets } from "../../secrets";
 import { type UpdaterPort, demoUpdater, tauriUpdater } from "../../updater";
+import { type Services, tauriServices } from "../../../features/services";
 
 /** What the settings page talks to. */
 export interface SettingsPorts {
@@ -17,6 +18,8 @@ export interface SettingsPorts {
   readonly updater?: UpdaterPort;
   /** Plugins' secrets; without it (e.g. in a test), kept in memory. */
   readonly secrets?: SecretsPort;
+  /** What plugins' settings panels and pages are given; without it, the app's. */
+  readonly services?: Services;
   /** True inside the app: shortcuts can be tried, folders picked and plugins set up with real services. */
   readonly inApp: boolean;
 }
@@ -32,6 +35,7 @@ export function appPorts(): SettingsPorts {
     community: inApp ? tauriCommunity : noCommunity,
     updater: inApp ? tauriUpdater : demoUpdater(),
     secrets: inApp ? tauriSecrets : memorySecrets(),
+    services: tauriServices,
     inApp,
   };
 }

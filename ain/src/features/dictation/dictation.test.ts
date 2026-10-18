@@ -41,7 +41,7 @@ const named = (root: HTMLElement, text: string) => buttons(root).find((b) => b.t
 describe("in the island", () => {
   const mount = () => {
     const { port, model } = fakePort();
-    const host = { refresh() {}, options: () => ({}) as never, setOptions: vi.fn(), secret: async () => "", openSettings: vi.fn(), appearance: () => ({ style: "pill", size: "normal", theme: "island", tone: "dark", notch: false }) as const };
+    const host = { refresh() {}, options: () => ({}) as never, setOptions: vi.fn(), secret: async () => "", openSettings: vi.fn(), openPage: vi.fn(), appearance: () => ({ style: "pill", size: "normal", theme: "island", tone: "dark", notch: false }) as const };
     const widget = dictation.setup({ dictation: port, clipboard: { copy: vi.fn() } } as never, host);
     const root = document.createElement("section");
     widget.panel?.(root);
@@ -83,7 +83,7 @@ describe("in Settings", () => {
     const root = document.createElement("div");
     document.body.replaceChildren(root);
     let microphone = "";
-    const host = { options: () => ({ model: "whisper-small", microphone }) as never, setOptions: vi.fn() };
+    const host = { options: () => ({ model: "whisper-small", microphone }) as never, setOptions: vi.fn(), openPage: vi.fn() };
     const useMic = (id: string) => (microphone = id);
     const cleanup = dictation.settingsPanel?.(root, { dictation: port } as never, host);
     return { root, port, stop, model, cleanup, host, useMic };

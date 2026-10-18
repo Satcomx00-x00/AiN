@@ -260,6 +260,22 @@ describe("settings targets", async () => {
   });
 });
 
+describe("plugin page targets", async () => {
+  const { pageTarget, parsePage } = await import("./settings");
+
+  it("carry the plugin and its params, encoded so the backend takes them", () => {
+    const target = pageTarget("google-calendar", { calendar: "me@gmail.com", event: "abc_20261020T090000Z", note: "a b&c" });
+    expect(target).toBe("page:google-calendar?calendar=me%40gmail.com&event=abc_20261020T090000Z&note=a+b%26c");
+    expect(parsePage(target)).toEqual({ id: "google-calendar", params: { calendar: "me@gmail.com", event: "abc_20261020T090000Z", note: "a b&c" } });
+    expect(pageTarget("notes")).toBe("page:notes");
+    expect(parsePage("page:notes")).toEqual({ id: "notes", params: {} });
+  });
+
+  it("aren't sections, nor anything else", () => {
+    for (const t of ["widgets:dictation", "page:", "page:Bad", "page:x", "pages:notes"]) expect(parsePage(t)).toBeNull();
+  });
+});
+
 describe("text options", async () => {
   const { text, resolve: resolveOptions } = await import("../sdk/options");
   it("keep a trimmed string, or the default", () => {

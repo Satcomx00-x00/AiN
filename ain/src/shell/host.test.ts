@@ -17,14 +17,15 @@ const settings = (greeting: string): Settings => {
 function fakeWindow() {
   const rules: [number | null, number][] = [];
   const regions: { width: number; height: number }[] = [];
+  const canvases: { width: number; height: number }[] = [];
   let reveal: (shown: boolean) => void = () => {};
   const port: WindowPort = {
     island: async () => ({ width: 200, height: 32, hasNotch: false }),
-    layout: async (_, region) => void regions.push(region),
+    layout: async (canvas, region) => void (canvases.push(canvas), regions.push(region)),
     autoHide: async (dwell, grace) => void rules.push([dwell, grace]),
     onReveal: async (onReveal) => ((reveal = onReveal), () => {}),
   };
-  return { port, rules, regions, reveal: (shown: boolean) => reveal(shown) };
+  return { port, rules, regions, canvases, reveal: (shown: boolean) => reveal(shown) };
 }
 let win = fakeWindow();
 
@@ -419,6 +420,42 @@ describe("short and textless styles", () => {
   });
 });
 
+describe("a tab that asks for a taller panel", () => {
+  const tab = (id: string, panelHeight?: number) => ({
+    id,
+    label: id,
+    description: "",
+    icon: "",
+    slots: ["tab"] as const,
+    ...(panelHeight ? { panelHeight } : {}),
+    setup: () => ({ panel: () => {} }),
+  });
+
+  it("opens the island to it while it's shown, in a window that always fits it", async () => {
+    vi.spyOn(window, "matchMedia").mockReturnValue({ matches: false } as MediaQueryList);
+    const el = document.createElement("div");
+    document.body.replaceChildren(el);
+    win = fakeWindow();
+    const placed = { ...withGeneral({ greeting: "none" }), layout: { glance: { left: [], right: [] }, tabs: ["plain", "month"] } };
+    await mount(el, [tab("plain"), tab("month", 300)] as never, {}, win.port, placed, { styles: [PILL.style] });
+    await settleAll();
+    // The window is sized for the tallest tab from the start: 32 + 300, plus the open slack.
+    expect(win.canvases.at(-1)?.height).toBe(32 + 300 + 16);
+    el.dispatchEvent(new MouseEvent("click"));
+    await settleAll();
+    expect([el.style.getPropertyValue("--h"), el.style.getPropertyValue("--panel-h")]).toEqual([`${32 + 156}px`, "156px"]);
+
+    el.querySelector<HTMLButtonElement>("#tab-month")?.click();
+    await settleAll();
+    expect([el.style.getPropertyValue("--h"), el.style.getPropertyValue("--panel-h")]).toEqual([`${32 + 300}px`, "300px"]);
+    expect(win.regions.at(-1)?.height).toBe(32 + 300 + 16);
+
+    el.querySelector<HTMLButtonElement>("#tab-plain")?.click();
+    await settleAll();
+    expect(el.style.getPropertyValue("--h")).toBe(`${32 + 156}px`);
+  });
+});
+
 describe("pill styles, live", () => {
   it("reads the style's options for its size and while drawing, as they change", async () => {
     const seen: unknown[] = [];
@@ -552,6 +589,21 @@ describe("what plugins see of the island", () => {
     // A style that's gone gives the first one: the plugin is told what is actually drawn.
     handle.configure({ ...placed, general: { ...placed.general, style: "gone", pillSize: "low", theme: "one-light", pillColor: "#fafafa" } });
     expect(host?.appearance()).toEqual({ style: "a", size: "low", theme: "one-light", tone: "light", notch: false });
+  });
+
+  it("opens a plugin's own page in Settings, with what it asks", async () => {
+    let host: Host<never> | undefined;
+    const spy = { id: "spy", label: "Spy", description: "", icon: "", slots: ["glance"] as const, setup: (_: unknown, h: Host<never>) => ((host = h), {}) };
+    vi.spyOn(window, "matchMedia").mockReturnValue({ matches: false } as MediaQueryList);
+    const el = document.createElement("div");
+    document.body.replaceChildren(el);
+    win = fakeWindow();
+    const opened: (string | undefined)[] = [];
+    const placed = { ...withGeneral({}), layout: { glance: { left: [], right: ["spy"] }, tabs: [] } };
+    await mount(el, [spy as never], {}, win.port, placed, { styles: [PILL.style], openSettings: (t) => void opened.push(t) });
+    host?.openPage({ calendar: "me@example.com", event: "e1" });
+    host?.openPage();
+    expect(opened).toEqual(["page:spy?calendar=me%40example.com&event=e1", "page:spy"]);
   });
 
   it("hands a plugin its own secrets, and no one else's", async () => {

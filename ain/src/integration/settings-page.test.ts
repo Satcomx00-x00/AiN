@@ -469,3 +469,92 @@ describe("Settings → Widgets", () => {
     expect(island.glances()[0]).toMatch(/^0?9:41\sAM$/i);
   });
 });
+
+describe("A plugin's page", () => {
+  /** A plugin whose page edits a note, opened from its settings panel; counts the times its page was left. */
+  const notes = (left: { count: number }) => (island: Sdk) =>
+    island.definePlugin({
+      id: "notes",
+      label: "Notes",
+      description: "Notes.",
+      icon: "",
+      slots: ["tab"],
+      options: { last: island.options.text("Last note", "") },
+      settingsPanel(root, _services, host) {
+        root.append(island.dom.button("Open notes", () => host.openPage({ id: "n1" })));
+      },
+      page(root, _services, host) {
+        host.setTitle(`Note ${host.params.id ?? "new"}`);
+        const input = island.dom.h("input", { class: "note" });
+        root.append(
+          island.dom.button("Back", () => host.close()),
+          input,
+          island.dom.button("Save", () => {
+            host.setOptions({ last: input.value });
+            host.close();
+          }),
+        );
+        return () => void left.count++;
+      },
+      setup: () => ({ panel() {} }),
+    });
+  const heading = (root: ParentNode) => root.querySelector("h1")?.textContent;
+  const cardOf = (page: ParentNode, title: string) => [...page.querySelectorAll<HTMLElement>(".card")].find((c) => c.querySelector("h2")?.textContent === title);
+
+  it("opens from its settings panel, keeps what's typed while Settings redraws, then saves and goes back", async () => {
+    environment();
+    const sys = system();
+    const left = { count: 0 };
+    sys.addFile("notes.js", notes(left));
+    await sys.save((s) => ({ ...s, extensions: ["notes.js"] }));
+    const page = await startSettings(sys, "widgets", { inApp: true });
+    await advance(0);
+    await page.open("Widgets");
+    press(cardOf(page.page, "Notes")!, "Open notes");
+    await advance(0);
+    // The whole window is the page's: no menu, its title on the window.
+    expect(page.page.dataset.page).toBe("true");
+    expect(document.title).toBe("Note n1");
+    expect(location.hash).toBe("#page:notes?id=n1");
+
+    const input = page.page.querySelector<HTMLInputElement>("input.note")!;
+    input.value = "Buy milk";
+    // Saved from elsewhere (the island): Settings redraws, the page stays as it is.
+    await sys.save((s) => ({ ...s, general: { ...s.general, openDelay: 300 } }));
+    await advance(0);
+    expect(page.page.querySelector("input.note")).toBe(input);
+    expect(left.count).toBe(0);
+
+    press(page.page, "Save");
+    await page.saved();
+    expect((await sys.settings()).options.notes).toEqual({ last: "Buy milk" });
+    expect(left.count).toBe(1);
+    expect(heading(page.page)).toBe("Widgets");
+    expect(page.page.dataset.page).toBe("false");
+    expect(location.hash).toBe("#widgets");
+  });
+
+  it("opens at a page asked for from elsewhere, and leaving it leads to the plugin's card", async () => {
+    environment();
+    const sys = system();
+    const left = { count: 0 };
+    sys.addFile("notes.js", notes(left));
+    await sys.save((s) => ({ ...s, extensions: ["notes.js"] }));
+    const page = await startSettings(sys, "page:notes?id=7", { inApp: true });
+    await advance(0);
+    expect(document.title).toBe("Note 7");
+    press(page.page, "Back");
+    await advance(0);
+    expect(left.count).toBe(1);
+    expect(heading(page.page)).toBe("Widgets");
+    expect(page.page.querySelector("nav [aria-current=page]")?.textContent?.trim()).toBe("Widgets");
+  });
+
+  it("says when its plugin isn't turned on", async () => {
+    environment();
+    const sys = system();
+    const page = await startSettings(sys, "page:ghost", { inApp: true });
+    await advance(0);
+    expect(page.page.querySelector(".lead")?.textContent).toBe("This plugin isn't turned on: see Plugins.");
+  });
+});

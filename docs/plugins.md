@@ -36,6 +36,7 @@ export default (island) =>
     icon: `<path d="M8 2v7"/>`,   // inner SVG of a 16×16 stroke icon
     slots: ["glance", "tab"],     // where it can go: the pill, a tab, or both
     needs: ["stats"],             // the services `setup` receives
+    panelHeight: 156,             // optional: how tall the open panel is on its tab (156–340 px)
     options: {                    // drawn in Settings, under the plugin's switch
       limit: island.options.number("Alarm above", 85, { min: 10, max: 100, step: 5, unit: "%" }),
     },
@@ -52,6 +53,10 @@ export default (island) =>
 
 [`examples/plugins/cpu-alarm.js`](../ain/examples/plugins/cpu-alarm.js) is a complete,
 working plugin.
+
+A tab gets the open panel's usual 156 px. One that needs room, like a calendar's week or month,
+sets `panelHeight`: the island grows to it while that tab is shown and back when another is, up to
+340 px.
 
 ### What `setup` receives
 
@@ -72,8 +77,8 @@ working plugin.
 - **host**: `host.options()` reads the plugin's options (read them when needed, the user can
   change them anytime), `host.setOptions(patch)` saves some, `host.secret(key)` reads one of its
   secrets (see below), `host.refresh()` redraws the pill now instead of at the next second,
-  `host.openSettings()` opens Settings at the plugin's card, and `host.appearance()` tells how the
-  island looks (see below).
+  `host.openSettings()` opens Settings at the plugin's card, `host.openPage(params)` opens its
+  page (see below), and `host.appearance()` tells how the island looks (see below).
 
 ### Options the user sets
 
@@ -172,6 +177,28 @@ yourself there (e.g. a choice showing live state), in place of the standard cont
 `field`, `field-label`, `field-hint`, `secondary` (buttons) and `progress` (a bar: set `--p`
 from 0 to 1) match the rest of the page. From the island, `host.openSettings()` brings the user
 there.
+
+### A page of its own
+
+The island takes no typing, and a card is small. For work that needs both, like editing a record,
+a plugin adds `page(root, services, host)`: it gets the whole Settings window (no menu, no
+margins; the window grows to about 1200 × 800 when a page opens), so it draws everything,
+including a way back that calls `host.close()`. `host.setTitle(text)` names the window. It gets the
+same services as `setup`, and returns a function that stops whatever it watches, called when the
+page is left.
+
+```js
+page(root, { oauth }, host) {
+  host.setTitle(host.params.event ? "Edit event" : "New event");
+  // … draw a form; on Save: host.setOptions({ revision: Date.now() }); host.close();
+},
+```
+
+Open it with `host.openPage(params)`, from the island (a click on a record, a + button) or from
+the settings panel, whose `host` has it too. `params` are short strings by name, given back as
+`host.params`; the page stays as drawn (what the user typed included) while other settings change,
+until `host.close()` leaves it. The settings classes above, plus `card`,
+`card-foot`, `primary`, `secondary danger` and `switch`, make it look like the rest of Settings.
 
 ### Signing in to an online account
 

@@ -241,3 +241,16 @@ export function parseTarget(target: string, sections: readonly string[]): { sect
   const [section = "", card = ""] = target.split(":", 2);
   return sections.includes(section) ? { section, card: card || null } : null;
 }
+
+/** The settings target of a plugin's page: "page:google-calendar?event=abc" (`params` URL-encoded). */
+export function pageTarget(pluginId: string, params: Readonly<Record<string, string>> = {}): string {
+  const query = new URLSearchParams(Object.entries(params).filter(([, v]) => typeof v === "string")).toString();
+  return query ? `page:${pluginId}?${query}` : `page:${pluginId}`;
+}
+
+/** The plugin and params a page target opens; null when it isn't one. */
+export function parsePage(target: string): { id: string; params: Record<string, string> } | null {
+  const match = /^page:([a-z][a-z0-9-]{1,31})(?:\?(.*))?$/.exec(target);
+  if (!match?.[1]) return null;
+  return { id: match[1], params: Object.fromEntries(new URLSearchParams(match[2] ?? "")) };
+}

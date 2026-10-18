@@ -9,10 +9,13 @@
 //! which could pass another's id, or read its tokens from `fetch`: plugins are trusted code.
 
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{BTreeMap, HashMap},
     io::{BufRead, BufReader, ErrorKind, Read, Write},
     net::{TcpListener, TcpStream},
-    sync::{LazyLock, Mutex},
+    sync::{
+        LazyLock, Mutex,
+        atomic::{AtomicU64, Ordering},
+    },
     time::{Duration, Instant},
 };
 
@@ -179,8 +182,9 @@ fn respond(mut stream: &TcpStream, status: &str, text: &str) {
     );
 }
 
-/// Waits for the provider to send the browser back with a code, until `deadline`.
-fn wait(listener: &TcpListener, state: &str, deadline: Instant) -> Res<String> {
+/// Waits for the provider to send the browser back with a code, until `deadline` or until
+/// `replaced` says a newer sign-in took over.
+fn wait(listener: &TcpListener, state: &str, deadline: Instant, replaced: impl Fn() -> bool) -> Res<String> {
     listener.set_nonblocking(true)?;
     loop {
         match listener.accept() {
@@ -204,6 +208,9 @@ fn wait(listener: &TcpListener, state: &str, deadline: Instant) -> Res<String> {
                 }
             }
             Err(e) if e.kind() == ErrorKind::WouldBlock => {
+                if replaced() {
+                    return Err(Error::msg("a newer sign-in took over"));
+                }
                 if Instant::now() > deadline {
                     return Err(Error::msg("the browser didn't come back in time: try again"));
                 }
@@ -316,22 +323,32 @@ struct Access {
 pub struct Accounts {
     vault: Box<dyn Vault>,
     access: Mutex<HashMap<String, Access>>,
-    /// Sign-ins waiting for the browser, by account.
-    waiting: Mutex<HashSet<String>>,
+    /// The sign-in waiting for the browser, by account: the latest one started.
+    waiting: Mutex<HashMap<String, u64>>,
+    started: AtomicU64,
 }
 
-/// Lets the next sign-in to an account start once this one is over, however it ends.
-struct Waiting<'a>(&'a Mutex<HashSet<String>>, String);
+/// Clears an account's waiting sign-in when it ends, however it ends, unless a newer one took over.
+struct Waiting<'a>(&'a Mutex<HashMap<String, u64>>, String, u64);
+
+impl Waiting<'_> {
+    fn replaced(&self) -> bool {
+        self.0.lock().unwrap_or_else(|e| e.into_inner()).get(&self.1) != Some(&self.2)
+    }
+}
 
 impl Drop for Waiting<'_> {
     fn drop(&mut self) {
-        self.0.lock().unwrap_or_else(|e| e.into_inner()).remove(&self.1);
+        let mut waiting = self.0.lock().unwrap_or_else(|e| e.into_inner());
+        if waiting.get(&self.1) == Some(&self.2) {
+            waiting.remove(&self.1);
+        }
     }
 }
 
 impl Accounts {
     pub fn new(vault: Box<dyn Vault>) -> Self {
-        Self { vault, access: Mutex::default(), waiting: Mutex::default() }
+        Self { vault, access: Mutex::default(), waiting: Mutex::default(), started: AtomicU64::new(0) }
     }
 
     fn remember(&self, key: &str, t: &Tokens) {
@@ -344,19 +361,19 @@ impl Accounts {
     }
 
     /// Signs `plugin` in: `open` shows the sign-in page in the browser; returns once the provider
-    /// sent the user back and the code was exchanged.
+    /// sent the user back and the code was exchanged. Signing in again while one waits (its tab
+    /// closed, or lost) replaces it: the waiting one ends with an error.
     pub fn sign_in(&self, plugin: &str, provider: &Provider, open: impl FnOnce(&str) -> std::io::Result<()>) -> Res<()> {
         check(plugin, provider)?;
         let key = key(plugin, provider);
-        if !self.waiting.lock().unwrap_or_else(|e| e.into_inner()).insert(key.clone()) {
-            return Err(Error::msg("a sign-in is already waiting in the browser"));
-        }
-        let _waiting = Waiting(&self.waiting, key.clone());
+        let n = self.started.fetch_add(1, Ordering::Relaxed);
+        self.waiting.lock().unwrap_or_else(|e| e.into_inner()).insert(key.clone(), n);
+        let waiting = Waiting(&self.waiting, key.clone(), n);
         let listener = TcpListener::bind("127.0.0.1:0")?;
         let redirect = format!("http://127.0.0.1:{}", listener.local_addr()?.port());
         let (state, verifier) = (random(16)?, random(48)?);
         open(&sign_in_link(provider, &redirect, &state, &verifier))?;
-        let code = wait(&listener, &state, Instant::now() + TIMEOUT)?;
+        let code = wait(&listener, &state, Instant::now() + TIMEOUT, || waiting.replaced())?;
         let mut form = vec![
             ("grant_type", "authorization_code"),
             ("code", code.as_str()),
@@ -676,6 +693,28 @@ mod tests {
         };
         assert_eq!(accounts.sign_in("calendar", &p, cancel).unwrap_err().to_string(), "the sign-in was cancelled");
         accounts.sign_in("calendar", &p, browser("c")).unwrap();
+    }
+
+    #[test]
+    fn a_new_sign_in_replaces_one_still_waiting_for_the_browser() {
+        let url = token_server(|_| (200, r#"{"access_token":"a","refresh_token":"r"}"#.into()));
+        let accounts = Accounts::new(Box::new(Arc::new(Memory::default())));
+        let p = provider(&url);
+        let (opened, link) = std::sync::mpsc::channel();
+        thread::scope(|s| {
+            // The first sign-in's tab was lost: the browser never comes back.
+            let first = s.spawn(|| {
+                accounts.sign_in("calendar", &p, move |_| {
+                    opened.send(()).unwrap();
+                    Ok(())
+                })
+            });
+            link.recv().unwrap();
+            accounts.sign_in("calendar", &p, browser("c")).unwrap();
+            assert_eq!(first.join().unwrap().unwrap_err().to_string(), "a newer sign-in took over");
+        });
+        assert!(accounts.signed_in("calendar", &p).unwrap());
+        assert!(accounts.waiting.lock().unwrap().is_empty());
     }
 
     #[test]

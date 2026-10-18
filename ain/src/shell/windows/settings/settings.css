@@ -1246,3 +1246,28 @@ kbd {
     margin-left: 18px;
   }
 }
+
+/* ---------- A plugin's page ---------- */
+.page-back {
+  margin: 0 0 8px -4px;
+  padding: 2px 4px;
+}
+
+/* The whole window is the page's. */
+.app[data-page="true"] {
+  grid-template-columns: 1fr;
+}
+
+.app[data-page="true"] > .nav {
+  display: none;
+}
+
+.app[data-page="true"] > .content {
+  padding: 0;
+  overflow: hidden;
+}
+
+.app[data-page="true"] > .content > .plugin-page {
+  max-width: none;
+  height: 100%;
+}

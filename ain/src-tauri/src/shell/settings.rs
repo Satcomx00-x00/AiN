@@ -13,7 +13,7 @@ use std::{
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use specta::Type;
-use tauri::{AppHandle, Manager, State, WebviewUrl, WebviewWindowBuilder, plugin::TauriPlugin};
+use tauri::{AppHandle, LogicalSize, Manager, Monitor, State, WebviewUrl, WebviewWindowBuilder, plugin::TauriPlugin};
 use tauri_plugin_autostart::ManagerExt;
 use tauri_specta::Event;
 
@@ -81,9 +81,15 @@ fn set(app: AppHandle, store: State<'_, Store>, value: Raw) -> Res<()> {
 #[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
 pub struct Navigate(pub String);
 
-/// A place in the settings window: lowercase words, digits, `-` and `:` (it ends up in a URL).
+/// A place in the settings window: lowercase words, digits, `-` and `:`, then for a plugin's page
+/// an URL-encoded query after `?` (`page:notes?id=a%40b`). It ends up in a URL, so nothing else.
 pub fn valid_target(target: &str) -> bool {
-    !target.is_empty() && target.len() <= 64 && target.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == ':')
+    let (place, query) = target.split_once('?').unwrap_or((target, ""));
+    !place.is_empty()
+        && place.len() <= 64
+        && place.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == ':')
+        && query.len() <= 960
+        && query.chars().all(|c| c.is_ascii_alphanumeric() || "-_.*+%=&".contains(c))
 }
 
 /// Opens the settings window, at `target` if given. Async so the window is created off the IPC
@@ -150,6 +156,31 @@ fn set_autostart(app: AppHandle, enabled: bool) -> Res<()> {
     result.map_err(|e| Error::msg(format!("launch at login: {e}")))
 }
 
+/// The settings window's size, and the size a plugin's page asks for: it has the whole window.
+const SIZE: (f64, f64) = (820.0, 600.0);
+const PAGE: (f64, f64) = (1200.0, 800.0);
+
+/// A plugin's page: everything after "page:" is the plugin's.
+fn is_page(target: Option<&str>) -> bool {
+    target.is_some_and(|t| t.starts_with("page:"))
+}
+
+/// A screen's size in logical pixels.
+fn screen(monitor: Option<Monitor>) -> Option<LogicalSize<f64>> {
+    monitor.map(|m| m.size().to_logical(m.scale_factor()))
+}
+
+/// `wanted`, but never more than 90% of the screen it opens on, nor less than the settings' own size.
+fn fit(wanted: (f64, f64), screen: Option<LogicalSize<f64>>) -> LogicalSize<f64> {
+    let (w, h) = screen.map_or(wanted, |s| (wanted.0.min(s.width * 0.9), wanted.1.min(s.height * 0.9)));
+    LogicalSize::new(w.max(SIZE.0), h.max(SIZE.1))
+}
+
+/// The window grown to `room`, or None when it is already that big: it never shrinks.
+fn grown(now: LogicalSize<f64>, room: LogicalSize<f64>) -> Option<LogicalSize<f64>> {
+    (now.width < room.width || now.height < room.height).then(|| LogicalSize::new(now.width.max(room.width), now.height.max(room.height)))
+}
+
 /// Shows the settings window, creating it the first time, at `target` when given.
 pub fn show(app: &AppHandle, target: Option<&str>) -> Res<()> {
     if let Some(t) = target
@@ -161,15 +192,25 @@ pub fn show(app: &AppHandle, target: Option<&str>) -> Res<()> {
         w.unminimize()?;
         w.show()?;
         w.set_focus()?;
+        // A page gets room: the window grows (never shrinks) to the page's size.
+        if is_page(target) {
+            let scale = w.scale_factor()?;
+            let now = w.inner_size()?.to_logical::<f64>(scale);
+            if let Some(size) = grown(now, fit(PAGE, screen(w.current_monitor()?))) {
+                w.set_size(size)?;
+                w.center()?;
+            }
+        }
         if let Some(t) = target {
             Navigate(t.into()).emit(app)?;
         }
         return Ok(());
     }
     let url = target.map_or_else(|| "settings.html".to_string(), |t| format!("settings.html#{t}"));
+    let size = if is_page(target) { fit(PAGE, screen(app.primary_monitor()?)) } else { LogicalSize::new(SIZE.0, SIZE.1) };
     WebviewWindowBuilder::new(app, WINDOW, WebviewUrl::App(url.into()))
         .title("AiN settings")
-        .inner_size(820.0, 600.0)
+        .inner_size(size.width, size.height)
         .min_inner_size(640.0, 480.0)
         .center()
         .focused(true)
@@ -245,12 +286,57 @@ mod tests {
 
     #[test]
     fn accepts_only_plain_settings_targets() {
-        for ok in ["widgets", "widgets:dictation", "widgets:cpu-alarm2"] {
+        for ok in [
+            "widgets",
+            "widgets:dictation",
+            "widgets:cpu-alarm2",
+            "page:notes",
+            "page:cal?calendar=me%40gmail.com&event=abc_2026T09Z&n=a+b",
+        ] {
             assert!(valid_target(ok), "{ok}");
         }
-        for bad in ["", "Widgets", "widgets/../x", "a b", "x#y", "widgets:<script>", &"a".repeat(65)] {
+        let long = format!("page:x?q={}", "a".repeat(960));
+        for bad in [
+            "",
+            "Widgets",
+            "widgets/../x",
+            "a b",
+            "x#y",
+            "widgets:<script>",
+            &"a".repeat(65),
+            "?a=b",
+            "page:x?a=<b>",
+            "page:x?a#b",
+            "page:x?a b",
+            "page:x?a=\"b\"",
+            &long,
+        ] {
             assert!(!valid_target(bad), "{bad}");
         }
+    }
+
+    #[test]
+    fn only_a_plugins_page_asks_for_a_bigger_window() {
+        assert!(is_page(Some("page:google-calendar?date=2026-10-18")));
+        assert!(!is_page(Some("widgets:google-calendar")));
+        assert!(!is_page(None));
+    }
+
+    #[test]
+    fn a_page_fits_the_screen_but_never_falls_below_the_settings_size() {
+        let size = |w, h| LogicalSize::new(w, h);
+        assert_eq!(fit(PAGE, None), size(1200.0, 800.0));
+        assert_eq!(fit(PAGE, Some(size(2560.0, 1440.0))), size(1200.0, 800.0));
+        assert_eq!(fit(PAGE, Some(size(1280.0, 720.0))), size(1152.0, 648.0));
+        assert_eq!(fit(PAGE, Some(size(800.0, 600.0))), size(SIZE.0, SIZE.1));
+    }
+
+    #[test]
+    fn an_open_window_grows_for_a_page_but_never_shrinks() {
+        let size = |w, h| LogicalSize::new(w, h);
+        assert_eq!(grown(size(820.0, 600.0), size(1200.0, 800.0)), Some(size(1200.0, 800.0)));
+        assert_eq!(grown(size(1400.0, 600.0), size(1200.0, 800.0)), Some(size(1400.0, 800.0)));
+        assert_eq!(grown(size(1400.0, 900.0), size(1200.0, 800.0)), None);
     }
 
     #[test]
