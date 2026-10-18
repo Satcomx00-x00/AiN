@@ -3,6 +3,15 @@
 All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.6.0](https://github.com/Satcomx00-x00/AiN/compare/v0.5.1..v0.6.0) - 2026-10-18
+
+### Features
+
+- **plugins:** Options the user fills in: secrets, colors, checked text and numbers ([2dd8699](https://github.com/Satcomx00-x00/AiN/commit/2dd8699ff93e1d59d5a0f6b7c064a4df0f95d8be))
+
+### Bug fixes
+
+- **preview:** Give the browser preview's island an in-memory secrets store ([129eeef](https://github.com/Satcomx00-x00/AiN/commit/129eeef7286b1ae211e3f7da7d55c715d96071a2))
 ## [0.5.1](https://github.com/Satcomx00-x00/AiN/compare/v0.5.0..v0.5.1) - 2026-10-17
 
 ### Bug fixes
