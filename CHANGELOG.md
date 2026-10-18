@@ -3,6 +3,12 @@
 All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.7.0](https://github.com/Satcomx00-x00/AiN/compare/v0.6.0..v0.7.0) - 2026-10-18
+
+### Features
+
+- **oauth:** Sign plugins in to online accounts ([4b28ca7](https://github.com/Satcomx00-x00/AiN/commit/4b28ca73e0857f5e5d218007c4074e52bf769783))
+- **plugins:** Pages of their own, taller tabs, and a sign-in that can start over ([22084f5](https://github.com/Satcomx00-x00/AiN/commit/22084f5829c433fdfbc227572fd9b9cdd14a2e48))
 ## [0.6.0](https://github.com/Satcomx00-x00/AiN/compare/v0.5.1..v0.6.0) - 2026-10-18
 
 ### Features
