@@ -2,6 +2,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Greeting, Stage } from "../sdk/greeting";
 import type { Host } from "../sdk/plugin";
+import { secret, text } from "../sdk/options";
 import type { AnyStyle, Folded } from "../sdk/style";
 import { mount } from "./host";
 import { type Settings, defaults } from "./settings";
@@ -551,5 +552,31 @@ describe("what plugins see of the island", () => {
     // A style that's gone gives the first one: the plugin is told what is actually drawn.
     handle.configure({ ...placed, general: { ...placed.general, style: "gone", pillSize: "low", theme: "one-light", pillColor: "#fafafa" } });
     expect(host?.appearance()).toEqual({ style: "a", size: "low", theme: "one-light", tone: "light", notch: false });
+  });
+
+  it("hands a plugin its own secrets, and no one else's", async () => {
+    let host: Host<never> | undefined;
+    const spy = {
+      id: "spy",
+      label: "Spy",
+      description: "",
+      icon: "",
+      slots: ["glance"] as const,
+      options: { token: secret("Token"), city: text("City") },
+      setup: (_: unknown, h: Host<never>) => ((host = h), {}),
+    };
+    vi.spyOn(window, "matchMedia").mockReturnValue({ matches: false } as MediaQueryList);
+    const el = document.createElement("div");
+    document.body.replaceChildren(el);
+    win = fakeWindow();
+    const placed = { ...withGeneral({}), layout: { glance: { left: [], right: ["spy"] }, tabs: [] } };
+    const asked: string[] = [];
+    const readSecret = async (id: string, key: string) => (asked.push(`${id}/${key}`), "s3cret");
+    await mount(el, [spy as never], {}, win.port, placed, { readSecret });
+    const h = host as unknown as Host<Record<string, string>>;
+    expect(await h.secret("token")).toBe("s3cret");
+    await expect(h.secret("city")).rejects.toThrow(`"city" isn't one of spy's secret options`);
+    await expect(h.secret("weather/apiKey")).rejects.toThrow();
+    expect(asked).toEqual(["spy/token"]);
   });
 });

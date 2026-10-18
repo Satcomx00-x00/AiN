@@ -15,7 +15,7 @@ it), then turn it on above. **Update** downloads the latest version again; resta
 
 By hand:
 
-1. **Settings → Plugins → Open plugins folder.**
+1. **Settings → Plugins → Plugins folder → Open.**
 2. Put the plugin there: a `.js` file, or a folder with an `index.js`.
 3. Back in **Settings → Plugins**, click **Refresh**, then turn the plugin on. It is placed in the
    tabs (or on the pill) right away; move it in **Settings → Layout**.
@@ -69,9 +69,65 @@ working plugin.
   are not available to plugins.
 
 - **host**: `host.options()` reads the plugin's options (read them when needed, the user can
-  change them anytime), `host.setOptions(patch)` saves some, `host.refresh()` redraws the
-  pill now instead of at the next second, `host.openSettings()` opens Settings at the
-  plugin's card, and `host.appearance()` tells how the island looks (see below).
+  change them anytime), `host.setOptions(patch)` saves some, `host.secret(key)` reads one of its
+  secrets (see below), `host.refresh()` redraws the pill now instead of at the next second,
+  `host.openSettings()` opens Settings at the plugin's card, and `host.appearance()` tells how the
+  island looks (see below).
+
+### Options the user sets
+
+`options` lists what the user can set; Settings draws a control for each under the plugin's
+switch, and `host.options()` hands the plugin their values (or the defaults). Each builder takes
+the label first:
+
+| Builder | Control | Value |
+| --- | --- | --- |
+| `toggle(label, value, hint?)` | a switch | `true` or `false` |
+| `number(label, value, { min, max, step?, unit?, box? }, hint?)` | a slider; with `box: true`, a box to type in, for wide ranges like a port | a number in range |
+| `choice(label, value, [[value, label], …], hint?)` | buttons side by side, or a drop-down list past three | one of the values |
+| `list(label, value, placeholder?, hint?)` | chips, added with Enter | an array of strings |
+| `folder(label, placeholder?, hint?)` | a path and a Browse… button | a path, `""` for the default |
+| `text(label, value, { placeholder?, hint?, multiline?, required?, pattern?, invalid?, maxLength? })` | a text field, or several lines with `multiline` | a string |
+| `secret(label, { placeholder?, hint?, required?, pattern?, invalid? })` | a hidden field | read it with `host.secret(key)` |
+| `color(label, "#rrggbb", hint?)` | a color picker | `"#rrggbb"` |
+
+`text(label, value, placeholder?, hint?)` still works as before.
+
+**Checking what's typed.** A text or secret can be `required`, match a `pattern` (a regular
+expression the whole value must match, e.g. `"[a-f0-9]{32}"`), and be at most `maxLength`
+characters. Settings says what's wrong under the field (`invalid` words it: `"32 hex digits"` gives
+"Expected 32 hex digits.") and doesn't save the value until it fits; a number in a `box` must be in
+range and on a step. While a required option is empty, the plugin's card says **Needs setup**, so
+check for it in the plugin too and say what's missing (e.g. a glance pointing to
+`host.openSettings()`). A value that doesn't fit (written to the settings file by hand) reaches the
+plugin as the default.
+
+**Secrets.** API keys, tokens and passwords belong in a `secret`: typed hidden, it is kept in the
+system's credential store (Windows Credential Manager, the macOS Keychain, the Secret Service on
+Linux) rather than in the settings file, and Settings only shows whether one is saved. Its key is
+letters, digits, `_` or `-`. Read it when needed, it can change anytime:
+
+```js
+options: {
+  apiKey: island.options.secret("API key", { required: true, pattern: "[a-f0-9]{32}", invalid: "32 hex digits" }),
+  city: island.options.text("City", "", { required: true, placeholder: "e.g. Lyon" }),
+},
+setup(services, host) {
+  return {
+    async tick() {
+      const key = await host.secret("apiKey"); // "" when none is saved
+      if (!key) return;
+      // fetch the forecast for host.options().city …
+    },
+  };
+},
+```
+
+`host.secret` gives a plugin only the secrets it declares. That keeps them off disk in plain text,
+not away from other plugins: every plugin runs with the island's permissions. Older versions of AiN
+don't have it; `host.secret?.(key)` lets a plugin say it needs a newer one there. Secrets stay in
+the credential store when the plugin is turned off; **Remove** deletes one. **Reset to defaults**,
+under the options, puts every other option back.
 
 ### What it returns
 
@@ -201,7 +257,7 @@ See [`examples/plugins/neon-line.js`](../ain/examples/plugins/neon-line.js).
 | `island.defineGreeting(def)` | the same, for a startup animation |
 | `island.defineStyle(def)` | the same, for a pill style |
 | `island.settle(animations)` | resolves once every Web Animation given has finished or been cancelled |
-| `island.options` | `toggle`, `number`, `choice`, `list`, `folder`, `text`: option fields for Settings |
+| `island.options` | `toggle`, `number`, `choice`, `list`, `folder`, `text`, `secret`, `color`: option fields for Settings (see [Options the user sets](#options-the-user-sets)) |
 | `island.dom` | `h(tag, attrs, ...children)`, `button`, `icon`, `svg`, `tween`, `odometer`, `roll`, `reducedMotion` |
 | `island.chart` | `curve`, `curveArea`, `sparkline`: SVG paths for small graphs |
 | `island.color` | `isLight`, `pickColor`, `imageColor` and other color helpers |
@@ -227,7 +283,17 @@ opens; it isn't built into the app.
      repo: https://github.com/you/my-plugin
      branch: main           # optional: the branch, tag or commit to install (default branch otherwise)
      entry: index.js        # optional: the plugin's file in the repository (index.js otherwise)
+     options:               # optional: what the user sets up, shown before the plugin is turned on
+       apiKey: { kind: secret, label: API key, required: true }
+       city: { kind: text, label: City, default: "", required: true }
    ```
+
+A plugin's code doesn't run until it is turned on, so Settings can't know its options before. List
+the ones to fill in first under `options`, as the plugin's code declares them (`kind`, `label`,
+`default` and the builder's other settings, with choices as `{ value, label }`; a number's `step`
+is 1 if left out), and the user sets the plugin up right after installing it. Use the plugin's own
+`id` as the entry's `id`: options are saved under it, so the plugin finds them once on, and its own
+options then take over.
 
 Installing downloads `entry` from `raw.githubusercontent.com`, so only GitHub repositories can be
 installed from the app; others are listed with a link to install by hand. Entries are reviewed

@@ -41,7 +41,7 @@ const named = (root: HTMLElement, text: string) => buttons(root).find((b) => b.t
 describe("in the island", () => {
   const mount = () => {
     const { port, model } = fakePort();
-    const host = { refresh() {}, options: () => ({}) as never, setOptions: vi.fn(), openSettings: vi.fn(), appearance: () => ({ style: "pill", size: "normal", theme: "island", tone: "dark", notch: false }) as const };
+    const host = { refresh() {}, options: () => ({}) as never, setOptions: vi.fn(), secret: async () => "", openSettings: vi.fn(), appearance: () => ({ style: "pill", size: "normal", theme: "island", tone: "dark", notch: false }) as const };
     const widget = dictation.setup({ dictation: port, clipboard: { copy: vi.fn() } } as never, host);
     const root = document.createElement("section");
     widget.panel?.(root);

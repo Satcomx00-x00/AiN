@@ -280,10 +280,179 @@ describe("Settings → Plugins → Community store", () => {
     expect(storeCards(page.page).map((c) => c.querySelector("h2")?.textContent)).toEqual(["Orbit clock"]);
   });
 
+  it("names a plugin that's off by its store listing, or by its file, and shows the file", async () => {
+    environment();
+    const sys = system();
+    sys.addOffer(orbit, orbitPlugin);
+    sys.addFile("orbit-clock/index.js", orbitPlugin);
+    sys.addFile("cpu-alarm.js", orbitPlugin);
+    const page = await startSettings(sys, "plugins");
+    await advance(0);
+    const listed = fileCard(page.page, "orbit-clock/index.js")!;
+    expect(listed.querySelector("h2")?.textContent).toBe("Orbit clock");
+    expect(listed.textContent).toContain("An analog clock.");
+    expect(listed.querySelector(".mono")?.textContent).toBe("orbit-clock/index.js");
+    const loose = fileCard(page.page, "cpu-alarm.js")!;
+    expect(loose.querySelector("h2")?.textContent).toBe("Cpu alarm");
+    expect(loose.textContent).toContain("Turn it on to load it.");
+  });
+
+  it("shows the plugins folder with its buttons, above the installed plugins", async () => {
+    environment();
+    const page = await startSettings(system(), "plugins");
+    const bar = page.page.querySelector<HTMLElement>(".folder-bar")!;
+    expect(bar.querySelector(".mono")?.textContent).toBe("/plugins");
+    expect([...bar.querySelectorAll("button")].map((b) => b.textContent)).toEqual(["Open", "Refresh"]);
+    expect([...page.page.querySelectorAll(".subhead")].map((s) => s.textContent)).toEqual(["Installed", "Community store"]);
+  });
+
   it("says when the store lists nothing", async () => {
     environment();
     const page = await startSettings(system(), "plugins");
     expect(page.page.textContent).toContain("The store has no plugins yet.");
+  });
+});
+
+describe("Settings → Plugins → options the user fills in", () => {
+  /** A weather plugin that needs an API key and a city; `seen` gets what it reads through its host. */
+  const weather = (seen: { host?: { secret(key: string): Promise<string>; options(): Record<string, unknown> } } = {}) => (island: Sdk) =>
+    island.definePlugin({
+      id: "weather",
+      label: "Weather",
+      description: "The forecast.",
+      icon: "",
+      slots: ["glance"],
+      options: {
+        apiKey: island.options.secret("API key", { required: true, pattern: "[a-f0-9]{8}", invalid: "8 hex digits" }),
+        city: island.options.text("City", "", { required: true, pattern: "[A-Za-z ]+", invalid: "a city name" }),
+        port: island.options.number("Proxy port", 8080, { min: 1, max: 65535, box: true }),
+        notes: island.options.text("Notes", "", { multiline: true }),
+        tint: island.options.color("Tint", "#ff8800"),
+      },
+      setup: (_: unknown, host: never) => ((seen.host = host), { glance: () => null }),
+    });
+  const cardOf = (page: ParentNode, title: string) => [...page.querySelectorAll<HTMLElement>(".card")].find((c) => c.querySelector("h2")?.textContent === title)!;
+  const fieldOf = (card: HTMLElement, label: string) => [...card.querySelectorAll<HTMLElement>(".field")].find((f) => f.querySelector(".field-label")?.textContent === label)!;
+  const type = (el: HTMLElement | null, value: string, event: "change" | "input" = "change") => {
+    (el as HTMLInputElement).value = value;
+    el!.dispatchEvent(new Event(event));
+  };
+  const errorOf = (fieldEl: HTMLElement) => fieldEl.querySelector(".field-error")?.textContent ?? null;
+  const turnOn = async (page: Awaited<ReturnType<typeof startSettings>>, file: string) => {
+    [...page.page.querySelectorAll<HTMLElement>(".card")].find((c) => c.textContent?.includes(file))!.querySelector<HTMLElement>("[role=switch]")!.click();
+    await page.saved();
+  };
+
+  it("keeps a secret in the credential store, never in the settings, and the plugin reads it", async () => {
+    environment();
+    const sys = system();
+    const seen: Parameters<typeof weather>[0] = {};
+    sys.addFile("weather.js", weather(seen));
+    await sys.save((s) => ({ ...s, layout: { ...s.layout, glance: { left: ["weather"], right: [] } } }));
+    await startIsland(sys);
+    const page = await startSettings(sys, "plugins");
+    await turnOn(page, "weather.js");
+    await advance(0);
+    const card = cardOf(page.page, "Weather");
+    expect(card.querySelector<HTMLElement>(".needs-setup")?.hidden).toBe(false);
+    expect(card.querySelector<HTMLElement>(".needs-setup")?.title).toBe("Still to fill in: API key, City");
+
+    const key = fieldOf(card, "API key");
+    const input = key.querySelector<HTMLInputElement>("input[type=password]")!;
+    type(input, "not-hex", "input");
+    press(key, "Save");
+    await advance(0);
+    expect(errorOf(key)).toBe("Expected 8 hex digits.");
+    expect(await sys.secrets.get("weather", "apiKey")).toBeNull();
+
+    type(input, "deadbeef", "input");
+    press(key, "Save");
+    await advance(0);
+    expect(errorOf(key)).toBeNull();
+    expect(input.value).toBe("");
+    expect(input.placeholder).toBe("Saved: type a new one to replace it");
+    expect(await sys.secrets.get("weather", "apiKey")).toBe("deadbeef");
+    expect(JSON.stringify(await sys.settings())).not.toContain("deadbeef");
+    expect(card.querySelector<HTMLElement>(".needs-setup")?.title).toBe("Still to fill in: City");
+
+    await advance(1000);
+    expect(await seen.host!.secret("apiKey")).toBe("deadbeef");
+    press(key, "Remove");
+    await advance(0);
+    expect(await seen.host!.secret("apiKey")).toBe("");
+  });
+
+  it("doesn't save text or a number that doesn't fit, and says why", async () => {
+    environment();
+    const sys = system();
+    sys.addFile("weather.js", weather());
+    const page = await startSettings(sys, "plugins");
+    await turnOn(page, "weather.js");
+    const card = cardOf(page.page, "Weather");
+
+    const city = fieldOf(card, "City");
+    expect(errorOf(city)).toBeNull();
+    type(city.querySelector("input"), "Paris 75");
+    await page.saved();
+    expect(errorOf(city)).toBe("Expected a city name.");
+    expect((await sys.settings()).options.weather?.city).toBeUndefined();
+    type(city.querySelector("input"), "  Paris ");
+    await page.saved();
+    expect(errorOf(city)).toBeNull();
+    expect((await sys.settings()).options.weather?.city).toBe("Paris");
+
+    const port = fieldOf(card, "Proxy port");
+    type(port.querySelector("input"), "70000");
+    await page.saved();
+    expect(errorOf(port)).toBe("Between 1 and 65535.");
+    expect((await sys.settings()).options.weather?.port).toBeUndefined();
+    type(port.querySelector("input"), "3128");
+    await page.saved();
+    expect((await sys.settings()).options.weather?.port).toBe(3128);
+
+    type(fieldOf(card, "Notes").querySelector("textarea"), "line one\nline two");
+    await page.saved();
+    expect((await sys.settings()).options.weather?.notes).toBe("line one\nline two");
+  });
+
+  it("puts every option back to its default, but keeps the secrets", async () => {
+    environment();
+    const sys = system();
+    sys.addFile("weather.js", weather());
+    await sys.secrets.set("weather", "apiKey", "deadbeef");
+    await sys.save((s) => ({ ...s, extensions: ["weather.js"], options: { ...s.options, weather: { city: "Paris", port: 3128 } } }));
+    const page = await startSettings(sys, "plugins");
+    await advance(0);
+    press(cardOf(page.page, "Weather"), "Reset to defaults");
+    await page.saved();
+    expect((await sys.settings()).options.weather).toBeUndefined();
+    expect(await sys.secrets.get("weather", "apiKey")).toBe("deadbeef");
+    expect(fieldOf(cardOf(page.page, "Weather"), "City").querySelector("input")?.value).toBe("");
+  });
+
+  it("sets a store plugin up before it's turned on, from the options its listing declares", async () => {
+    environment();
+    const sys = system();
+    const options = {
+      apiKey: { kind: "secret", label: "API key", required: true },
+      city: { kind: "text", label: "City", default: "", required: true },
+    };
+    sys.addOffer({ id: "weather", name: "Weather", description: "The forecast.", repo: "https://github.com/o/r", options }, weather());
+    const page = await startSettings(sys, "plugins");
+    press([...page.page.querySelectorAll<HTMLElement>(".store-card")][0]!, "Install");
+    await advance(0);
+
+    const installed = [...page.page.querySelectorAll<HTMLElement>(".card:not(.store-card)")].find((c) => c.textContent?.includes("weather/index.js"))!;
+    expect(installed.textContent).toContain("Set it up now: it uses these once turned on.");
+    expect(installed.querySelector<HTMLElement>(".needs-setup")?.hidden).toBe(false);
+    type(fieldOf(installed, "City").querySelector("input"), "Lyon");
+    await page.saved();
+    expect((await sys.settings()).options.weather).toEqual({ city: "Lyon" });
+    expect((await sys.settings()).extensions).toEqual([]);
+
+    // On, its own options take over, under the same id: what was set is there.
+    await turnOn(page, "weather/index.js");
+    expect(fieldOf(cardOf(page.page, "Weather"), "City").querySelector("input")?.value).toBe("Lyon");
   });
 });
 

@@ -1,5 +1,5 @@
 // An example plugin for the island: copy this file into the plugins folder (Settings → Plugins →
-// "Open plugins folder"), then turn it on in Settings → Plugins.
+// "Plugins folder" → Open), then turn it on in Settings → Plugins.
 //
 // A plugin is an ES module whose default export receives the island's SDK and returns a plugin
 // definition. It runs as-is: no build step, no imports.

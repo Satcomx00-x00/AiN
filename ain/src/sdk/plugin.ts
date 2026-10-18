@@ -66,6 +66,11 @@ export interface Host<Options = unknown> {
   options(): Options;
   /** Saves some of this plugin's options (e.g. a choice made in its panel); settings and other windows follow. */
   setOptions(patch: Partial<Options>): void;
+  /**
+   * One of its `secret` options (an API key, a token), from the system's credential store; "" when
+   * none is saved. Read it when needed, since the user can change it anytime.
+   */
+  secret(key: keyof Options & string): Promise<string>;
   /** Opens Settings at this plugin's card: where to set it up, rather than in the island. */
   openSettings(): void;
   /** How the island looks now; read it when drawing, since the user can change it anytime. */

@@ -29,6 +29,8 @@ export type Offer = {
 	file: string,
 	/**  Why it can't be installed from the app, e.g. a repository outside GitHub; `None` if it can. */
 	problem: string | null,
+	/**  Its options as the store declares them (`null` for none); the settings page checks them. */
+	options: unknown | null,
 };
 
 /**  What the store offers, or why it couldn't be read. */

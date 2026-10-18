@@ -1,7 +1,7 @@
 import { button, h, icon } from "../../../sdk/dom";
 import { select } from "../../../sdk/select";
 import { hexToHsv, hsvToHex, parseHex } from "../../../sdk/color";
-import type { Field } from "../../../sdk/options";
+import { type Field, type NumberField, type SecretField, type TextField, numberProblem, textProblem } from "../../../sdk/options";
 import type { Theme } from "../../themes";
 
 const X = `<path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/>`;
@@ -14,6 +14,16 @@ export function field(label: string, hint: string | undefined, control: HTMLElem
     h("div", {}, h("div", { class: "field-label" }, label), ...(hint ? [h("div", { class: "field-hint" }, hint)] : [])),
     control,
   );
+}
+
+/** Says what's wrong with a field's value under its label, or clears it when `message` is null. */
+export function flag(fieldEl: HTMLElement, message: string | null): void {
+  fieldEl.classList.toggle("invalid", message !== null);
+  const at = fieldEl.firstElementChild!;
+  let note = at.querySelector<HTMLElement>(".field-error");
+  if (!message) return note?.remove();
+  note ??= at.appendChild(h("div", { class: "field-error", role: "alert" }));
+  note.textContent = message;
 }
 
 export function switchControl(value: boolean, onChange: (v: boolean) => void, label: string): HTMLButtonElement {
@@ -56,14 +66,14 @@ export function rangeControl(
  * Any color: a saturation/brightness square, a hue slider and the hex code.
  * The swatch opens the palette; `fallback` is what "Theme color" goes back to.
  */
-export function colorPicker(value: string, fallback: string, onChange: (v: string) => void, label: string): HTMLElement {
+export function colorPicker(value: string, fallback: string, onChange: (v: string) => void, label: string, resetLabel = "Theme color"): HTMLElement {
   let [hue, sat, val] = hexToHsv(value);
   const swatch = button("", () => {
     panel.hidden = !panel.hidden;
     swatch.setAttribute("aria-expanded", String(!panel.hidden));
   }, { class: "cp-swatch", "aria-label": `${label}: open the palette`, "aria-expanded": "false", title: "Open the palette" });
   const hex = h("input", { class: "cp-hex", type: "text", maxlength: "7", spellcheck: "false", "aria-label": `${label}, hex code` });
-  const reset = button("Theme color", () => setHex(fallback), { class: "secondary" });
+  const reset = button(resetLabel, () => setHex(fallback), { class: "secondary" });
   const knob = h("i", { class: "cp-knob" });
   const area = h("div", { class: "cp-area", tabindex: "0", role: "slider", "aria-label": `${label}: saturation and brightness` }, knob);
   const hueInput = h("input", { class: "cp-hue", type: "range", min: "0", max: "359", step: "1", "aria-label": `${label}: hue` });
@@ -245,7 +255,101 @@ export function folderControl(
   return h("div", { class: "path" }, input, browse, reset);
 }
 
-/** The right control for a plugin option field. */
+/** A number typed in a box, for ranges too wide for a slider: saved once it fits the range. */
+function numberBox(f: NumberField, value: number, onChange: (v: number) => void): HTMLElement {
+  const input = h("input", { class: "path-input number-input", type: "number", min: String(f.min), max: String(f.max), step: String(f.step), "aria-label": f.label });
+  input.value = String(value);
+  const el = field(f.label, f.hint, h("div", { class: "number-box" }, input, ...(f.unit ? [h("span", { class: "number-unit" }, f.unit)] : [])));
+  input.addEventListener("change", () => {
+    const n = input.value.trim() === "" ? Number.NaN : Number(input.value);
+    const problem = numberProblem(f, n);
+    flag(el, problem);
+    if (!problem) onChange(n);
+  });
+  return el;
+}
+
+/** Free text, on one line or several: saved once it passes the field's rules. */
+function textControl(f: TextField, value: string, onChange: (v: string) => void): HTMLElement {
+  const attrs = {
+    class: f.multiline ? "path-input text-area" : "path-input",
+    spellcheck: "false",
+    placeholder: f.placeholder ?? "",
+    "aria-label": f.label,
+    ...(f.maxLength ? { maxlength: String(f.maxLength) } : {}),
+  };
+  const input = f.multiline ? h("textarea", { ...attrs, rows: "4" }) : h("input", { ...attrs, type: "text" });
+  input.value = value;
+  const el = field(f.label, f.hint, input, true);
+  input.addEventListener("change", () => {
+    const typed = input.value.trim();
+    const problem = textProblem(f, typed);
+    flag(el, problem);
+    // An emptied required field is saved empty (the card then says it needs setting up); a typo isn't.
+    if (!problem || !typed) onChange(typed);
+  });
+  return el;
+}
+
+/** How Settings reaches a plugin's secret in the credential store, without reading it back. */
+export interface SecretAccess {
+  /** Whether one is saved. */
+  readonly saved: () => Promise<boolean>;
+  /** Saves it; "" removes it. */
+  readonly save: (value: string) => Promise<void>;
+}
+
+const messageOf = (e: unknown) => (e instanceof Error ? e.message : String(e));
+
+/**
+ * A secret: typed hidden and saved to the system's credential store. What's saved is never shown,
+ * only that there is one; typing replaces it, Remove deletes it.
+ */
+export function secretControl(f: SecretField, access: SecretAccess | undefined): HTMLElement {
+  const input = h("input", { class: "path-input", type: "password", autocomplete: "off", spellcheck: "false", "aria-label": f.label });
+  const save = button("Save", () => void commit(), { class: "secondary", disabled: "" });
+  const remove = button("Remove", () => void store(""), { class: "secondary" });
+  const state = h("div", { class: "secret-state" });
+  remove.hidden = true;
+  const el = field(f.label, f.hint, h("div", {}, h("div", { class: "path secret" }, input, save, remove), state), true);
+  /** Shows whether one is saved; "Required." only once the user removed it, the card's badge says so before. */
+  const show = (saved: boolean, removed = false) => {
+    input.value = "";
+    input.placeholder = saved ? "Saved: type a new one to replace it" : (f.placeholder ?? "Not set");
+    remove.hidden = !saved;
+    save.disabled = true;
+    state.textContent = saved ? "Kept in the system's credential store, not in the settings file." : "";
+    flag(el, removed && f.required ? "Required." : null);
+  };
+  const store = async (value: string) => {
+    if (!access) return;
+    try {
+      await access.save(value);
+      show(value !== "", value === "");
+    } catch (e) {
+      flag(el, `Couldn't save it: ${messageOf(e)}`);
+    }
+  };
+  const commit = async () => {
+    const typed = input.value.trim();
+    const problem = textProblem({ ...f, required: false }, typed);
+    flag(el, problem);
+    if (typed && !problem) await store(typed);
+  };
+  input.addEventListener("input", () => (save.disabled = !input.value.trim()));
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") void commit();
+  });
+  if (!access) {
+    input.disabled = true;
+    input.placeholder = "Secrets can only be set in the app";
+  } else {
+    input.placeholder = "Checking…";
+    access.saved().then(show, (e: unknown) => flag(el, `Couldn't read the credential store: ${messageOf(e)}`));
+  }
+  return el;
+}
+
 /** A drop-down list: for choices too many (or too long) to sit side by side. */
 export const dropdown = (
   value: string,
@@ -272,17 +376,19 @@ export function aroundPanel(fields: Readonly<Record<string, Field>>): { before: 
 /** Up to this many choices show as buttons side by side; more become a drop-down list. */
 export const MAX_SEGMENTS = 3;
 
+/** The right control for a plugin option field; a secret needs `secret` to reach the credential store. */
 export function optionControl(
   f: Field,
   value: unknown,
   onChange: (v: unknown) => void,
   pickFolder: (current: string) => Promise<string | null> = async () => null,
+  secret?: SecretAccess,
 ): HTMLElement {
   switch (f.kind) {
     case "toggle":
       return field(f.label, f.hint, switchControl(value as boolean, onChange, f.label));
     case "number":
-      return field(f.label, f.hint, rangeControl(value as number, f, onChange, f.label));
+      return f.box ? numberBox(f, value as number, onChange) : field(f.label, f.hint, rangeControl(value as number, f, onChange, f.label));
     case "choice":
       return f.choices.length > MAX_SEGMENTS
         ? field(f.label, f.hint, dropdown(value as string, f.choices, onChange, f.label), true)
@@ -291,11 +397,11 @@ export function optionControl(
       return field(f.label, f.hint, chips(value as readonly string[], f.placeholder, onChange, f.label), true);
     case "folder":
       return field(f.label, f.hint, folderControl(value as string, f.placeholder, pickFolder, onChange, f.label), true);
-    case "text": {
-      const input = h("input", { class: "path-input", type: "text", spellcheck: "false", placeholder: f.placeholder ?? "", "aria-label": f.label });
-      input.value = value as string;
-      input.addEventListener("change", () => onChange(input.value.trim()));
-      return field(f.label, f.hint, input, true);
-    }
+    case "text":
+      return textControl(f, value as string, onChange);
+    case "secret":
+      return secretControl(f, secret);
+    case "color":
+      return field(f.label, f.hint, colorPicker(value as string, f.default, onChange, f.label, "Default"), true);
   }
 }

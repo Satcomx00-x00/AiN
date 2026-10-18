@@ -10,7 +10,8 @@
  */
 import { type Sdk, sdk } from "../sdk";
 import type { Greeting, Stage } from "../sdk/greeting";
-import type { Field } from "../sdk/options";
+import { isHex } from "../sdk/color";
+import { type Field, type Fields, patternOf } from "../sdk/options";
 import type { AnyPlugin, Host, Widget } from "../sdk/plugin";
 import type { AnyStyle } from "../sdk/style";
 import { type Found, commands } from "./bindings/extensions";
@@ -61,12 +62,27 @@ const KINDS: Record<Field["kind"], (v: unknown) => boolean> = {
   list: (v) => Array.isArray(v) && v.every((x) => typeof x === "string"),
   folder: (v) => typeof v === "string",
   text: (v) => typeof v === "string",
+  secret: (v) => v === "",
+  color: isHex,
 };
+
+/** A secret's key names its entry in the credential store: the backend takes only these. */
+const SECRET_KEY = /^[A-Za-z0-9_-]{1,64}$/;
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 
+/** Why a text or secret field's rules can't be checked, or null. */
+function rulesProblem(key: string, field: Record<string, unknown>): string | null {
+  if (field.required !== undefined && typeof field.required !== "boolean") return `option "${key}" has a required that isn't true or false`;
+  if (field.maxLength !== undefined && !(Number.isInteger(field.maxLength) && (field.maxLength as number) > 0))
+    return `option "${key}" needs a maxLength above 0`;
+  if (field.pattern !== undefined && (typeof field.pattern !== "string" || !patternOf({ pattern: field.pattern })))
+    return `option "${key}" has a pattern that isn't a valid regular expression`;
+  return null;
+}
+
 /** Why `options` can't drive the settings page, or null when every field is well-formed. */
-function optionsProblem(options: unknown): string | null {
+export function optionsProblem(options: unknown): string | null {
   if (options === undefined) return null;
   if (!isObject(options)) return "options must be an object of fields";
   for (const [key, field] of Object.entries(options)) {
@@ -78,8 +94,27 @@ function optionsProblem(options: unknown): string | null {
       return `option "${key}" needs a min, max and step`;
     if (field.kind === "choice" && !(Array.isArray(field.choices) && field.choices.some((c) => isObject(c) && c.value === field.default)))
       return `option "${key}" needs choices that include its default`;
+    if (field.kind === "secret" && !SECRET_KEY.test(key)) return `secret "${key}" needs a key of letters, digits, _ or -`;
+    const rules = field.kind === "text" || field.kind === "secret" ? rulesProblem(key, field) : null;
+    if (rules) return rules;
   }
   return null;
+}
+
+/**
+ * The options a store entry declares, with the defaults a plugin's code would get from the SDK's
+ * builders (a number's step, a secret's empty default); or why they can't be drawn.
+ */
+export function storeFields(declared: unknown): Fields | string | null {
+  if (declared === null || declared === undefined) return null;
+  if (!isObject(declared)) return "options must be an object of fields";
+  const filled = Object.fromEntries(
+    Object.entries(declared).map(([key, f]) => [
+      key,
+      !isObject(f) ? f : f.kind === "number" ? { step: 1, ...f } : f.kind === "secret" ? { ...f, default: "" } : f.kind === "color" && typeof f.default === "string" ? { ...f, default: f.default.toLowerCase() } : f,
+    ]),
+  );
+  return optionsProblem(filled) ?? (filled as Fields);
 }
 
 /** Checks a definition; returns the problem, or the plugin with what it needs. */

@@ -16,7 +16,7 @@ import * as chart from "./chart";
 import * as color from "./color";
 import * as dom from "./dom";
 import { defineGreeting, settle } from "./greeting";
-import { choice, folder, list, number, text, toggle } from "./options";
+import { choice, color as colorOption, folder, list, number, secret, text, toggle } from "./options";
 import { glanceSlot } from "./glance";
 import { definePlugin } from "./plugin";
 import { select } from "./select";
@@ -29,7 +29,7 @@ export const sdk = Object.freeze({
   defineStyle,
   /** Waits for Web Animations to end; a cancelled one counts as ended. */
   settle,
-  options: Object.freeze({ toggle, number, choice, list, folder, text }),
+  options: Object.freeze({ toggle, number, choice, list, folder, text, secret, color: colorOption }),
   dom: Object.freeze({ ...dom }),
   chart: Object.freeze({ ...chart }),
   color: Object.freeze({ ...color }),
