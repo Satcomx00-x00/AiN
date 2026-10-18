@@ -1,0 +1,11 @@
+{
+  "name": "ain-plugin-google-calendar",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "bun test"
+  },
+  "devDependencies": {
+    "@happy-dom/global-registrator": "^20"
+  }
+}
