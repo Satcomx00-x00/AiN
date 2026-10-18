@@ -12,13 +12,18 @@
 #   branch:      optional; the branch, tag or commit to install from (default: the default branch)
 #   entry:       optional; the plugin's file in the repository (default: index.js)
 #
-# Start from the template on the `plugin-template` branch.
+# Start from a template: `plugin-template` (a clock) or `plugin-template-calendar` (an online account).
 
 version: 1
 
 plugins:
   - id: orbit-clock
     name: Orbit clock
-    description: An analog clock, a seconds ring on the pill and other time zones.
+    description: An analog or digital clock, a ring on the pill and other time zones.
     repo: https://github.com/Satcomx00-x00/AiN
     branch: plugin-template
+  - id: google-calendar
+    name: Google Calendar
+    description: Your next events on the pill, the days ahead in a tab, and adding events. Needs your own Google OAuth client.
+    repo: https://github.com/Satcomx00-x00/AiN
+    branch: plugin-template-calendar
