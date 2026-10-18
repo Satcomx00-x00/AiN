@@ -16,6 +16,7 @@
     "store:default",
     "secrets:allow-set",
     "secrets:allow-saved-keys",
+    "oauth:default",
     "updates:default"
   ]
 }

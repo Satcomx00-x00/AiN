@@ -3,7 +3,7 @@ import { type Entry, commandsOf, fromKey, keycaps, shortcutOf, surfaceOf } from 
 import { button, h, icon } from "../../../sdk/dom";
 import { resolve, unset } from "../../../sdk/options";
 import type { Layout } from "../../placement";
-import type { AnyPlugin } from "../../../sdk/plugin";
+import type { AnyPlugin, PageHost, PageParams } from "../../../sdk/plugin";
 import {
   CURVE_RANGE,
   DELAY_RANGE,
@@ -12,6 +12,8 @@ import {
   WIDTH_RANGE,
   type Settings,
   defaults,
+  pageTarget,
+  parsePage,
   parseSettings,
   parseTarget,
   placeNew,
@@ -42,7 +44,7 @@ const SAVE_DELAY = 250;
 let plugins: readonly AnyPlugin[] = catalogue;
 const fallback = defaults(defaultLayout);
 // The app's backend, or in-memory stand-ins outside Tauri (the browser preview, integration tests).
-const { store, popup, folder, importer, community = noCommunity, updater = demoUpdater(), secrets = memorySecrets(), inApp: inTauri } = settingsPorts();
+const { store, popup, folder, importer, community = noCommunity, updater = demoUpdater(), secrets = memorySecrets(), services = tauriServices, inApp: inTauri } = settingsPorts();
 /** The updater's last report, kept current by its events; null until the first one arrives. */
 let update: Report | null = null;
 // Only built-in features offer shortcuts.
@@ -73,6 +75,16 @@ const isSection = (s: string): s is Section => s in SECTIONS;
 const opened = parseTarget(location.hash.slice(1), Object.keys(SECTIONS));
 let section: Section = opened && isSection(opened.section) ? opened.section : "general";
 let scrollToCard: string | null = opened?.card ?? null;
+
+/** A plugin's page, shown instead of a section; leaving it goes back to `back`, at the plugin's card. */
+type OpenPage = { readonly id: string; readonly params: PageParams; readonly back: Section };
+// Or opened at a plugin's page ("page:notes?id=3"), from the island: leaving it shows the plugin's card.
+const openedPage = parsePage(location.hash.slice(1));
+let page: OpenPage | null = openedPage && { ...openedPage, back: "widgets" };
+/** The page as drawn, kept across redraws so what the user typed stays, until it's left. */
+let drawnPage: { key: string; nodes: Node[]; stop: (() => void) | undefined } | null = null;
+/** Set once the plugins folder was read: a page's plugin that isn't loaded by then isn't coming. */
+let scanned = false;
 /** Stop functions of the plugins' settings panels on screen, called before they're redrawn. */
 let panelStops: (() => void)[] = [];
 let pending: ReturnType<typeof setTimeout> | undefined;
@@ -80,6 +92,7 @@ let pending: ReturnType<typeof setTimeout> | undefined;
 const content = h("main", { class: "content" });
 const status = h("div", { class: "status", "data-state": "saved", role: "status" }, "Saved");
 const nav = h("nav", { class: "nav", "aria-label": "Settings sections" });
+const app = h("div", { class: "app" }, nav, content);
 
 // ---------- state ----------
 
@@ -446,8 +459,9 @@ function optionRows(p: AnyPlugin | AnyStyle | { readonly id: string; readonly op
         options: () => resolve(p.options ?? {}, settings.options[p.id]) as never,
         setOptions: (patch: Readonly<Record<string, unknown>>) =>
           commit({ ...settings, options: { ...settings.options, [p.id]: { ...settings.options[p.id], ...patch } } }),
+        openPage: (params?: PageParams) => openPage(p.id, params),
       };
-      const stop = setUp.call(p, panel, tauriServices as never, host);
+      const stop = setUp.call(p, panel, services as never, host);
       if (stop) panelStops.push(stop);
     }
   }
@@ -814,14 +828,85 @@ function about(): Node[] {
 
 const RENDER: Record<Section, () => Node[]> = { appearance, general, layout, shortcuts, widgets, plugins: pluginsSection, about };
 
+// ---------- plugin pages ----------
+
+/** Shows a plugin's page; from another page, leaving still goes back to where Settings was first. */
+function openPage(id: string, params: PageParams = {}) {
+  page = { id, params: { ...params }, back: page?.back ?? section };
+  history.replaceState(null, "", `#${pageTarget(id, params)}`);
+  content.scrollTop = 0;
+  render();
+}
+
+/** Back from the page to where Settings was, at the plugin's card. */
+function leavePage() {
+  if (!page) return;
+  section = page.back;
+  scrollToCard = page.id;
+  page = null;
+  history.replaceState(null, "", `#${section}`);
+  render();
+}
+
+function closeDrawnPage() {
+  const stop = drawnPage?.stop;
+  drawnPage = null;
+  stop?.();
+}
+
+/**
+ * The page: the whole window is the plugin's, drawn once per opening (it gives its own way back,
+ * with `host.close()`). Until its plugin is loaded, or when there is none, a way back and why.
+ */
+function pageView(open: OpenPage): Node[] {
+  const key = pageTarget(open.id, open.params);
+  if (drawnPage?.key === key) return drawnPage.nodes;
+  closeDrawnPage();
+  const plugin = plugins.find((p) => p.id === open.id);
+  const back = button(`‹ ${SECTIONS[open.back].label}`, leavePage, { class: "link page-back" });
+  if (!plugin?.page) {
+    // Plugins from the folder may still be loading: drawn again once they are.
+    const why = !scanned ? "Loading…" : plugin ? `${plugin.label} has no page.` : "This plugin isn't turned on: see Plugins.";
+    return [back, ...header(plugin?.label ?? "Page", why)];
+  }
+  const root = h("div", { class: "plugin-page" });
+  document.title = plugin.label;
+  let stop: (() => void) | undefined;
+  if (!inTauri) return [back, ...header(plugin.label, "This page is available in the app.")];
+  else {
+    const host: PageHost<never> = {
+      params: Object.freeze({ ...open.params }),
+      options: () => resolve(plugin.options ?? {}, settings.options[plugin.id]) as never,
+      setOptions: (patch) => commit({ ...settings, options: { ...settings.options, [plugin.id]: { ...settings.options[plugin.id], ...(patch as Readonly<Record<string, unknown>>) } } }),
+      openPage: (params) => openPage(plugin.id, params),
+      setTitle: (text) => void (document.title = String(text)),
+      close: () => void (page?.id === plugin.id && leavePage()),
+    };
+    stop = plugin.page.call(plugin, root, services as never, host) ?? undefined;
+  }
+  drawnPage = { key, nodes: [root], stop };
+  return drawnPage.nodes;
+}
+
 function render() {
+  app.dataset.page = "false";
   for (const b of nav.querySelectorAll<HTMLButtonElement>("button[data-section]")) {
-    if (b.dataset.section === section) b.setAttribute("aria-current", "page");
+    if (!page && b.dataset.section === section) b.setAttribute("aria-current", "page");
     else b.removeAttribute("aria-current");
   }
   const scroll = content.scrollTop;
   for (const stop of panelStops) stop();
   panelStops = [];
+  if (page) {
+    const nodes = pageView(page);
+    // A plugin's page has the whole window: no menu, no margins.
+    app.dataset.page = String(nodes[0] instanceof HTMLElement && nodes[0].classList.contains("plugin-page"));
+    // Already on screen: left as it is, focus and typing included.
+    if (content.firstChild !== nodes[0]) content.replaceChildren(...nodes);
+    return;
+  }
+  closeDrawnPage();
+  document.title = "AiN settings";
   content.replaceChildren(...RENDER[section]());
   content.scrollTop = scroll;
   if (scrollToCard) {
@@ -837,8 +922,11 @@ function render() {
 
 /** Shows a place asked for from elsewhere, e.g. the island's "Set up in Settings". */
 function goTo(target: string) {
+  const asked = parsePage(target);
+  if (asked) return openPage(asked.id, asked.params);
   const place = parseTarget(target, Object.keys(SECTIONS));
   if (!place || !isSection(place.section)) return;
+  page = null;
   section = place.section;
   scrollToCard = place.card;
   history.replaceState(null, "", `#${section}`);
@@ -851,6 +939,7 @@ nav.append(
   h("div", { class: "brand" }, h("span", { class: "brand-pill", "aria-hidden": "true" }), "AiN"),
   ...(Object.keys(SECTIONS) as Section[]).map((key) =>
     button(h("span", { class: "nav-in" }, icon(SECTIONS[key].icon), SECTIONS[key].label), () => {
+      page = null;
       section = key;
       history.replaceState(null, "", `#${key}`);
       content.scrollTop = 0;
@@ -859,7 +948,7 @@ nav.append(
   ),
   status,
 );
-document.body.append(h("div", { class: "app" }, nav, content));
+document.body.append(app);
 
 void popup.watchFailures((next) => {
   failures = next;
@@ -884,4 +973,7 @@ const showUpdate = (report: Report) => {
 };
 void updater.watch(showUpdate);
 void updater.status().then(showUpdate, () => {});
-void rescan().then(render);
+void rescan().then(() => {
+  scanned = true;
+  render();
+});

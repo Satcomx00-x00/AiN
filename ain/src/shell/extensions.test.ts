@@ -212,7 +212,7 @@ describe("loadExtensions", () => {
 });
 
 describe("confine", () => {
-  const host = { refresh() {}, options: () => ({}) as never, setOptions() {}, secret: async () => "", openSettings() {}, appearance: () => ({ style: "pill", size: "normal", theme: "island", tone: "dark", notch: false }) as const };
+  const host = { refresh() {}, options: () => ({}) as never, setOptions() {}, secret: async () => "", openSettings() {}, openPage() {}, appearance: () => ({ style: "pill", size: "normal", theme: "island", tone: "dark", notch: false }) as const };
 
   it("gives a plugin only the services it declared, frozen", () => {
     let got: Record<string, unknown> = {};
@@ -220,6 +220,18 @@ describe("confine", () => {
     plugin.setup({ media: "M", stats: "S", clipboard: "secret" } as never, host);
     expect(got).toEqual({ media: "M" });
     expect(Object.isFrozen(got)).toBe(true);
+  });
+
+  it("binds a per-plugin service to the plugin's id, in its settings panel too", async () => {
+    const { perPlugin } = await import("./extensions");
+    let got: Record<string, unknown> = {};
+    const accounts = perPlugin((id) => ({ owner: id }));
+    const plugin = confine({ ...valid(), setup: (s: never) => ((got = s), {}), settingsPanel: (_: HTMLElement, s: never) => void (got = s) } as never, ["oauth"]);
+    plugin.setup({ oauth: accounts, media: "M" } as never, host);
+    expect(got).toEqual({ oauth: { owner: "pomodoro" } });
+    got = {};
+    plugin.settingsPanel?.({} as never, { oauth: accounts } as never, {} as never);
+    expect(got).toEqual({ oauth: { owner: "pomodoro" } });
   });
 
   it("survives a setup that throws or returns nothing usable", () => {
@@ -352,6 +364,20 @@ describe("a plugin's settings panel", () => {
   it("must be a function when given", () => {
     expect(check({ ...valid(), settingsPanel: "nope" }, rules)).toBe("settingsPanel must be a function");
     expect(typeof check({ ...valid(), settingsPanel: () => {} }, rules)).toBe("object");
+  });
+});
+
+describe("a plugin's page", () => {
+  it("must be a function when given", () => {
+    expect(check({ ...valid(), page: "nope" }, rules)).toBe("page must be a function");
+    expect(typeof check({ ...valid(), page: () => {} }, rules)).toBe("object");
+  });
+});
+
+describe("a plugin's panel height", () => {
+  it("must be a height in pixels when given", () => {
+    for (const panelHeight of ["300", 0, -5, Number.POSITIVE_INFINITY]) expect(check({ ...valid(), panelHeight }, rules)).toBe("panelHeight must be a height in pixels");
+    expect(typeof check({ ...valid(), panelHeight: 320 }, rules)).toBe("object");
   });
 
   it("gets only the services the plugin declared, like its setup", () => {

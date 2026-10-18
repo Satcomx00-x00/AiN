@@ -150,7 +150,9 @@ in the folder yourself.
 
 The store is [`store.yaml`](https://github.com/Satcomx00-x00/AiN/blob/store/store.yaml) on the `store` branch, read
 over the internet, so new plugins show up without a new release. To write one, start from the
-[`plugin-template`](https://github.com/Satcomx00-x00/AiN/tree/plugin-template) branch (an analog clock), read
+[`plugin-template`](https://github.com/Satcomx00-x00/AiN/tree/plugin-template) branch (a clock), or
+[`plugin-template-calendar`](https://github.com/Satcomx00-x00/AiN/tree/plugin-template-calendar) for one that signs in
+to an online account (Google Calendar), read
 [writing a plugin](docs/plugins.md) and the examples in `ain/examples/plugins/`, then open a pull request against
 the `store` branch to list it.
 

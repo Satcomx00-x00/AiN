@@ -140,7 +140,7 @@ describe("the clipboard tab", () => {
   async function tab(clips: Clip[], copyFails = false) {
     const p = port(clips);
     if (copyFails) p.copy = async () => Promise.reject(new Error("busy"));
-    const widget = clipboard.setup({ clipboard: p }, { refresh() {}, options: () => ({ paste: true }), setOptions() {}, secret: async () => "", openSettings() {}, appearance: () => ({ style: "pill", size: "normal", theme: "island", tone: "dark", notch: false }) as const });
+    const widget = clipboard.setup({ clipboard: p }, { refresh() {}, options: () => ({ paste: true }), setOptions() {}, secret: async () => "", openSettings() {}, openPage() {}, appearance: () => ({ style: "pill", size: "normal", theme: "island", tone: "dark", notch: false }) as const });
     const root = document.createElement("section");
     widget.panel?.(root);
     await widget.tick?.({ now: NOW, visible: true });

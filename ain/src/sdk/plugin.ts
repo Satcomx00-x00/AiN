@@ -58,6 +58,9 @@ export interface Appearance {
   readonly notch: boolean;
 }
 
+/** What a plugin's page is opened with, e.g. which record to edit: short strings, by name. */
+export type PageParams = Readonly<Record<string, string>>;
+
 /** What the host offers plugins. */
 export interface Host<Options = unknown> {
   /** Redraws glances and the visible panel now, e.g. after pushed data arrives. */
@@ -73,6 +76,8 @@ export interface Host<Options = unknown> {
   secret(key: keyof Options & string): Promise<string>;
   /** Opens Settings at this plugin's card: where to set it up, rather than in the island. */
   openSettings(): void;
+  /** Opens this plugin's `page` in the Settings window, with `params`: where to type, since the island takes no keys. */
+  openPage(params?: PageParams): void;
   /** How the island looks now; read it when drawing, since the user can change it anytime. */
   appearance(): Appearance;
 }
@@ -83,6 +88,18 @@ export interface SettingsHost<Options = unknown> {
   options(): Options;
   /** Saves some of them, as the standard controls do. */
   setOptions(patch: Partial<Options>): void;
+  /** Opens this plugin's `page`, with `params`. */
+  openPage(params?: PageParams): void;
+}
+
+/** What a plugin's page can do: its options, what it was opened with, its title, and leaving. */
+export interface PageHost<Options = unknown> extends SettingsHost<Options> {
+  /** What it was opened with ({} when nothing). */
+  readonly params: PageParams;
+  /** The page's heading, e.g. "Edit event"; the plugin's name until set. */
+  setTitle(title: string): void;
+  /** Leaves the page, back to where Settings was before it. */
+  close(): void;
 }
 
 export type Surface = "popup" | "screen" | "action";
@@ -149,12 +166,24 @@ export interface Plugin<Services = unknown, F extends Fields = Fields> {
    */
   readonly needs?: readonly string[];
   /**
+   * How tall the open panel is while its tab is shown, in px: the island grows to it (up to 340),
+   * for a tab that needs room, like a calendar's month. Left out, it gets the usual 156.
+   */
+  readonly panelHeight?: number;
+  /**
    * Extra controls for this plugin's card in Settings → Widgets, under its options: for setup an
    * option can't express, like downloading a model, and for options marked `inPanel`. Gets the
    * same services as `setup`. Returns a function that stops whatever it watches; it is called
    * when the card is redrawn or closed.
    */
   settingsPanel?(root: HTMLElement, services: Services, host: SettingsHost<Values<F>>): (() => void) | void;
+  /**
+   * A page of its own in the Settings window, for work that needs room and typing, like editing a
+   * record: opened with `host.openPage(params)` from its tab or its settings panel. Gets the same
+   * services as `setup`. Returns a function that stops whatever it watches; it is called when the
+   * page is left.
+   */
+  page?(root: HTMLElement, services: Services, host: PageHost<Values<F>>): (() => void) | void;
   setup(services: Services, host: Host<Values<F>>): Widget;
 }
 

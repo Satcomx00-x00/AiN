@@ -38,6 +38,8 @@ tauri-plugin-dialog = "2"
 specta = { version = "=2.0.0-rc.25", features = ["derive"] }
 specta-typescript = "=0.0.12"
 tauri-specta = { version = "=2.0.0-rc.25", features = ["derive", "typescript"] }
+# PKCE verifiers and sign-in states for plugins signing in to online accounts.
+getrandom = "0.3"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2-app-kit = { version = "0.3", features = ["NSWindow", "NSScreen", "NSResponder", "NSRunningApplication", "NSWorkspace", "libc"] }
@@ -68,6 +70,7 @@ windows = { version = "0.62", features = [
     "Win32_UI_Shell_PropertiesSystem",
     "Win32_System_Threading",
     "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_Shell",
     "Win32_UI_WindowsAndMessaging",
 ] }
 

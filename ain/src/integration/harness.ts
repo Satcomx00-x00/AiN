@@ -21,6 +21,7 @@ import { memorySecrets } from "../shell/secrets";
 import { type Settings, defaults, memorySettings, parseSettings } from "../shell/settings";
 import type { Size, WindowPort } from "../shell/window";
 import { layout } from "../features/layout";
+import { perPlugin } from "../shell/extensions";
 
 // Each test loads the whole app, and the first one in a file also compiles it: give them time, even
 // on a busy machine.
@@ -75,7 +76,15 @@ export function system() {
   let clips: Clip[] = [];
   const controls: Control[] = [];
 
+  /** The plugins signed in to an account, by id. */
+  const accounts = new Set<string>();
   const services: Services = {
+    oauth: perPlugin((plugin) => ({
+      signIn: async () => void accounts.add(plugin),
+      token: async () => (accounts.has(plugin) ? `token of ${plugin}` : null),
+      signOut: async () => void accounts.delete(plugin),
+      signedIn: async () => accounts.has(plugin),
+    })),
     stats: { stats: async () => sample && { ...sample, sampledAt: Date.now() } },
     clipboard: {
       history: async () => clips,
@@ -296,12 +305,12 @@ export async function startIsland(sys: System): Promise<Island> {
  * Loads the settings page in the same document, on the same settings store and plugins folder as
  * the island, so a change made there reaches the island as it would through the app.
  */
-export async function startSettings(sys: System, at = "") {
+export async function startSettings(sys: System, at = "", { inApp = false } = {}) {
   history.replaceState(null, "", at ? `/#${at}` : "/");
   // The page sets itself up when its module loads: load a fresh copy, reading the ports given here.
   vi.resetModules();
   const ports = await import("../shell/windows/settings/ports");
-  ports.usePorts({ store: sys.store, popup: sys.popup, folder: sys.folder, importer: sys.importer, community: sys.community, secrets: sys.secrets, inApp: false });
+  ports.usePorts({ store: sys.store, popup: sys.popup, folder: sys.folder, importer: sys.importer, community: sys.community, secrets: sys.secrets, services: sys.services, inApp });
   await import("../shell/windows/settings/main");
   await advance(0);
   const page = document.querySelector<HTMLElement>(".app")!;

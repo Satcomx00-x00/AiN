@@ -7,6 +7,22 @@ pub fn init_com() {
     let _ = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) };
 }
 
+/// Opens a link or a folder the way double-clicking it would. `explorer <link>` can't be trusted
+/// with a long link full of `&` and `%` (a sign-in page's): it opens a folder instead.
+pub fn shell_open(target: &std::ffi::OsStr) -> std::io::Result<()> {
+    use std::os::windows::ffi::OsStrExt;
+    use windows::{
+        Win32::UI::{Shell::ShellExecuteW, WindowsAndMessaging::SW_SHOWNORMAL},
+        core::{PCWSTR, w},
+    };
+    init_com();
+    let wide: Vec<u16> = target.encode_wide().chain([0]).collect();
+    // SAFETY: `wide` is a NUL-terminated UTF-16 string that outlives the call; the other strings are null or static.
+    let done = unsafe { ShellExecuteW(None, w!("open"), PCWSTR(wide.as_ptr()), PCWSTR::null(), PCWSTR::null(), SW_SHOWNORMAL) };
+    // It returns a value above 32 on success, an error code otherwise.
+    if done.0 as usize > 32 { Ok(()) } else { Err(std::io::Error::other(format!("Windows couldn't open it (error {})", done.0 as usize))) }
+}
+
 /// "Spotify.exe" → "Spotify"; any folders in front are dropped too.
 pub fn exe_stem(path: &str) -> &str {
     let file = path.rsplit(['\\', '/']).next().unwrap_or(path);

@@ -1,7 +1,7 @@
 import { isLight } from "../sdk/color";
 import { palette, themeById } from "./themes";
 import { EASE_OUT, animates, button, h, icon, reducedMotion } from "../sdk/dom";
-import { EXPANDED, frame, pillOf, sizeFor } from "./geometry";
+import { frame, panelHeight, pillOf, sizeFor } from "./geometry";
 import { intent } from "./intent";
 import { type Fields, resolve } from "../sdk/options";
 import { type Layout, type Placement, pickFrom, place, placedIds } from "./placement";
@@ -10,7 +10,7 @@ import { POWER, armedButton } from "./quit";
 import type { Greeting } from "../sdk/greeting";
 import { greet } from "./greet";
 import { ticker } from "./scheduler";
-import type { Settings } from "./settings";
+import { type Settings, pageTarget } from "./settings";
 import type { AnyStyle, Folded, Pill, StyleView } from "../sdk/style";
 import { BARE, foldedSize, styleById, styleOptions } from "./styles";
 import { type Tabs, tabs } from "./tabs";
@@ -31,6 +31,7 @@ const IDLE_HOST: Host<never> = {
   setOptions() {},
   secret: async () => "",
   openSettings() {},
+  openPage() {},
   appearance: (): Appearance => ({ style: "pill", size: "normal", theme: "island", tone: "dark", notch: false }),
 };
 
@@ -113,6 +114,7 @@ export async function mount<S>(
       return (await readSecret?.(plugin.id, key)) ?? "";
     },
     openSettings: () => openSettings?.(`widgets:${plugin.id}`),
+    openPage: (params) => openSettings?.(pageTarget(plugin.id, params)),
     // The style actually drawing, which differs from the chosen one while that one is broken.
     appearance: () => ({
       style: style?.id ?? settings.general.style,
@@ -125,6 +127,7 @@ export async function mount<S>(
   const mounted = new Map<string, Mounted>();
   let placement: Placement = { left: [], right: [], tabs: [] };
   let active: Mounted[] = [];
+  let view: Tabs | undefined;
 
   // The folded pill at the chosen size, the style that draws it, and the size that style folds to.
   let pill: Pill = pillOf(i, initial.general.pillSize);
@@ -134,14 +137,22 @@ export async function mount<S>(
   const broken = new Set<string>();
   /** Open, the island is at least as tall as the pill, so the panel sits the same under every style. */
   const openRow = () => Math.max(folded.height, pill.height);
-  const sized = (open: boolean, wide = false) =>
-    open ? sizeFor(true, { width: folded.width, height: openRow() }) : sizeFor(false, folded, wide && style?.widens !== false, pill.scale);
+  /** The open panel's height: what the shown tab asks for. */
+  const panelNow = () => panelHeight(placement.tabs.find((m) => m.plugin.id === view?.active())?.plugin.panelHeight);
+  const sized = (open: boolean, wide = false, panel = panelNow()) =>
+    open ? sizeFor(true, { width: folded.width, height: openRow() }, false, 1, panel) : sizeFor(false, folded, wide && style?.widens !== false, pill.scale);
+  /** The window holds the open pill with its tallest tab, so switching tabs only moves the input region. */
+  const canvasNow = () => frame(sized(true, false, Math.max(panelNow(), ...placement.tabs.map((m) => panelHeight(m.plugin.panelHeight)))), true, pill.scale);
 
   el.dataset.notch = String(i.hasNotch);
   el.dataset.open = "false";
   el.dataset.hidden = "false";
-  el.style.setProperty("--panel-h", `${EXPANDED.height}px`);
-  let canvas = frame(sized(true), true, pill.scale);
+  let canvas = canvasNow();
+  /** Sizes the panel for the shown tab, laid out at its final size before the pill reveals it. */
+  const fitPanel = () => {
+    el.style.setProperty("--panel-h", `${panelNow()}px`);
+    canvas = canvasNow();
+  };
   const reshape = () => {
     // Panel content is laid out once at its final size; the pill only reveals it, so nothing reflows mid-animation.
     el.style.setProperty("--panel-w", `${sized(true).width}px`);
@@ -153,7 +164,7 @@ export async function mount<S>(
     const { theme, pillColor, accentColor } = settings.general;
     for (const [name, value] of Object.entries(palette(themeById(theme), pillColor, accentColor))) el.style.setProperty(name, value);
     el.dataset.tone = isLight(settings.general.pillColor) ? "light" : "dark";
-    canvas = frame(sized(true), true, pill.scale);
+    fitPanel();
   };
   let open = false;
   /** Set once the startup animation is over. */
@@ -171,7 +182,6 @@ export async function mount<S>(
   const panel = h("div", { class: "panel" });
   const gear = openSettings && button(icon(GEAR), () => openSettings(), { class: "gear", "aria-label": "Settings", title: "Settings" });
   const power = quit && armedButton(POWER, quit, { label: "Quit AiN", armed: "Click again to quit AiN" }, "gear quit");
-  let view: Tabs | undefined;
   const alerting = (now: number) => active.find((m) => m.widget.glance?.(now)?.tone === "alert");
 
   let shown: Size = { width: 0, height: 0 };
@@ -307,6 +317,13 @@ export async function mount<S>(
     win.autoHide(dwell, grace).catch((e: unknown) => console.error("[island] could not set auto-hide", e));
   }
 
+  /** Another tab is shown: the open island grows or shrinks to the panel it asks for. */
+  const switched = () => {
+    fitPanel();
+    if (el.dataset.open === "true") void resize();
+    beat.now();
+  };
+
   const configure = (next: Settings, nextCatalogue?: readonly Plugin<S, Fields>[], nextGreetings?: readonly Greeting[], nextStyles?: readonly AnyStyle[]) => {
     // Picking another startup animation in Settings plays it, as a preview.
     const replay = started && next.general.greeting !== settings.general.greeting;
@@ -322,8 +339,10 @@ export async function mount<S>(
     for (const p of [...loaded.problems, ...placed.problems]) console.warn(`[island] ${p}`);
     placement = placed.placement;
     active = placedOnce(placement);
-    view = tabs(placement.tabs, () => beat.now(), view?.active());
+    view = tabs(placement.tabs, switched, view?.active());
     panel.replaceChildren(h("div", { class: "panel-head" }, view.bar, ...(gear ? [gear] : []), ...(power ? [power] : [])), view.panels);
+    fitPanel();
+    if (el.dataset.open === "true") void resize();
     beat.now();
   };
 
@@ -335,17 +354,19 @@ export async function mount<S>(
     // Not while a startup animation plays: it drives the pill's size.
     if (next === open || (next && !ready)) return;
     open = next;
-    const s = sized(open, wide);
     if (open) {
-      await win.layout(canvas, frame(s, true, pill.scale));
-      if (!open) return;
+      // Opening on an alerting tab: the island opens to that tab's panel.
       const alert = alerting(Date.now());
       if (alert && placement.tabs.includes(alert) && alert.plugin.id !== view?.active()) view?.select(alert.plugin.id, false);
+      const s = sized(true, wide);
+      await win.layout(canvas, frame(s, true, pill.scale));
+      if (!open) return;
       el.dataset.open = "true";
       apply(s);
       beat.now();
       return;
     }
+    const s = sized(false, wide);
     el.dataset.open = "false";
     apply(s);
     if (!animates(getComputedStyle(el).transitionDuration)) return win.layout(canvas, frame(s, false, pill.scale));

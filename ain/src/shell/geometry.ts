@@ -3,6 +3,13 @@ import type { Island, Size } from "./window";
 
 export const EXPANDED = { width: 420, height: 156 } as const;
 
+/** The tallest open panel a plugin's tab may ask for (`panelHeight`): with the largest pill, the window stays within the 400 px the backend allows. */
+export const TALLEST = 340;
+
+/** The open panel's height for a tab that asks for `asked`: never below the usual one, nor above TALLEST. */
+export const panelHeight = (asked?: number): number =>
+  typeof asked === "number" && Number.isFinite(asked) ? Math.round(Math.min(TALLEST, Math.max(EXPANDED.height, asked))) : EXPANDED.height;
+
 /** Room on each side of a hardware notch for the collapsed glance text. */
 export const GLANCE = 64;
 
@@ -29,9 +36,9 @@ export function pillOf(i: Island, size: PillSize): Pill {
   return { width: Math.round(i.width * width), height: Math.round(i.height * scale), hasNotch: false, scale };
 }
 
-/** Size of the pill itself, from the style's folded size; open, it is never narrower than folded. */
-export const sizeFor = (open: boolean, folded: Size, wide = false, scale = 1): Size => {
-  if (open) return { width: Math.max(EXPANDED.width, folded.width), height: folded.height + EXPANDED.height };
+/** Size of the pill itself, from the style's folded size; open, it is never narrower than folded, with a `panel` that tall. */
+export const sizeFor = (open: boolean, folded: Size, wide = false, scale = 1, panel: number = EXPANDED.height): Size => {
+  if (open) return { width: Math.max(EXPANDED.width, folded.width), height: folded.height + panel };
   return { width: folded.width + (wide ? Math.round(WIDE * scale) : 0), height: folded.height };
 };
 

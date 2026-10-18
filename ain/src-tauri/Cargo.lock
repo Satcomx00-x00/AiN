@@ -44,6 +44,7 @@ dependencies = [
  "clipboard-win",
  "cpal",
  "dirs 7.0.0",
+ "getrandom 0.3.4",
  "gtk",
  "gtk-layer-shell",
  "keyring",

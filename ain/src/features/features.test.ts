@@ -268,7 +268,7 @@ describe("what plugins from the plugins folder may use", async () => {
   });
 
   it("never offers what reads the user's clipboard, screen or speech", () => {
-    expect(extensionRules.services).toEqual(["stats", "media", "volume", "privacy"]);
+    expect(extensionRules.services).toEqual(["stats", "media", "volume", "privacy", "oauth"]);
     for (const secret of ["clipboard", "capture", "dictation"]) expect(extensionRules.services).not.toContain(secret);
   });
 });

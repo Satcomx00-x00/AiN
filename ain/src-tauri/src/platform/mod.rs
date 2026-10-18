@@ -27,12 +27,16 @@ pub fn open_url(url: &str) -> std::io::Result<()> {
     open(url.as_ref())
 }
 
+#[cfg(windows)]
 fn open(target: &std::ffi::OsStr) -> std::io::Result<()> {
-    #[cfg(windows)]
-    let program = "explorer";
+    windows::shell_open(target)
+}
+
+#[cfg(not(windows))]
+fn open(target: &std::ffi::OsStr) -> std::io::Result<()> {
     #[cfg(target_os = "macos")]
     let program = "open";
-    #[cfg(not(any(windows, target_os = "macos")))]
+    #[cfg(not(target_os = "macos"))]
     let program = "xdg-open";
     std::process::Command::new(program).arg(target).spawn().map(drop)
 }

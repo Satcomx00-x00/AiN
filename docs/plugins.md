@@ -36,6 +36,7 @@ export default (island) =>
     icon: `<path d="M8 2v7"/>`,   // inner SVG of a 16×16 stroke icon
     slots: ["glance", "tab"],     // where it can go: the pill, a tab, or both
     needs: ["stats"],             // the services `setup` receives
+    panelHeight: 156,             // optional: how tall the open panel is on its tab (156–340 px)
     options: {                    // drawn in Settings, under the plugin's switch
       limit: island.options.number("Alarm above", 85, { min: 10, max: 100, step: 5, unit: "%" }),
     },
@@ -53,6 +54,10 @@ export default (island) =>
 [`examples/plugins/cpu-alarm.js`](../ain/examples/plugins/cpu-alarm.js) is a complete,
 working plugin.
 
+A tab gets the open panel's usual 156 px. One that needs room, like a calendar's week or month,
+sets `panelHeight`: the island grows to it while that tab is shown and back when another is, up to
+340 px.
+
 ### What `setup` receives
 
 - **services**: only those named in `needs`:
@@ -63,6 +68,7 @@ working plugin.
   | `media` | `watch(onTrack)`, `artwork()`, `control("toggle" \| "next" \| "previous")` |
   | `volume` | `watch(onOutput)`, `watchSources(onSources)`, `peak()`, `setLevel(level, source?)`, `setMuted(muted, source?)` |
   | `privacy` | `watch(onUsage)` with `{ mic: string[], camera: string[] }` |
+  | `oauth` | `signIn(provider)`, `token(provider)`, `signOut(provider)`, `signedIn(provider)`: see [Signing in to an online account](#signing-in-to-an-online-account) |
 
   `watch` methods call back with the current value right away, then on every change; they
   resolve with a function that stops watching. Clipboard history, screen captures and dictation
@@ -71,8 +77,8 @@ working plugin.
 - **host**: `host.options()` reads the plugin's options (read them when needed, the user can
   change them anytime), `host.setOptions(patch)` saves some, `host.secret(key)` reads one of its
   secrets (see below), `host.refresh()` redraws the pill now instead of at the next second,
-  `host.openSettings()` opens Settings at the plugin's card, and `host.appearance()` tells how the
-  island looks (see below).
+  `host.openSettings()` opens Settings at the plugin's card, `host.openPage(params)` opens its
+  page (see below), and `host.appearance()` tells how the island looks (see below).
 
 ### Options the user sets
 
@@ -171,6 +177,69 @@ yourself there (e.g. a choice showing live state), in place of the standard cont
 `field`, `field-label`, `field-hint`, `secondary` (buttons) and `progress` (a bar: set `--p`
 from 0 to 1) match the rest of the page. From the island, `host.openSettings()` brings the user
 there.
+
+### A page of its own
+
+The island takes no typing, and a card is small. For work that needs both, like editing a record,
+a plugin adds `page(root, services, host)`: it gets the whole Settings window (no menu, no
+margins; the window grows to about 1200 × 800 when a page opens), so it draws everything,
+including a way back that calls `host.close()`. `host.setTitle(text)` names the window. It gets the
+same services as `setup`, and returns a function that stops whatever it watches, called when the
+page is left.
+
+```js
+page(root, { oauth }, host) {
+  host.setTitle(host.params.event ? "Edit event" : "New event");
+  // … draw a form; on Save: host.setOptions({ revision: Date.now() }); host.close();
+},
+```
+
+Open it with `host.openPage(params)`, from the island (a click on a record, a + button) or from
+the settings panel, whose `host` has it too. `params` are short strings by name, given back as
+`host.params`; the page stays as drawn (what the user typed included) while other settings change,
+until `host.close()` leaves it. The settings classes above, plus `card`,
+`card-foot`, `primary`, `secondary danger` and `switch`, make it look like the rest of Settings.
+
+### Signing in to an online account
+
+With `needs: ["oauth"]`, a plugin can sign in to a web service (Google, Microsoft, Spotify…)
+with OAuth 2.0 and call its API. The app does the sign-in the way native apps should
+([RFC 8252](https://www.rfc-editor.org/rfc/rfc8252)): it opens the provider's page in the
+system browser, with PKCE, and receives the answer on a one-off `127.0.0.1` address. It keeps
+the refresh token in the system keychain (Credential Manager, the macOS Keychain, the Secret
+Service on Linux), filed under the plugin's id, and hands the plugin short-lived access tokens
+only. Filing by id keeps plugins' accounts apart; it doesn't protect them from a malicious plugin,
+since every plugin runs in the island's window with the same permissions: only turn on plugins
+you trust.
+
+The plugin brings the provider and its own client, registered with the provider as a desktop
+app with a loopback redirect:
+
+```js
+const provider = {
+  authUrl: "https://accounts.google.com/o/oauth2/v2/auth",
+  tokenUrl: "https://oauth2.googleapis.com/token",
+  revokeUrl: "https://oauth2.googleapis.com/revoke", // optional: revoked on sign-out
+  clientId: options.clientId,
+  clientSecret: options.clientSecret,                 // optional: some providers want one
+  scopes: ["https://www.googleapis.com/auth/calendar.events"],
+  params: { access_type: "offline", prompt: "consent" }, // extra sign-in page parameters
+};
+await oauth.signIn(provider);           // opens the browser; resolves once signed in
+const token = await oauth.token(provider); // null when signed out: offer to sign in
+await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+```
+
+- `token` refreshes the access token when it is about to expire. When the provider no longer
+  accepts the sign-in (revoked, expired), the app forgets it and `token` returns `null`.
+- The addresses must be `https://`. The provider must give a refresh token (Google: ask for
+  `access_type: "offline"`), or the sign-in fails.
+- Sign in from a button (in the plugin's tab or its settings panel), never on startup: it opens
+  the browser.
+- Web APIs are called with `fetch`, and must allow it from a web page (CORS), as Google's do.
+
+The [Google Calendar template](https://github.com/Satcomx00-x00/AiN/tree/plugin-template-calendar)
+is a complete example.
 
 ## A startup animation
 

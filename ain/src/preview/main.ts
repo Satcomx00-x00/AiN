@@ -25,6 +25,7 @@ import type { Services } from "../features/services";
 import type { WindowPort } from "../shell/window";
 import type { Clip } from "../features/clipboard/service";
 import type { Track } from "../features/media/service";
+import { noOAuth } from "../shell/oauth";
 
 const params = new URLSearchParams(location.search);
 const t0 = Date.now();
@@ -61,6 +62,7 @@ const track: Track = {
 };
 
 const fake: Services = {
+  oauth: noOAuth,
   stats: {
     stats: async () => {
       const now = Date.now();

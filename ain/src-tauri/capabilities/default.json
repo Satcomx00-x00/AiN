@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "What the island window may call: events, every feature, settings (read, and write for plugins that remember choices), the third-party plugins to load, and their secrets.",
+  "description": "What the island window may call: events, every feature, settings (read, and write for plugins that remember choices), the third-party plugins to load, their secrets, and signing them in to online accounts.",
   "windows": [
     "widget"
   ],
@@ -20,6 +20,7 @@
     "settings:allow-quit",
     "popup:allow-bind",
     "extensions:allow-list",
-    "secrets:allow-get"
+    "secrets:allow-get",
+    "oauth:default"
   ]
 }
