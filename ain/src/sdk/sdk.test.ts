@@ -30,7 +30,7 @@ describe("the SDK handed to plugins", () => {
   it("offers the same option builders as the built-in features use", async () => {
     const options = await import("./options");
     expect(sdk.options.toggle).toBe(options.toggle);
-    expect(Object.keys(sdk.options).sort()).toEqual(["choice", "folder", "list", "number", "text", "toggle"]);
+    expect(Object.keys(sdk.options).sort()).toEqual(["choice", "color", "folder", "list", "number", "secret", "text", "toggle"]);
   });
 });
 

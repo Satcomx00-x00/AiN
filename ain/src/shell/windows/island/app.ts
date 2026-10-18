@@ -11,6 +11,7 @@ import type { AnyStyle } from "../../../sdk/style";
 import { type PopupPort, bindings, tauriPopup } from "../../commands";
 import { type Extension, type ExtensionsPort, type Importer, idOf, importSource, loadExtensions, tauriExtensions } from "../../extensions";
 import { type IslandHandle, mount } from "../../host";
+import { type SecretsPort, secretReader, tauriSecrets } from "../../secrets";
 import { type Settings, type SettingsPort, defaults, parseSettings, runnable, tauriSettings } from "../../settings";
 import { type WindowPort, tauriWindow } from "../../window";
 
@@ -56,6 +57,7 @@ export async function start(
   popup: PopupPort = tauriPopup,
   extensions: ExtensionsPort = tauriExtensions,
   importer: Importer = importSource,
+  secrets: SecretsPort = tauriSecrets,
 ): Promise<IslandHandle<Services>> {
   const fallback = defaults(layout);
   const loader = extensionLoader(extensions, importer);
@@ -109,10 +111,11 @@ export async function start(
     island?.configure(effective(latest));
     store.save(latest).catch((e: unknown) => console.error("[island] could not save options", e));
   };
+  const readSecret = secretReader(secrets);
   const quit = () => void store.quit().catch((e: unknown) => console.error("[island] could not quit", e));
   // The Play button in Settings.
   await store.onPlayGreeting((id) => island?.play(id));
-  island = await mount(root, plugins, services, win, effective(initial), { openSettings, saveOptions, quit, greetings: choices, styles: looks });
+  island = await mount(root, plugins, services, win, effective(initial), { openSettings, saveOptions, readSecret, quit, greetings: choices, styles: looks });
   // Settings that changed while the island was starting.
   if (latest !== initial) island.configure(effective(latest), plugins);
   return island;

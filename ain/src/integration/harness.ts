@@ -17,6 +17,7 @@ import type { PopupPort } from "../shell/commands";
 import type { CommunityPort, Offer } from "../shell/community";
 import type { ExtensionsPort, Importer } from "../shell/extensions";
 import type { IslandHandle } from "../shell/host";
+import { memorySecrets } from "../shell/secrets";
 import { type Settings, defaults, memorySettings, parseSettings } from "../shell/settings";
 import type { Size, WindowPort } from "../shell/window";
 import { layout } from "../features/layout";
@@ -156,6 +157,9 @@ export function system() {
     openRepo: async (id) => void reposOpened.push(id),
   };
 
+  // Plugins' secrets: the credential store, shared by the island and Settings as in the app.
+  const secrets = memorySecrets();
+
   const store = memorySettings();
   const fallback = defaults(layout);
   // The clock's default format follows the machine's locale ("09:41" or "09:41 AM"): pin it, so
@@ -170,6 +174,7 @@ export function system() {
     folder,
     importer,
     community,
+    secrets,
     /** What the system says: push a track, an output volume, mic/camera use, a dictation phase, a stats sample. */
     push: {
       track: (t: Track | null) => media.push(t),
@@ -186,8 +191,8 @@ export function system() {
     /** Puts a plugin file in the folder (it runs only once turned on in the settings). */
     addFile: (file: string, def: Definition) => void files.set(file, def),
     /** Lists a plugin in the community store; installing it adds its file to the folder. */
-    addOffer: (offer: Omit<Offer, "file" | "problem"> & Partial<Offer>, def: Definition) =>
-      void offers.set(offer.id, { offer: { file: `${offer.id}/index.js`, problem: null, ...offer }, def }),
+    addOffer: (offer: Omit<Offer, "file" | "problem" | "options"> & Partial<Offer>, def: Definition) =>
+      void offers.set(offer.id, { offer: { file: `${offer.id}/index.js`, problem: null, options: null, ...offer }, def }),
     /** Makes reading the store, or downloading from it, fail with `message`; `null` mends it. */
     breakStore: (part: "store" | "install", message: string | null) => void (outage[part] = message),
     /** Holds downloads from the store until the returned function is called. */
@@ -268,7 +273,7 @@ export async function startIsland(sys: System): Promise<Island> {
   const el = document.createElement("div");
   el.id = "island";
   document.body.append(el);
-  const handle = await start(el, sys.services, sys.window, sys.store, sys.popup, sys.folder, sys.importer);
+  const handle = await start(el, sys.services, sys.window, sys.store, sys.popup, sys.folder, sys.importer, sys.secrets);
   await advance(0);
   return {
     el,
@@ -296,7 +301,7 @@ export async function startSettings(sys: System, at = "") {
   // The page sets itself up when its module loads: load a fresh copy, reading the ports given here.
   vi.resetModules();
   const ports = await import("../shell/windows/settings/ports");
-  ports.usePorts({ store: sys.store, popup: sys.popup, folder: sys.folder, importer: sys.importer, community: sys.community, inApp: false });
+  ports.usePorts({ store: sys.store, popup: sys.popup, folder: sys.folder, importer: sys.importer, community: sys.community, secrets: sys.secrets, inApp: false });
   await import("../shell/windows/settings/main");
   await advance(0);
   const page = document.querySelector<HTMLElement>(".app")!;

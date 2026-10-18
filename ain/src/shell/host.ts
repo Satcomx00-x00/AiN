@@ -29,6 +29,7 @@ const IDLE_HOST: Host<never> = {
   refresh() {},
   options: () => ({}) as never,
   setOptions() {},
+  secret: async () => "",
   openSettings() {},
   appearance: (): Appearance => ({ style: "pill", size: "normal", theme: "island", tone: "dark", notch: false }),
 };
@@ -63,6 +64,8 @@ export interface Extras {
   /** Opens Settings, at `target` ("widgets:<plugin id>") when given. */
   readonly openSettings?: (target?: string) => void;
   readonly saveOptions?: (pluginId: string, patch: Readonly<Record<string, unknown>>) => void;
+  /** Reads a plugin's secret from the credential store; "" when none is saved. */
+  readonly readSecret?: (pluginId: string, key: string) => Promise<string>;
   /** Quits the whole app. */
   readonly quit?: () => void;
   /** Startup animations to choose from (settings.general.greeting), the default first. */
@@ -91,7 +94,7 @@ export async function mount<S>(
   initial: Settings,
   extras: Extras = {},
 ): Promise<IslandHandle<S>> {
-  const { openSettings, saveOptions, quit } = extras;
+  const { openSettings, saveOptions, readSecret, quit } = extras;
   let greetings = extras.greetings ?? [];
   let styles = extras.styles ?? [];
   const hardware = await win.island();
@@ -104,6 +107,11 @@ export async function mount<S>(
     refresh: () => refresh(),
     options: () => resolve(plugin.options ?? {}, settings.options[plugin.id]) as never,
     setOptions: (patch) => saveOptions?.(plugin.id, patch),
+    // Only the secrets it declares: not another plugin's.
+    secret: async (key: string) => {
+      if (plugin.options?.[key]?.kind !== "secret") throw new Error(`"${key}" isn't one of ${plugin.id}'s secret options`);
+      return (await readSecret?.(plugin.id, key)) ?? "";
+    },
     openSettings: () => openSettings?.(`widgets:${plugin.id}`),
     // The style actually drawing, which differs from the chosen one while that one is broken.
     appearance: () => ({

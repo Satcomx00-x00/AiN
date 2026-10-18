@@ -24,6 +24,8 @@ dirs = "7"
 serde_json = "1.0.154"
 # The community plugin store (store.yaml on the repository's `store` branch).
 serde_yaml_ng = "0.10"
+# Plugins' secrets (API keys, tokens), in the system's credential store rather than settings.json.
+keyring = { version = "3.6", features = ["apple-native", "windows-native", "sync-secret-service", "crypto-rust"] }
 xcap = "0.9.8"
 cpal = "0.18.2"
 ureq = "3.4.2"

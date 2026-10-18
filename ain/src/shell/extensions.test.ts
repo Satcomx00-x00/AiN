@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 
-const { check, checkGreeting, checkStyle, confine, confineGreeting, confineStyle, fileRows, idOf, isolate, loadExtensions } = await import("./extensions");
+const { check, checkGreeting, checkStyle, confine, confineGreeting, confineStyle, fileRows, idOf, isolate, loadExtensions, storeFields } = await import("./extensions");
 const { sdk } = await import("../sdk");
 
 const rules = { taken: new Set(["clock", "media"]), services: ["media", "stats"] };
@@ -66,8 +66,45 @@ describe("check", () => {
       l: sdk.options.list("L", ["x"]),
       f: sdk.options.folder("F"),
       t: sdk.options.text("T"),
+      m: sdk.options.text("M", "", { multiline: true, required: true, pattern: "[a-z]+", maxLength: 20 }),
+      s: sdk.options.secret("S", { required: true }),
+      k: sdk.options.color("K", "#FF8800"),
+      p: sdk.options.number("Port", 8080, { min: 1, max: 65535, box: true }),
     };
     expect(typeof check({ ...valid(), options }, rules)).toBe("object");
+  });
+
+  it.each([
+    ["a pattern that doesn't compile", { t: sdk.options.text("T", "", { pattern: "(" }) }, "isn't a valid regular expression"],
+    ["a maxLength of 0", { t: { kind: "text", label: "T", default: "", maxLength: 0 } }, "maxLength above 0"],
+    ["a secret with a default", { s: { kind: "secret", label: "S", default: "hunter2" } }, "default that doesn't fit"],
+    ["a secret whose key can't name a credential", { "a b": sdk.options.secret("S") }, "letters, digits, _ or -"],
+    ["a color that isn't #rrggbb", { k: { kind: "color", label: "K", default: "red" } }, "default that doesn't fit"],
+  ])("refuses options with %s", (_, options, problem) => {
+    expect(check({ ...valid(), options }, rules)).toContain(problem);
+  });
+});
+
+describe("storeFields", () => {
+  it("reads the options a store entry declares, with what the SDK's builders would fill in", () => {
+    const fields = storeFields({
+      city: { kind: "text", label: "City", default: "Paris", required: true },
+      apiKey: { kind: "secret", label: "API key" },
+      refresh: { kind: "number", label: "Every", default: 10, min: 5, max: 60 },
+      tint: { kind: "color", label: "Tint", default: "#FF8800" },
+    });
+    expect(fields).toMatchObject({
+      city: { kind: "text", required: true },
+      apiKey: { kind: "secret", default: "" },
+      refresh: { kind: "number", step: 1 },
+      tint: { default: "#ff8800" },
+    });
+  });
+
+  it("says why options can't be drawn, and gives none when there are none", () => {
+    expect(storeFields({ units: { kind: "choice", label: "Units", default: "metric", choices: [] } })).toContain("choices that include its default");
+    expect(storeFields(["a"])).toBe("options must be an object of fields");
+    expect(storeFields(null)).toBeNull();
   });
 });
 
@@ -175,7 +212,7 @@ describe("loadExtensions", () => {
 });
 
 describe("confine", () => {
-  const host = { refresh() {}, options: () => ({}) as never, setOptions() {}, openSettings() {}, appearance: () => ({ style: "pill", size: "normal", theme: "island", tone: "dark", notch: false }) as const };
+  const host = { refresh() {}, options: () => ({}) as never, setOptions() {}, secret: async () => "", openSettings() {}, appearance: () => ({ style: "pill", size: "normal", theme: "island", tone: "dark", notch: false }) as const };
 
   it("gives a plugin only the services it declared, frozen", () => {
     let got: Record<string, unknown> = {};

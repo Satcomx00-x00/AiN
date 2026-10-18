@@ -17,6 +17,7 @@
 import { start } from "../shell/windows/island/app";
 import { idlePopup } from "../shell/commands";
 import { noExtensions } from "../shell/extensions";
+import { memorySecrets } from "../shell/secrets";
 import { type General, PILL_SIZE_IDS, defaults, memorySettings, parseSettings } from "../shell/settings";
 import { themeById } from "../shell/themes";
 import { layout } from "../features/layout";
@@ -192,7 +193,7 @@ if (["width", "curve", "bg", "accent", "theme", "size", "style"].some((p) => par
   }
   await store.save({ ...base, general });
 }
-if (root) await start(root, fake, fakeWindow, store, idlePopup, noExtensions);
+if (root) await start(root, fake, fakeWindow, store, idlePopup, noExtensions, undefined, memorySecrets());
 
 /** For the end-to-end tests: change the general settings live, as the settings window would. */
 let stored: unknown = null;

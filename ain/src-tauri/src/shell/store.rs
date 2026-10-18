@@ -6,6 +6,7 @@
 use std::{fs, path::Path};
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use specta::Type;
 use tauri::{AppHandle, Wry, async_runtime::spawn_blocking, plugin::TauriPlugin};
 
@@ -29,6 +30,10 @@ struct Listed {
     /// The plugin's file in the repository; `index.js` if left out.
     #[serde(default)]
     entry: Option<String>,
+    /// The plugin's options, declared as its code declares them, so Settings can show them before
+    /// it is turned on (its code doesn't run until then). The frontend checks them.
+    #[serde(default)]
+    options: Value,
 }
 
 #[derive(Debug, Deserialize)]
@@ -50,6 +55,9 @@ pub struct Offer {
     pub file: String,
     /// Why it can't be installed from the app, e.g. a repository outside GitHub; `None` if it can.
     pub problem: Option<String>,
+    /// Its options as the store declares them (`null` for none); the settings page checks them.
+    #[specta(type = Option<specta_typescript::Unknown>)]
+    pub options: Value,
 }
 
 /// What the store offers, or why it couldn't be read.
@@ -113,6 +121,7 @@ impl Listed {
             repo: self.repo.clone(),
             file: self.file(),
             problem: self.download_url().err(),
+            options: self.options.clone(),
         }
     }
 }
@@ -267,6 +276,25 @@ plugins:
   - { id: cd, name: C, description: D, repo: http://github.com/o/r }";
         let ids: Vec<String> = parse(yaml).unwrap().into_iter().map(|p| p.id).collect();
         assert_eq!(ids, ["ab"]);
+    }
+
+    #[test]
+    fn passes_on_the_options_an_entry_declares() {
+        let yaml = "version: 1
+plugins:
+  - id: weather
+    name: Weather
+    description: The forecast.
+    repo: https://github.com/o/r
+    options:
+      city: { kind: text, label: City, default: Paris, required: true }
+      apiKey: { kind: secret, label: API key, default: '' }
+  - { id: ab, name: A, description: B, repo: https://github.com/o/r }";
+        let offers: Vec<Offer> = parse(yaml).unwrap().iter().map(Listed::offer).collect();
+        assert_eq!(offers[0].options["city"]["label"], "City");
+        assert_eq!(offers[0].options["city"]["required"], true);
+        assert_eq!(offers[0].options["apiKey"]["kind"], "secret");
+        assert!(offers[1].options.is_null());
     }
 
     #[test]

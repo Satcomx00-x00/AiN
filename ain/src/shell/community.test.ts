@@ -5,13 +5,13 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke }));
 
 const { noCommunity, offerState, tauriCommunity } = await import("./community");
 
-const offer = { id: "orbit-clock", name: "Orbit clock", description: "", repo: "https://github.com/o/r", file: "orbit-clock/index.js", problem: null };
+const offer = { id: "orbit-clock", name: "Orbit clock", description: "", repo: "https://github.com/o/r", file: "orbit-clock/index.js", problem: null, options: null };
 
 describe("the community store", () => {
   it("offers to install a plugin, to update one already in the folder, or neither when it can't be installed", () => {
     expect(offerState(offer, ["other.js"])).toBe("install");
     expect(offerState(offer, ["orbit-clock/index.js"])).toBe("update");
-    expect(offerState({ ...offer, problem: "only GitHub repositories can be installed from the app" }, ["orbit-clock/index.js"])).toBe("unavailable");
+    expect(offerState({ ...offer, problem: "only GitHub repositories can be installed from the app", options: null }, ["orbit-clock/index.js"])).toBe("unavailable");
   });
 
   it("asks the app's backend by id, never with a URL", async () => {

@@ -1,7 +1,7 @@
 import "./settings.css";
 import { type Entry, commandsOf, fromKey, keycaps, shortcutOf, surfaceOf } from "../../commands";
 import { button, h, icon } from "../../../sdk/dom";
-import { resolve } from "../../../sdk/options";
+import { resolve, unset } from "../../../sdk/options";
 import type { Layout } from "../../placement";
 import type { AnyPlugin } from "../../../sdk/plugin";
 import {
@@ -17,7 +17,7 @@ import {
   placeNew,
   setExtension,
 } from "../../settings";
-import { type Extension, fileRows, idOf, loadExtensions } from "../../extensions";
+import { type Extension, fileRows, idOf, loadExtensions, storeFields } from "../../extensions";
 import type { Found } from "../../bindings/extensions";
 import { type Offer, noCommunity, offerState } from "../../community";
 import { layout as defaultLayout } from "../../../features/layout";
@@ -30,8 +30,9 @@ import { NO_GREETING } from "../../greet";
 import { type SelectOption, select } from "../../../sdk/select";
 import { tauriServices } from "../../../features/services";
 import { THEMES, themeById } from "../../themes";
-import { aroundPanel, colorPicker, field, optionControl, rangeControl, segmented, standardFields, switchControl, themeGrid } from "./controls";
-import type { Field } from "../../../sdk/options";
+import { type SecretAccess, aroundPanel, colorPicker, field, optionControl, rangeControl, segmented, standardFields, switchControl, themeGrid } from "./controls";
+import type { Field, Fields } from "../../../sdk/options";
+import { memorySecrets } from "../../secrets";
 import { settingsPorts } from "./ports";
 import { slotList } from "./slots";
 import { type Report, type Tone, demoUpdater, describe, noteLines } from "../../updater";
@@ -41,7 +42,7 @@ const SAVE_DELAY = 250;
 let plugins: readonly AnyPlugin[] = catalogue;
 const fallback = defaults(defaultLayout);
 // The app's backend, or in-memory stand-ins outside Tauri (the browser preview, integration tests).
-const { store, popup, folder, importer, community = noCommunity, updater = demoUpdater(), inApp: inTauri } = settingsPorts();
+const { store, popup, folder, importer, community = noCommunity, updater = demoUpdater(), secrets = memorySecrets(), inApp: inTauri } = settingsPorts();
 /** The updater's last report, kept current by its events; null until the first one arrives. */
 let update: Report | null = null;
 // Only built-in features offer shortcuts.
@@ -114,8 +115,15 @@ const resetShortcut = (id: string) => {
   const { [id]: _, ...rest } = settings.shortcuts;
   commit({ ...settings, shortcuts: rest }, true);
 };
-const setOption = (id: string, key: string, value: unknown) =>
+const setOption = (id: string, key: string, value: unknown) => {
   commit({ ...settings, options: { ...settings.options, [id]: { ...settings.options[id], [key]: value } } });
+  repaintSetup(id);
+};
+/** Back to the defaults: every option of the plugin but its secrets, which have their own Remove. */
+const resetOptions = (id: string) => {
+  const { [id]: _, ...rest } = settings.options;
+  commit({ ...settings, options: rest }, true);
+};
 
 // ---------- sections ----------
 
@@ -373,10 +381,61 @@ async function pickFolder(current: string): Promise<string | null> {
  * The controls of a plugin's or a style's options, with the plugin's own settings panel among them:
  * what its card shows under its head. Empty when it has nothing to set.
  */
-function optionRows(p: AnyPlugin | AnyStyle): Node[] {
+/** Reaches one of a plugin's secrets in the credential store; saving one may complete its setup. */
+const secretAccess = (id: string, key: string): SecretAccess => ({
+  saved: () => secrets.saved(id, [key]).then(([saved]) => saved === true),
+  save: (value) => secrets.set(id, key, value).then(() => repaintSetup(id)),
+});
+
+/** The fields of the badges saying a plugin needs setting up, by plugin id. */
+const setupFields = new Map<string, Fields>();
+
+/** "Needs setup", while a required option is left empty; its tooltip says which. Hidden otherwise. */
+function setupBadge(id: string, fields: Fields): HTMLElement {
+  setupFields.set(id, fields);
+  const badge = h("span", { class: "badge needs-setup", "data-setup": id });
+  badge.hidden = true;
+  void paintSetup(badge, id, fields);
+  return badge;
+}
+
+async function paintSetup(badge: HTMLElement, id: string, fields: Fields): Promise<void> {
+  const keys = Object.entries(fields).flatMap(([key, f]) => (f.kind === "secret" && f.required ? [key] : []));
+  // Unreadable, the credential store can't say a secret is missing: no badge rather than a false one.
+  const saved = keys.length ? await secrets.saved(id, keys).catch(() => keys.map(() => true)) : [];
+  const missing = unset(fields, settings.options[id], (key) => saved[keys.indexOf(key)] === true);
+  badge.hidden = missing.length === 0;
+  badge.textContent = "Needs setup";
+  badge.title = missing.length ? `Still to fill in: ${missing.join(", ")}` : "";
+}
+
+/** Brings a plugin's "Needs setup" badges up to date after one of its options changed. */
+function repaintSetup(id: string): void {
+  const fields = setupFields.get(id);
+  if (!fields) return;
+  for (const badge of document.querySelectorAll<HTMLElement>(`[data-setup="${id}"]`)) void paintSetup(badge, id, fields);
+}
+
+/** Under a plugin's options: back to their defaults. */
+function resetRow(id: string, fields: Fields): Node[] {
+  const kinds = Object.values(fields).map((f) => f.kind);
+  if (!kinds.some((k) => k !== "secret")) return [];
+  return [
+    h(
+      "div",
+      { class: "card-foot" },
+      h("span", {}, kinds.includes("secret") ? "Secrets stay saved: remove them above." : ""),
+      button("Reset to defaults", () => resetOptions(id), { class: "link" }),
+    ),
+  ];
+}
+
+/** A plugin's option controls, with its own settings panel among them, then a way back to the defaults. */
+function optionRows(p: AnyPlugin | AnyStyle | { readonly id: string; readonly options: Fields }): Node[] {
   const { before, after } = aroundPanel(p.options ?? {});
   const values = resolve(p.options ?? {}, settings.options[p.id]) as Record<string, unknown>;
-  const control = ([key, f]: [string, Field]) => optionControl(f, values[key], (v) => setOption(p.id, key, v), pickFolder);
+  const control = ([key, f]: [string, Field]) =>
+    optionControl(f, values[key], (v) => setOption(p.id, key, v), pickFolder, f.kind === "secret" ? secretAccess(p.id, key) : undefined);
   // A plugin's own controls, under its options: given services in the app only (not the preview).
   const setUp = "settingsPanel" in p ? p.settingsPanel : undefined;
   const panel = setUp && h("div", { class: "plugin-panel" });
@@ -392,7 +451,7 @@ function optionRows(p: AnyPlugin | AnyStyle): Node[] {
       if (stop) panelStops.push(stop);
     }
   }
-  return [...before.map(control), ...(panel ? [panel] : []), ...after.map(control)];
+  return [...before.map(control), ...(panel ? [panel] : []), ...after.map(control), ...resetRow(p.id, p.options ?? {})];
 }
 
 function widgets(): Node[] {
@@ -408,6 +467,7 @@ function widgets(): Node[] {
           { class: "card-head" },
           h("span", { class: "ico", "aria-hidden": "true" }, icon(p.icon)),
           h("div", { class: "grow" }, h("h2", {}, p.label), h("p", {}, p.description)),
+          setupBadge(p.id, p.options ?? {}),
           h(
             "span",
             { class: "badge", "data-placed": String(placesOf(p.id).length > 0) },
@@ -503,6 +563,7 @@ let readingShelf = false;
 /** The store plugin being downloaded, and why the last downloads failed. */
 let installing: string | null = null;
 const installFailures = new Map<string, string>();
+const FOLDER = `<path d="M2.5 4.5c0-.55.45-1 1-1h3l1.5 1.5h4.5c.55 0 1 .45 1 1v6c0 .55-.45 1-1 1h-9c-.55 0-1-.45-1-1z"/>`;
 const STORE = `<path d="M2.5 6 3.5 2.5h9l1 3.5"/><path d="M2.5 6a1.85 1.85 0 0 0 3.7 0 1.85 1.85 0 0 0 3.6 0 1.85 1.85 0 0 0 3.7 0"/><path d="M3.5 8v5.5h9V8M6.5 13.5V10h3v3.5"/>`;
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -549,7 +610,7 @@ function storeCards(): Node[] {
       () => void installOffer(offer),
       { class: "secondary", ...(state === "unavailable" || installing ? { disabled: "" } : {}) },
     );
-    const repo = button("Repository", () => void community.openRepo(offer.id).catch(() => {}), { class: "secondary", title: offer.repo });
+    const repo = button("Repository", () => void community.openRepo(offer.id).catch(() => {}), { class: "link", title: offer.repo });
     const detail = failure ? `Couldn't install it: ${failure}` : offer.problem ? `Install it by hand: ${offer.problem}.` : offer.description;
     const card = h(
       "section",
@@ -558,10 +619,13 @@ function storeCards(): Node[] {
         "div",
         { class: "card-head" },
         h("span", { class: "ico", "aria-hidden": "true" }, icon(STORE)),
-        h("div", { class: "grow" }, h("h2", {}, offer.name), h("p", {}, detail)),
-        ...(state === "update" ? [h("span", { class: "badge", "data-placed": "true" }, "Installed")] : []),
-        repo,
-        action,
+        h(
+          "div",
+          { class: "grow" },
+          h("div", { class: "title-row" }, h("h2", {}, offer.name), ...(state === "update" ? [h("span", { class: "badge", "data-placed": "true" }, "Installed")] : [])),
+          h("p", {}, detail),
+        ),
+        h("div", { class: "card-actions" }, repo, action),
       ),
     );
     if (failure || offer.problem) card.classList.add("failed");
@@ -569,10 +633,55 @@ function storeCards(): Node[] {
   });
 }
 
+/** The options a store plugin declares in the store, for setting it up before it's on; null for none or unusable ones. */
+function declaredFields(offer: Offer | undefined): Fields | null {
+  const fields = offer ? storeFields(offer.options) : null;
+  if (typeof fields === "string") console.warn(`[settings] store plugin "${offer?.id}": ${fields}`);
+  return fields && typeof fields === "object" && Object.keys(fields).length ? fields : null;
+}
+
+/** A plugin's options before it is on: the ones its store listing declares, kept under its id. */
+function declaredRows(id: string, fields: Fields): Node[] {
+  return [h("p", { class: "no-options before-on" }, "Set it up now: it uses these once turned on."), ...optionRows({ id, options: fields })];
+}
+
+/** "orbit-clock/index.js" → "Orbit clock": a name for a file whose code hasn't run yet. */
+const nameOfFile = (file: string) => {
+  const base = file.replace(/\/index\.js$|\.js$/, "").split("/").pop() ?? file;
+  const words = base.replace(/[-_]+/g, " ").trim();
+  return words ? words[0]!.toUpperCase() + words.slice(1) : file;
+};
+
+/** The plugins folder: where it is, and the two things to do with it. */
+function folderBar(): HTMLElement {
+  return h(
+    "section",
+    { class: "card folder-bar" },
+    h(
+      "div",
+      { class: "card-head" },
+      h("span", { class: "ico", "aria-hidden": "true" }, icon(FOLDER)),
+      h("div", { class: "grow" }, h("h2", {}, "Plugins folder"), h("p", { class: "mono", title: found.dir }, found.dir || "Not available in the preview")),
+      h(
+        "div",
+        { class: "card-actions" },
+        button("Open", () => void folder.openDir().then(rescan).then(render).catch(() => {}), { class: "secondary", title: "Open plugins folder", ...(inTauri ? {} : { disabled: "" }) }),
+        button("Refresh", () => void Promise.all([rescan(), readShelf()]).then(render), { class: "secondary" }),
+      ),
+    ),
+  );
+}
+
 function pluginsSection(): Node[] {
   const rows = fileRows(found.plugins, settings.extensions, loaded);
+  const offers = shelf?.offers ?? [];
   const list = rows.map((row) => {
-    const title = row.plugin?.label ?? row.greeting?.label ?? row.style?.label ?? row.file;
+    // Off, a file's code hasn't run: borrow its store listing's name, words and options, if it came from there.
+    const listed = offers.find((o) => o.file === row.file);
+    const declared = !row.plugin && !row.style && !row.greeting && !row.problem ? declaredFields(listed) : null;
+    const fields = row.plugin?.options ?? row.style?.options ?? declared ?? {};
+    const id = row.plugin?.id ?? row.style?.id ?? listed?.id;
+    const title = row.plugin?.label ?? row.greeting?.label ?? row.style?.label ?? listed?.name ?? nameOfFile(row.file);
     const detail = row.problem
       ? `Can't be used: ${row.problem}`
       : row.plugin
@@ -583,7 +692,7 @@ function pluginsSection(): Node[] {
             ? "Pill style, chosen in Appearance."
           : row.on
           ? "Loading…"
-          : "Off";
+          : (listed?.description ?? "Turn it on to load it.");
     const card = h(
       "section",
       { class: "card" },
@@ -591,26 +700,21 @@ function pluginsSection(): Node[] {
         "div",
         { class: "card-head" },
         h("span", { class: "ico", "aria-hidden": "true" }, icon(row.plugin?.icon ?? (row.greeting ? SPARKLE : row.style ? PILL : FILE))),
-        h("div", { class: "grow" }, h("h2", {}, title), h("p", {}, detail)),
+        h("div", { class: "grow" }, h("h2", {}, title), h("p", {}, detail), h("p", { class: "mono" }, row.file)),
+        ...(id ? [setupBadge(id, fields)] : []),
         switchControl(row.on, (on) => void toggleFile(row.file, on).then(render), `Use ${title}`),
       ),
-      // Once on, its options are set right here, under the switch.
-      ...(row.plugin ? optionRows(row.plugin) : row.style ? optionRows(row.style) : []),
+      // Its options are set right here, under the switch: once on, or before for a store plugin that declares them.
+      ...(row.plugin ? optionRows(row.plugin) : row.style ? optionRows(row.style) : declared && listed ? declaredRows(listed.id, declared) : []),
     );
     if (row.problem) card.classList.add("failed");
     return card;
   });
   return [
-    ...header("Plugins"),
-    h("p", { class: "note" }, "Plugins run with the island's permissions: only turn on those you trust."),
-    ...(list.length ? list : [h("p", { class: "lead" }, "No plugins. Add .js files to the plugins folder.")]),
-    h(
-      "div",
-      { class: "actions" },
-      button("Open plugins folder", () => void folder.openDir().then(rescan).then(render).catch(() => {}), { class: "secondary", ...(inTauri ? {} : { disabled: "" }) }),
-      button("Refresh", () => void Promise.all([rescan(), readShelf()]).then(render), { class: "secondary" }),
-    ),
-    ...(found.dir ? [h("p", { class: "note" }, found.dir)] : []),
+    ...header("Plugins", "Plugins run with the island's permissions: only turn on those you trust."),
+    folderBar(),
+    h("h2", { class: "subhead" }, "Installed"),
+    ...(list.length ? list : [h("p", { class: "lead" }, "No plugins yet. Install one from the store below, or add .js files to the plugins folder.")]),
     h("h2", { class: "subhead" }, "Community store"),
     h("p", { class: "note" }, "Plugins made by others, downloaded from their repository. They are installed off: read the code, then turn them on above."),
     ...storeCards(),

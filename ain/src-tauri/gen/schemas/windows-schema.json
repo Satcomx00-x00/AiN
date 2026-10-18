@@ -2763,6 +2763,48 @@
           "markdownDescription": "Denies the state command without any pre-configured scope."
         },
         {
+          "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-get`\n- `allow-set`\n- `allow-saved-keys`",
+          "type": "string",
+          "const": "secrets:default",
+          "markdownDescription": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-get`\n- `allow-set`\n- `allow-saved-keys`"
+        },
+        {
+          "description": "Enables the get command without any pre-configured scope.",
+          "type": "string",
+          "const": "secrets:allow-get",
+          "markdownDescription": "Enables the get command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the saved_keys command without any pre-configured scope.",
+          "type": "string",
+          "const": "secrets:allow-saved-keys",
+          "markdownDescription": "Enables the saved_keys command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the set command without any pre-configured scope.",
+          "type": "string",
+          "const": "secrets:allow-set",
+          "markdownDescription": "Enables the set command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get command without any pre-configured scope.",
+          "type": "string",
+          "const": "secrets:deny-get",
+          "markdownDescription": "Denies the get command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the saved_keys command without any pre-configured scope.",
+          "type": "string",
+          "const": "secrets:deny-saved-keys",
+          "markdownDescription": "Denies the saved_keys command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the set command without any pre-configured scope.",
+          "type": "string",
+          "const": "secrets:deny-set",
+          "markdownDescription": "Denies the set command without any pre-configured scope."
+        },
+        {
           "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-get`\n- `allow-set`\n- `allow-open`\n- `allow-quit`\n- `allow-autostart`\n- `allow-set-autostart`\n- `allow-play-greeting`",
           "type": "string",
           "const": "settings:default",

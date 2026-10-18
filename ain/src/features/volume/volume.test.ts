@@ -141,7 +141,7 @@ describe("the volume tab", () => {
     expect(m.host.refresh).toHaveBeenCalled();
     const widget = volume.setup(
       { volume: { ...m.port, watch: async (on) => (on({ level: 0.5, muted: false, device: "S" } as Output), on({ level: 0.7, muted: false, device: "S" } as Output), () => {}) } },
-      { refresh() {}, options: () => ({ popup: false, pinned: [] }), setOptions() {}, openSettings() {} } as never,
+      { refresh() {}, options: () => ({ popup: false, pinned: [] }), setOptions() {}, secret: async () => "", openSettings() {} } as never,
     );
     await vi.advanceTimersByTimeAsync(0);
     expect(widget.glance?.(Date.now())).toBeNull();
