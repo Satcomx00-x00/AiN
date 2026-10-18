@@ -222,6 +222,18 @@ describe("confine", () => {
     expect(Object.isFrozen(got)).toBe(true);
   });
 
+  it("binds a per-plugin service to the plugin's id, in its settings panel too", async () => {
+    const { perPlugin } = await import("./extensions");
+    let got: Record<string, unknown> = {};
+    const accounts = perPlugin((id) => ({ owner: id }));
+    const plugin = confine({ ...valid(), setup: (s: never) => ((got = s), {}), settingsPanel: (_: HTMLElement, s: never) => void (got = s) } as never, ["oauth"]);
+    plugin.setup({ oauth: accounts, media: "M" } as never, host);
+    expect(got).toEqual({ oauth: { owner: "pomodoro" } });
+    got = {};
+    plugin.settingsPanel?.({} as never, { oauth: accounts } as never, {} as never);
+    expect(got).toEqual({ oauth: { owner: "pomodoro" } });
+  });
+
   it("survives a setup that throws or returns nothing usable", () => {
     const log = vi.fn();
     const throws = confine({ ...valid(), setup: () => { throw new Error("x"); } } as never, [], log);

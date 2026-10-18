@@ -19,10 +19,10 @@ export const catalogue: readonly Plugin<Services, Fields>[] = [clock, timer, cli
 /**
  * What plugins from the plugins folder may use: their ids can't clash with a built-in feature's,
  * startup animation's or pill style's, and
- * they may only ask for these services. Clipboard history, screen captures and dictation stay
+ * they may only ask for these services (`oauth` bound to each plugin's id). Clipboard history, screen captures and dictation stay
  * with the built-in features: they read what the user copies, sees and says.
  */
 export const extensionRules = {
   taken: new Set([...catalogue.map((p) => p.id), ...greetings.map((g) => g.id), ...styles.map((s) => s.id)]),
-  services: ["stats", "media", "volume", "privacy"] satisfies (keyof Services)[],
+  services: ["stats", "media", "volume", "privacy", "oauth"] satisfies (keyof Services)[],
 } as const;

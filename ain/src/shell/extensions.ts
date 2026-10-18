@@ -246,12 +246,21 @@ export function isolate(widget: Widget, report: (what: string, e: unknown) => vo
   return out;
 }
 
+/** A service each plugin gets its own copy of, bound to its id: e.g. its accounts. */
+export interface PerPlugin<T> {
+  readonly forPlugin: (pluginId: string) => T;
+}
+
+export const perPlugin = <T>(forPlugin: (pluginId: string) => T): PerPlugin<T> => ({ forPlugin });
+
+const isPerPlugin = (service: unknown): service is PerPlugin<unknown> => isObject(service) && typeof service.forPlugin === "function";
+
 /** The plugin as the island runs it: given only the services it needs, and isolated. */
 export function confine(plugin: AnyPlugin, needs: readonly string[], log: (message: string) => void = console.error): AnyPlugin {
   const report = (what: string, e: unknown) => log(`[island] plugin "${plugin.id}": ${what} failed and was turned off: ${String(e)}`);
   const grant = (services: unknown) => {
     const all = services as Record<string, unknown>;
-    return Object.freeze(Object.fromEntries(needs.map((n) => [n, all[n]])));
+    return Object.freeze(Object.fromEntries(needs.map((n) => [n, isPerPlugin(all[n]) ? all[n].forPlugin(plugin.id) : all[n]])));
   };
   const panel = plugin.settingsPanel;
   return {

@@ -2679,6 +2679,60 @@
           "markdownDescription": "Denies the state command without any pre-configured scope."
         },
         {
+          "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-sign-in`\n- `allow-token`\n- `allow-sign-out`\n- `allow-signed-in`",
+          "type": "string",
+          "const": "oauth:default",
+          "markdownDescription": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-sign-in`\n- `allow-token`\n- `allow-sign-out`\n- `allow-signed-in`"
+        },
+        {
+          "description": "Enables the sign_in command without any pre-configured scope.",
+          "type": "string",
+          "const": "oauth:allow-sign-in",
+          "markdownDescription": "Enables the sign_in command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the sign_out command without any pre-configured scope.",
+          "type": "string",
+          "const": "oauth:allow-sign-out",
+          "markdownDescription": "Enables the sign_out command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the signed_in command without any pre-configured scope.",
+          "type": "string",
+          "const": "oauth:allow-signed-in",
+          "markdownDescription": "Enables the signed_in command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the token command without any pre-configured scope.",
+          "type": "string",
+          "const": "oauth:allow-token",
+          "markdownDescription": "Enables the token command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the sign_in command without any pre-configured scope.",
+          "type": "string",
+          "const": "oauth:deny-sign-in",
+          "markdownDescription": "Denies the sign_in command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the sign_out command without any pre-configured scope.",
+          "type": "string",
+          "const": "oauth:deny-sign-out",
+          "markdownDescription": "Denies the sign_out command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the signed_in command without any pre-configured scope.",
+          "type": "string",
+          "const": "oauth:deny-signed-in",
+          "markdownDescription": "Denies the signed_in command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the token command without any pre-configured scope.",
+          "type": "string",
+          "const": "oauth:deny-token",
+          "markdownDescription": "Denies the token command without any pre-configured scope."
+        },
+        {
           "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-bind`\n- `allow-failures`\n- `allow-open`\n- `allow-hide`\n- `allow-paste`",
           "type": "string",
           "const": "popup:default",

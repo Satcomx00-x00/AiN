@@ -63,6 +63,7 @@ working plugin.
   | `media` | `watch(onTrack)`, `artwork()`, `control("toggle" \| "next" \| "previous")` |
   | `volume` | `watch(onOutput)`, `watchSources(onSources)`, `peak()`, `setLevel(level, source?)`, `setMuted(muted, source?)` |
   | `privacy` | `watch(onUsage)` with `{ mic: string[], camera: string[] }` |
+  | `oauth` | `signIn(provider)`, `token(provider)`, `signOut(provider)`, `signedIn(provider)`: see [Signing in to an online account](#signing-in-to-an-online-account) |
 
   `watch` methods call back with the current value right away, then on every change; they
   resolve with a function that stops watching. Clipboard history, screen captures and dictation
@@ -171,6 +172,47 @@ yourself there (e.g. a choice showing live state), in place of the standard cont
 `field`, `field-label`, `field-hint`, `secondary` (buttons) and `progress` (a bar: set `--p`
 from 0 to 1) match the rest of the page. From the island, `host.openSettings()` brings the user
 there.
+
+### Signing in to an online account
+
+With `needs: ["oauth"]`, a plugin can sign in to a web service (Google, Microsoft, Spotify…)
+with OAuth 2.0 and call its API. The app does the sign-in the way native apps should
+([RFC 8252](https://www.rfc-editor.org/rfc/rfc8252)): it opens the provider's page in the
+system browser, with PKCE, and receives the answer on a one-off `127.0.0.1` address. It keeps
+the refresh token in the system keychain (Credential Manager, the macOS Keychain, the Secret
+Service on Linux), filed under the plugin's id, and hands the plugin short-lived access tokens
+only. Filing by id keeps plugins' accounts apart; it doesn't protect them from a malicious plugin,
+since every plugin runs in the island's window with the same permissions: only turn on plugins
+you trust.
+
+The plugin brings the provider and its own client, registered with the provider as a desktop
+app with a loopback redirect:
+
+```js
+const provider = {
+  authUrl: "https://accounts.google.com/o/oauth2/v2/auth",
+  tokenUrl: "https://oauth2.googleapis.com/token",
+  revokeUrl: "https://oauth2.googleapis.com/revoke", // optional: revoked on sign-out
+  clientId: options.clientId,
+  clientSecret: options.clientSecret,                 // optional: some providers want one
+  scopes: ["https://www.googleapis.com/auth/calendar.events"],
+  params: { access_type: "offline", prompt: "consent" }, // extra sign-in page parameters
+};
+await oauth.signIn(provider);           // opens the browser; resolves once signed in
+const token = await oauth.token(provider); // null when signed out: offer to sign in
+await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+```
+
+- `token` refreshes the access token when it is about to expire. When the provider no longer
+  accepts the sign-in (revoked, expired), the app forgets it and `token` returns `null`.
+- The addresses must be `https://`. The provider must give a refresh token (Google: ask for
+  `access_type: "offline"`), or the sign-in fails.
+- Sign in from a button (in the plugin's tab or its settings panel), never on startup: it opens
+  the browser.
+- Web APIs are called with `fetch`, and must allow it from a web page (CORS), as Google's do.
+
+The [Google Calendar template](https://github.com/Satcomx00-x00/AiN/tree/plugin-template-calendar)
+is a complete example.
 
 ## A startup animation
 

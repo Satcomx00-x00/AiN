@@ -21,6 +21,7 @@ import { memorySecrets } from "../shell/secrets";
 import { type Settings, defaults, memorySettings, parseSettings } from "../shell/settings";
 import type { Size, WindowPort } from "../shell/window";
 import { layout } from "../features/layout";
+import { perPlugin } from "../shell/extensions";
 
 // Each test loads the whole app, and the first one in a file also compiles it: give them time, even
 // on a busy machine.
@@ -75,7 +76,15 @@ export function system() {
   let clips: Clip[] = [];
   const controls: Control[] = [];
 
+  /** The plugins signed in to an account, by id. */
+  const accounts = new Set<string>();
   const services: Services = {
+    oauth: perPlugin((plugin) => ({
+      signIn: async () => void accounts.add(plugin),
+      token: async () => (accounts.has(plugin) ? `token of ${plugin}` : null),
+      signOut: async () => void accounts.delete(plugin),
+      signedIn: async () => accounts.has(plugin),
+    })),
     stats: { stats: async () => sample && { ...sample, sampledAt: Date.now() } },
     clipboard: {
       history: async () => clips,
