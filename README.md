@@ -138,13 +138,15 @@ Global shortcuts open these even while the island is folded. You can rebind them
 
 | Tool | What it does | Windows | macOS | Linux |
 | --- | --- | :---: | :---: | :---: |
-| **Clipboard picker** | Search your clipboard history, pick with the arrows or <kbd>Alt</kbd>+<kbd>1</kbd>…<kbd>9</kbd>, and it is pasted into the app you were in | ✅ | ⚠️ pasting needs Accessibility access | ⚠️ shortcut on X11 only; pasting needs `xdotool`, `wtype` or `ydotool` |
-| **Screenshot editor** | Freezes the screen; select an area, draw on it (pen, marker, rectangle, ellipse, colors, sizes, undo), then copy or save it as a PNG | ✅ | ✅ | ⚠️ shortcut on X11 only |
-| **Dictation** | Starts and stops dictating | ✅ | ✅ | ⚠️ shortcut on X11 only |
-| **Command palette** | One search for your apps, files, the app's own commands and system actions (lock, sleep, sign out, restart, shut down, empty the trash), with a calculator; `>` runs a command line in a terminal, `?` searches the web, a typed path browses its folder. What you pick often comes first | ✅ apps from the Start menu (desktop and Store) | ✅ apps from the Applications folders; locking needs Accessibility access | ⚠️ shortcut on X11 only; apps from desktop entries (Flatpak and Snap too) |
-| **Zones** | Snap windows into a layout of zones (priority grid, columns, rows, grid, focus) on every screen: drag a window with <kbd>Shift</kbd> held (<kbd>Ctrl</kbd> too to span zones), pick a zone by its number, or send a window to the next or previous zone, on to the next screen | ✅ | ⚠️ needs Accessibility access | ⚠️ X11 only: Wayland lets no app move another's windows |
+| **Clipboard picker** | Search your clipboard history, pick with the arrows or <kbd>Alt</kbd>+<kbd>1</kbd>…<kbd>9</kbd>, and it is pasted into the app you were in | ✅ | ⚠️ pasting needs Accessibility access | ⚠️ pasting needs `xdotool`, `wtype` or `ydotool` |
+| **Screenshot editor** | Freezes the screen; select an area, draw on it (pen, marker, rectangle, ellipse, colors, sizes, undo), then copy or save it as a PNG | ✅ | ✅ | ✅ |
+| **Dictation** | Starts and stops dictating | ✅ | ✅ | ✅ |
+| **Command palette** | One search for your apps, files, the app's own commands and system actions (lock, sleep, sign out, restart, shut down, empty the trash), with a calculator; `>` runs a command line in a terminal, `?` searches the web, a typed path browses its folder. What you pick often comes first | ✅ apps from the Start menu (desktop and Store) | ✅ apps from the Applications folders; locking needs Accessibility access | ✅ apps from desktop entries (Flatpak and Snap too) |
+| **Zones** | Snap windows into a layout of zones (priority grid, columns, rows, grid, focus) on every screen: drag a window with <kbd>Shift</kbd> held (<kbd>Ctrl</kbd> too to span zones), pick a zone by its number, or send a window to the next or previous zone, on to the next screen | ✅ | ⚠️ needs Accessibility access | ✅ X11<br>⚠️ GNOME on Wayland: with AiN's GNOME Shell helper, installed from **Settings → Zones**, running after you log in again<br>⚠️ other Wayland desktops (KDE, Sway…): not yet, they let no app move another's windows |
 
-On Wayland, Linux gives apps no global shortcuts: the island and its tabs work, the shortcuts don't.
+On Wayland, the shortcuts go through the desktop's shortcuts portal (GNOME 48+, so Fedora 42+; KDE Plasma; Hyprland): the
+desktop asks once to allow them, then keeps them in its own keyboard settings, where you change them. Desktops without it
+(Sway…) run the island and its tabs, not the shortcuts.
 
 ### Plugins
 
@@ -173,7 +175,7 @@ the `store` branch to list it.
 
 You can rebind them all in **Settings → Shortcuts**. On Windows, <kbd>Win</kbd> + a single letter is reserved by the
 OS, so add <kbd>Shift</kbd> or <kbd>Alt</kbd>. On macOS, <kbd>Win</kbd> is <kbd>Cmd</kbd>; on Linux, the Super key.
-On Linux, global shortcuts work on X11 only.
+On Wayland, the desktop's shortcuts portal binds them, [as above](#shortcut-tools).
 
 ## Install
 
