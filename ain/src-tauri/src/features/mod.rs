@@ -6,6 +6,7 @@
 pub mod clipboard;
 pub mod dictation;
 pub mod media;
+pub mod palette;
 pub mod privacy;
 pub mod stats;
 pub mod volume;
@@ -22,4 +23,5 @@ pub fn register(app: Builder<Wry>) -> Builder<Wry> {
         .plugin(volume::init())
         .plugin(privacy::init())
         .plugin(dictation::init())
+        .plugin(palette::init())
 }

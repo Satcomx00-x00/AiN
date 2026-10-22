@@ -55,6 +55,8 @@ const OPTION: u64 = 1 << 19;
 const COMMAND: u64 = 1 << 20;
 /// `kVK_ANSI_V`.
 const KEY_V: u16 = 9;
+/// `kVK_ANSI_Q`.
+const KEY_Q: u16 = 12;
 /// The most UTF-16 units one key event carries.
 const PER_EVENT: usize = 20;
 /// The shortcut's modifiers may still be down; typed characters would turn into shortcuts.
@@ -152,6 +154,16 @@ pub fn paste() -> bool {
     }
     wait_for_modifiers();
     press(KEY_V, COMMAND, &[]);
+    true
+}
+
+/// Locks the screen as Control-Command-Q does; false when not allowed.
+pub fn lock_screen() -> bool {
+    if !trusted() {
+        return false;
+    }
+    wait_for_modifiers();
+    press(KEY_Q, CONTROL | COMMAND, &[]);
     true
 }
 

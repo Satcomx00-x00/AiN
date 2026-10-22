@@ -2733,6 +2733,120 @@
           "markdownDescription": "Denies the token command without any pre-configured scope."
         },
         {
+          "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-apps`\n- `allow-launch`\n- `allow-files`\n- `allow-browse`\n- `allow-open`\n- `allow-reveal`\n- `allow-run`\n- `allow-system`\n- `allow-open-url`",
+          "type": "string",
+          "const": "palette:default",
+          "markdownDescription": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-apps`\n- `allow-launch`\n- `allow-files`\n- `allow-browse`\n- `allow-open`\n- `allow-reveal`\n- `allow-run`\n- `allow-system`\n- `allow-open-url`"
+        },
+        {
+          "description": "Enables the apps command without any pre-configured scope.",
+          "type": "string",
+          "const": "palette:allow-apps",
+          "markdownDescription": "Enables the apps command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the browse command without any pre-configured scope.",
+          "type": "string",
+          "const": "palette:allow-browse",
+          "markdownDescription": "Enables the browse command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the files command without any pre-configured scope.",
+          "type": "string",
+          "const": "palette:allow-files",
+          "markdownDescription": "Enables the files command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the launch command without any pre-configured scope.",
+          "type": "string",
+          "const": "palette:allow-launch",
+          "markdownDescription": "Enables the launch command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the open command without any pre-configured scope.",
+          "type": "string",
+          "const": "palette:allow-open",
+          "markdownDescription": "Enables the open command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the open_url command without any pre-configured scope.",
+          "type": "string",
+          "const": "palette:allow-open-url",
+          "markdownDescription": "Enables the open_url command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the reveal command without any pre-configured scope.",
+          "type": "string",
+          "const": "palette:allow-reveal",
+          "markdownDescription": "Enables the reveal command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the run command without any pre-configured scope.",
+          "type": "string",
+          "const": "palette:allow-run",
+          "markdownDescription": "Enables the run command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the system command without any pre-configured scope.",
+          "type": "string",
+          "const": "palette:allow-system",
+          "markdownDescription": "Enables the system command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the apps command without any pre-configured scope.",
+          "type": "string",
+          "const": "palette:deny-apps",
+          "markdownDescription": "Denies the apps command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the browse command without any pre-configured scope.",
+          "type": "string",
+          "const": "palette:deny-browse",
+          "markdownDescription": "Denies the browse command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the files command without any pre-configured scope.",
+          "type": "string",
+          "const": "palette:deny-files",
+          "markdownDescription": "Denies the files command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the launch command without any pre-configured scope.",
+          "type": "string",
+          "const": "palette:deny-launch",
+          "markdownDescription": "Denies the launch command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the open command without any pre-configured scope.",
+          "type": "string",
+          "const": "palette:deny-open",
+          "markdownDescription": "Denies the open command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the open_url command without any pre-configured scope.",
+          "type": "string",
+          "const": "palette:deny-open-url",
+          "markdownDescription": "Denies the open_url command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the reveal command without any pre-configured scope.",
+          "type": "string",
+          "const": "palette:deny-reveal",
+          "markdownDescription": "Denies the reveal command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the run command without any pre-configured scope.",
+          "type": "string",
+          "const": "palette:deny-run",
+          "markdownDescription": "Denies the run command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the system command without any pre-configured scope.",
+          "type": "string",
+          "const": "palette:deny-system",
+          "markdownDescription": "Denies the system command without any pre-configured scope."
+        },
+        {
           "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-bind`\n- `allow-failures`\n- `allow-open`\n- `allow-hide`\n- `allow-paste`",
           "type": "string",
           "const": "popup:default",

@@ -59,6 +59,7 @@ winreg = "0.56"
 windows = { version = "0.62", features = [
     "Foundation",
     "Foundation_Collections",
+    "Win32_Foundation",
     "Media_Control",
     "Storage_Streams",
     "Win32_Devices_FunctionDiscovery",
@@ -66,6 +67,7 @@ windows = { version = "0.62", features = [
     "Win32_Media_Audio_Endpoints",
     "Win32_System_Com",
     "Win32_System_Com_StructuredStorage",
+    "Win32_System_Power",
     "Win32_System_Variant",
     "Win32_UI_Shell_PropertiesSystem",
     "Win32_System_Threading",

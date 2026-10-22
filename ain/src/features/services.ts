@@ -1,6 +1,7 @@
 import { type ClipboardPort, tauriClipboard } from "./clipboard/service";
 import { type DictationPort, tauriDictation } from "./dictation/service";
 import { type MediaPort, tauriMedia } from "./media/service";
+import { type PalettePort, tauriPalette } from "./palette/service";
 import { type PrivacyPort, tauriPrivacy } from "./privacy/service";
 import { type CapturePort, tauriCapture } from "./screenshot/service";
 import { type StatsPort, tauriStats } from "./stats/service";
@@ -17,6 +18,8 @@ export interface Services {
   readonly privacy: PrivacyPort;
   readonly capture: CapturePort;
   readonly dictation: DictationPort;
+  /** Apps, files and system actions, for the command palette. */
+  readonly palette: PalettePort;
   /** Signing in to online accounts; each plugin gets its own, bound to its id. */
   readonly oauth: PerPlugin<OAuthPort>;
 }
@@ -29,5 +32,6 @@ export const tauriServices: Services = {
   privacy: tauriPrivacy,
   capture: tauriCapture,
   dictation: tauriDictation,
+  palette: tauriPalette,
   oauth: tauriOAuth,
 };

@@ -185,3 +185,83 @@ kbd {
 .swatch {
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
 }
+
+/* ---------- Command palette ---------- */
+
+.pl-mode {
+  flex: none;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  font-size: 11px;
+}
+
+.pl-mode[hidden] {
+  display: none;
+}
+
+.pl-tile {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  background: var(--soft);
+  color: var(--muted);
+}
+
+.pl-tile .icon {
+  width: 14px;
+  height: 14px;
+}
+
+/* An app's initial, on a color of its own (`--hue`, from its name). */
+.pl-initial {
+  background: hsl(var(--hue, 210) 52% 40%);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.pl-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.pl-title,
+.pl-sub {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.pl-title mark {
+  background: none;
+  color: color-mix(in srgb, var(--accent) 65%, var(--fg));
+  font-weight: 600;
+}
+
+.pl-sub {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.pl-sub.pl-ask {
+  color: #ff9f0a;
+}
+
+.pl-keys {
+  display: inline-flex;
+}
+
+.pl-status {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.pl-status.pl-problem {
+  color: #ff6961;
+}

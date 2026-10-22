@@ -1,13 +1,17 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "popup",
-  "description": "The shortcut popup: read settings and clipboard history, copy, paste, hide itself.",
+  "description": "The shortcut popup: read settings and clipboard history, copy, paste, hide itself; the command palette's apps, files and actions, the other commands it runs, and opening Settings or quitting from it.",
   "windows": ["popup"],
   "permissions": [
     "core:event:default",
     "settings:allow-get",
     "clipboard:default",
     "popup:allow-hide",
-    "popup:allow-paste"
+    "popup:allow-paste",
+    "popup:allow-open",
+    "palette:default",
+    "settings:allow-open",
+    "settings:allow-quit"
   ]
 }

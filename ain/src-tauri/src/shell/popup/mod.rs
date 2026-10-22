@@ -229,8 +229,13 @@ pub fn show(app: &AppHandle, command: &str) -> Res<()> {
 /// Captures the monitor under the pointer, then covers it with the overlay showing that capture.
 fn capture(app: &AppHandle, command: &str) -> Res<()> {
     let pointer = app.cursor_position()?;
-    if let Some(w) = app.get_webview_window(OVERLAY).filter(|w| w.is_visible().unwrap_or(false)) {
-        w.hide()?;
+    // Nothing of ours may be in the capture: an earlier overlay, or the command palette that ran this.
+    let shown: Vec<WebviewWindow> =
+        [OVERLAY, WINDOW].iter().filter_map(|label| app.get_webview_window(label)).filter(|w| w.is_visible().unwrap_or(false)).collect();
+    for window in &shown {
+        window.hide()?;
+    }
+    if !shown.is_empty() {
         thread::sleep(OVERLAY_GONE);
     }
     *lock(&app.state::<Popup>().previous) = os::foreground();

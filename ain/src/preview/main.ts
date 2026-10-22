@@ -25,6 +25,7 @@ import type { Services } from "../features/services";
 import type { WindowPort } from "../shell/window";
 import type { Clip } from "../features/clipboard/service";
 import type { Track } from "../features/media/service";
+import { idlePalette } from "../features/palette/service";
 import { noOAuth } from "../shell/oauth";
 
 const params = new URLSearchParams(location.search);
@@ -63,6 +64,7 @@ const track: Track = {
 
 const fake: Services = {
   oauth: noOAuth,
+  palette: idlePalette,
   stats: {
     stats: async () => {
       const now = Date.now();

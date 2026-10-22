@@ -54,6 +54,15 @@ test("the clipboard popup lists what was copied", async ({ page }) => {
   await expect(page.getByText("hello from the clipboard")).toBeVisible();
 });
 
+test("the command palette lists the installed apps and starts one", async ({ page }) => {
+  await withBackend(page);
+  await page.goto("/popup.html#palette.open");
+  await page.getByRole("combobox", { name: "Search apps, files and commands" }).fill("fire");
+  await expect(page.getByRole("option").first()).toContainText("Firefox");
+  await page.keyboard.press("Enter");
+  await expect.poll(async () => (await calls(page)).commands.filter((c) => c.cmd === "plugin:palette|launch").map((c) => c.args)).toEqual([{ id: "firefox.desktop" }]);
+});
+
 test("the capture overlay opens without a capture to show", async ({ page }) => {
   await withBackend(page);
   await page.goto("/overlay.html#screenshot.capture");
