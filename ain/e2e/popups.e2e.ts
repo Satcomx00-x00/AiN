@@ -1,6 +1,6 @@
 /**
- * The shortcut windows in a real browser, on their preview data: the clipboard history popup and
- * the screen capture editor (a real canvas, a real pointer).
+ * The shortcut windows in a real browser, on their preview data: the clipboard history popup, the
+ * command palette, the zones overlay and the screen capture editor (a real canvas, a real pointer).
  */
 import { expect, test } from "./fixtures";
 
@@ -18,6 +18,43 @@ test.describe("the clipboard popup", () => {
     await page.keyboard.press("ArrowDown");
     await expect(options.nth(1)).toHaveAttribute("aria-selected", "true");
     await expect(page.locator(".pk-count")).toHaveText("6 of 6");
+  });
+});
+
+test.describe("the command palette", () => {
+  test("finds apps, works out a calculation, and switches modes on a prefix", async ({ page }) => {
+    await page.goto("/popup.html#palette.open");
+    const search = page.getByRole("combobox", { name: "Search apps, files and commands" });
+    await expect(search).toBeFocused();
+    const options = page.getByRole("option");
+    await search.fill("vsc");
+    await expect(options.first()).toContainText("Visual Studio Code");
+    await search.fill("12 * (3 + 4)");
+    await expect(options.first()).toContainText("= 84");
+    await search.fill("> ls -la");
+    await expect(page.locator(".pl-mode")).toHaveText("Terminal");
+    await expect(options).toHaveCount(1);
+    await search.fill("report");
+    await expect(page.getByRole("option", { name: /Quarterly report\.pdf/ })).toBeVisible();
+    await page.keyboard.press("ArrowDown");
+    await expect(options.nth(1)).toHaveAttribute("aria-selected", "true");
+  });
+});
+
+test.describe("the zones overlay", () => {
+  test("numbers the zones as the picker and says how to pick", async ({ page }) => {
+    await page.goto("/zones.html?pick");
+    const zones = page.getByRole("button", { name: /^Zone \d$/ });
+    await expect(zones).toHaveCount(3);
+    await expect(page.getByRole("status")).toHaveText("Press 1–3 or click a zone · ← → screen 1 of 2 · Esc to cancel");
+    const [left, middle] = [await zones.nth(0).boundingBox(), await zones.nth(1).boundingBox()];
+    expect(middle!.width).toBeGreaterThan(left!.width * 1.9);
+  });
+
+  test("lights the zone under a dragged window", async ({ page }) => {
+    await page.goto("/zones.html");
+    await expect(page.getByRole("button", { name: "Zone 2" })).toHaveAttribute("data-lit", "true");
+    await expect(page.getByRole("status")).toBeHidden();
   });
 });
 

@@ -41,7 +41,7 @@ describe("matching", () => {
 describe("the clipboard popup", () => {
   async function open(clips: Clip[], paste = true) {
     const clipboard = port(clips);
-    const ctx = { services: { clipboard }, options: () => ({ paste }), close: vi.fn(), paste: vi.fn(async () => {}) };
+    const ctx = { services: { clipboard }, options: () => ({ paste }), close: vi.fn(), paste: vi.fn(async () => {}), commands: () => [], run: async () => {}, openSettings: async () => {}, quit: async () => {} };
     const root = document.createElement("div");
     document.body.append(root);
     const view = picker(root, ctx);

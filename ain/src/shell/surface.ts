@@ -1,7 +1,7 @@
-import { type Entry, type PopupPort, commandsOf } from "./commands";
+import { type Entry, type PopupPort, commandsOf, shortcutOf, surfaceOf } from "./commands";
 import { EASE_OUT, reducedMotion } from "../sdk/dom";
 import { resolve } from "../sdk/options";
-import type { AnyPlugin, PopupView } from "../sdk/plugin";
+import type { AnyPlugin, CommandInfo, PopupView } from "../sdk/plugin";
 import { type Settings, type SettingsPort, defaults, parseSettings } from "./settings";
 import type { Layout } from "./placement";
 
@@ -26,6 +26,14 @@ export function hostCommands({ container, catalogue, layout, services, popup, st
 
   const entries = commandsOf(catalogue);
   const views = new Map<string, { root: HTMLElement; view: PopupView }>();
+  const infos = (): CommandInfo[] =>
+    entries.map((e) => ({ id: e.id, label: e.command.label, description: e.command.description, icon: e.plugin.icon, shortcut: shortcutOf(e, settings.shortcuts) }));
+  const run = async (id: string) => {
+    const entry = entries.find((e) => e.id === id);
+    if (!entry) return;
+    await popup.hide();
+    await popup.open(id, surfaceOf(entry));
+  };
 
   const viewFor = (entry: Entry) => {
     let built = views.get(entry.id);
@@ -37,6 +45,10 @@ export function hostCommands({ container, catalogue, layout, services, popup, st
         options: () => resolve(entry.plugin.options ?? {}, settings.options[entry.plugin.id]),
         close: () => void popup.hide(),
         paste: () => popup.paste(),
+        commands: infos,
+        run,
+        openSettings: (target?: string) => store.open(target),
+        quit: () => store.quit(),
       } as never);
       built = { root, view };
       views.set(entry.id, built);

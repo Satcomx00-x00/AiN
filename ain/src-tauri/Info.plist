@@ -6,6 +6,6 @@
   <key>NSMicrophoneUsageDescription</key>
   <string>Dictation listens to the microphone while you hold its shortcut. Speech is recognized on this Mac.</string>
   <key>NSAppleEventsUsageDescription</key>
-  <string>Now playing reads the current track from Spotify and Music, and controls playback.</string>
+  <string>Now playing reads the current track from Spotify and Music, and controls playback. The command palette asks Terminal to run your command lines, System Events to sign out, restart or shut down, and the Finder to empty the Trash.</string>
 </dict>
 </plist>

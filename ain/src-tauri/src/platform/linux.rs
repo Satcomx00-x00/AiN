@@ -23,6 +23,41 @@ pub fn xwayland() -> bool {
     XWAYLAND.load(Ordering::Relaxed) || std::env::var("GDK_BACKEND").is_ok_and(|b| b.starts_with("x11"))
 }
 
+/// What an AppImage's launcher sets for the app inside it: libraries, GTK and GStreamer modules
+/// from the image, which other programs must not load.
+const APPIMAGE_ENV: &[&str] = &[
+    "APPDIR",
+    "APPIMAGE",
+    "ARGV0",
+    "OWD",
+    "LD_LIBRARY_PATH",
+    "GDK_PIXBUF_MODULE_FILE",
+    "GDK_PIXBUF_MODULEDIR",
+    "GIO_MODULE_DIR",
+    "GIO_EXTRA_MODULES",
+    "GSETTINGS_SCHEMA_DIR",
+    "GST_PLUGIN_SYSTEM_PATH",
+    "GST_PLUGIN_SYSTEM_PATH_1_0",
+    "GST_PLUGIN_SCANNER",
+    "GTK_DATA_PREFIX",
+    "GTK_EXE_PREFIX",
+    "GTK_IM_MODULE_FILE",
+    "GTK_PATH",
+    "PYTHONHOME",
+    "PYTHONPATH",
+    "PERLLIB",
+    "QT_PLUGIN_PATH",
+];
+
+/// Starts `command` with a clean environment when we run from an AppImage.
+pub fn leave_appimage(command: &mut std::process::Command) {
+    if std::env::var_os("APPIMAGE").is_some() {
+        for name in APPIMAGE_ENV {
+            command.env_remove(name);
+        }
+    }
+}
+
 /// Synthetic key presses, through whichever tool the session allows: `xdotool` on X11; on Wayland,
 /// which lets no app type into another by itself, `wtype` (wlroots and KDE compositors) or, for
 /// Ctrl+V only, `ydotool` (any, with its daemon running). Without one, callers fall back to the

@@ -43,6 +43,8 @@ export type ActionKind = "press" | "release" |
 export type Binding = {
 	shortcut: string,
 	surface: Surface,
+	/**  What the command does, for the desktop's own list of shortcuts (on Wayland). */
+	label: string,
 };
 
 /**  Broadcast after shortcuts are (re)bound: command id → why its shortcut failed. */

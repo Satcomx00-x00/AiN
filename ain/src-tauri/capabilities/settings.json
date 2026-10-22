@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "settings",
-  "description": "The settings window: read and write settings, toggle launch at login, try shortcuts, list or open the third-party plugins folder, browse and install from the community store, save plugins' secrets (without reading them back), and check for and install updates.",
+  "description": "The settings window: read and write settings, toggle launch at login, try shortcuts, list or open the third-party plugins folder, browse and install from the community store, save plugins' secrets (without reading them back), check for and install updates, and preview zone layouts.",
   "windows": [
     "settings"
   ],
@@ -17,6 +17,9 @@
     "secrets:allow-set",
     "secrets:allow-saved-keys",
     "oauth:default",
-    "updates:default"
+    "updates:default",
+    "zones:allow-support",
+    "zones:allow-install-helper",
+    "zones:allow-layout"
   ]
 }

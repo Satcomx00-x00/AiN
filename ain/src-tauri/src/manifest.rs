@@ -37,6 +37,7 @@ macro_rules! manifest {
                     events: [PhaseChanged, ModelChanged]
                 }
                 media: features::media { typed: [state, artwork, control], raw: [], events: [TrackChanged] }
+                palette: features::palette { typed: [apps, launch, files, browse, open, reveal, run, system, open_url], raw: [], events: [] }
                 privacy: features::privacy { typed: [state], raw: [], events: [UsageChanged] }
                 stats: features::stats { typed: [latest], raw: [], events: [] }
                 volume: features::volume {
@@ -44,6 +45,7 @@ macro_rules! manifest {
                     raw: [],
                     events: [OutputChanged, SourcesChanged]
                 }
+                zones: features::zones { typed: [support, install_helper, layout, overlay_state, snap, screen, cancel], raw: [], events: [OverlayChanged] }
             }
         }
     };

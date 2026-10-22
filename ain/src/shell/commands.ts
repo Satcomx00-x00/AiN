@@ -1,7 +1,8 @@
 import { follow } from "../sdk/follow";
-import { isMac } from "../sdk/platform";
 import type { AnyPlugin, Command, Surface } from "../sdk/plugin";
 import { commands, events } from "./bindings/popup";
+
+export { keycaps } from "../sdk/platform";
 
 /** A command with the plugin it belongs to and its full id (`<plugin>.<command>`). */
 export interface Entry {
@@ -22,14 +23,16 @@ export const surfaceOf = (entry: Entry): Surface => entry.command.surface ?? "po
 export interface Binding {
   readonly shortcut: string;
   readonly surface: Surface;
+  /** What the command does: Wayland desktops list it in their own shortcut settings. */
+  readonly label: string;
 }
 
-/** Command id → shortcut and surface, for every command that has a shortcut. */
+/** Command id → shortcut, surface and label, for every command that has a shortcut. */
 export const bindings = (catalogue: readonly AnyPlugin[], chosen: Readonly<Record<string, string | null>>): Record<string, Binding> =>
   Object.fromEntries(
     commandsOf(catalogue).flatMap((e) => {
       const shortcut = shortcutOf(e, chosen);
-      return shortcut ? [[e.id, { shortcut, surface: surfaceOf(e) }]] : [];
+      return shortcut ? [[e.id, { shortcut, surface: surfaceOf(e), label: e.command.label }]] : [];
     }),
   );
 
@@ -44,13 +47,6 @@ export function fromKey(e: Pick<KeyboardEvent, "ctrlKey" | "altKey" | "shiftKey"
   return [...mods, e.code].join("+");
 }
 
-const KEY_LABELS: Record<string, string> = { Super: "Win", Ctrl: "Ctrl", Alt: "Alt", Shift: "Shift", Backquote: "`", Space: "Space" };
-/** Where macOS names the keys differently. */
-const MAC_LABELS: Record<string, string> = { Super: "Cmd", Ctrl: "Control", Alt: "Option" };
-
-/** "Super+Shift+KeyB" → ["Win", "Shift", "B"] (["Cmd", "Shift", "B"] on macOS), for display as keycaps. */
-export const keycaps = (shortcut: string, mac = isMac()): string[] =>
-  shortcut.split("+").map((part) => (mac ? MAC_LABELS[part] : undefined) ?? KEY_LABELS[part] ?? part.replace(/^Key|^Digit|^Arrow/, ""));
 
 export interface PopupPort {
   /** Registers shortcuts (command id → shortcut and surface); resolves with the ones that failed and why. */

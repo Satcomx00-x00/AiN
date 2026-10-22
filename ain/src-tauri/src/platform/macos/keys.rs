@@ -55,6 +55,8 @@ const OPTION: u64 = 1 << 19;
 const COMMAND: u64 = 1 << 20;
 /// `kVK_ANSI_V`.
 const KEY_V: u16 = 9;
+/// `kVK_ANSI_Q`.
+const KEY_Q: u16 = 12;
 /// The most UTF-16 units one key event carries.
 const PER_EVENT: usize = 20;
 /// The shortcut's modifiers may still be down; typed characters would turn into shortcuts.
@@ -66,7 +68,14 @@ const GAP: Duration = Duration::from_millis(2);
 /// Set once macOS has shown its prompt this run.
 static ASKED: AtomicBool = AtomicBool::new(false);
 
-/// Whether we may send keys; the first time not, macOS shows its prompt pointing to the setting.
+/// Whether the user allowed the app under Accessibility, without asking.
+pub fn allowed() -> bool {
+    // SAFETY: no options: a plain query.
+    unsafe { AXIsProcessTrustedWithOptions(ptr::null()) != 0 }
+}
+
+/// Whether we may send keys (and move other apps' windows); the first time not, macOS shows its
+/// prompt pointing to the setting.
 pub fn trusted() -> bool {
     if ASKED.swap(true, Ordering::SeqCst) {
         // SAFETY: no options: a plain query.
@@ -152,6 +161,16 @@ pub fn paste() -> bool {
     }
     wait_for_modifiers();
     press(KEY_V, COMMAND, &[]);
+    true
+}
+
+/// Locks the screen as Control-Command-Q does; false when not allowed.
+pub fn lock_screen() -> bool {
+    if !trusted() {
+        return false;
+    }
+    wait_for_modifiers();
+    press(KEY_Q, CONTROL | COMMAND, &[]);
     true
 }
 

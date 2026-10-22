@@ -10,6 +10,8 @@ import type { Services } from "../features/services";
 import type { Clip } from "../features/clipboard/service";
 import type { ModelInfo, Phase } from "../features/dictation/service";
 import type { Control, Track } from "../features/media/service";
+import { idlePalette } from "../features/palette/service";
+import { idleZones } from "../features/zones/service";
 import type { Usage } from "../features/privacy/service";
 import type { Stats } from "../features/stats/service";
 import type { Output, Source } from "../features/volume/service";
@@ -96,6 +98,8 @@ export function system() {
     volume: { watch: output.watch, watchSources: sources.watch, peak: async () => 0, setLevel: async () => {}, setMuted: async () => {} },
     privacy: { watch: usage.watch },
     capture: { latest: async () => null, save: async () => "" },
+    palette: idlePalette,
+    zones: idleZones,
     dictation: {
       watch: phase.watch,
       watchModel: model.watch,

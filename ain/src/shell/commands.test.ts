@@ -23,9 +23,9 @@ describe("commands", () => {
   });
 
   it("binds only commands that have a shortcut", () => {
-    expect(bindings(catalogue, {})).toEqual({ "clipboard.history": { shortcut: "Super+Shift+KeyB", surface: "popup" } });
+    expect(bindings(catalogue, {})).toEqual({ "clipboard.history": { shortcut: "Super+Shift+KeyB", surface: "popup", label: "history" } });
     expect(bindings(catalogue, { "timer.start": "Alt+KeyT", "clipboard.history": null })).toEqual({
-      "timer.start": { shortcut: "Alt+KeyT", surface: "popup" },
+      "timer.start": { shortcut: "Alt+KeyT", surface: "popup", label: "start" },
     });
   });
 });
@@ -53,6 +53,7 @@ describe("recording a shortcut", () => {
   it("shows shortcuts as readable keycaps", () => {
     expect(keycaps("Super+Shift+KeyB")).toEqual(["Win", "Shift", "B"]);
     expect(keycaps("Ctrl+Alt+Digit1")).toEqual(["Ctrl", "Alt", "1"]);
+    expect(keycaps("Ctrl+Alt+Super+ArrowLeft")).toEqual(["Ctrl", "Alt", "Win", "←"]);
   });
 
   it("names keys the macOS way on macOS", () => {
