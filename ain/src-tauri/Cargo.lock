@@ -70,6 +70,7 @@ dependencies = [
  "ureq 3.4.2",
  "windows",
  "winreg",
+ "x11rb",
  "xcap",
 ]
 

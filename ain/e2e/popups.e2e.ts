@@ -1,6 +1,6 @@
 /**
  * The shortcut windows in a real browser, on their preview data: the clipboard history popup, the
- * command palette and the screen capture editor (a real canvas, a real pointer).
+ * command palette, the zones overlay and the screen capture editor (a real canvas, a real pointer).
  */
 import { expect, test } from "./fixtures";
 
@@ -38,6 +38,23 @@ test.describe("the command palette", () => {
     await expect(page.getByRole("option", { name: /Quarterly report\.pdf/ })).toBeVisible();
     await page.keyboard.press("ArrowDown");
     await expect(options.nth(1)).toHaveAttribute("aria-selected", "true");
+  });
+});
+
+test.describe("the zones overlay", () => {
+  test("numbers the zones as the picker and says how to pick", async ({ page }) => {
+    await page.goto("/zones.html?pick");
+    const zones = page.getByRole("button", { name: /^Zone \d$/ });
+    await expect(zones).toHaveCount(3);
+    await expect(page.getByRole("status")).toHaveText("Press 1–3 or click a zone · ← → screen 1 of 2 · Esc to cancel");
+    const [left, middle] = [await zones.nth(0).boundingBox(), await zones.nth(1).boundingBox()];
+    expect(middle!.width).toBeGreaterThan(left!.width * 1.9);
+  });
+
+  test("lights the zone under a dragged window", async ({ page }) => {
+    await page.goto("/zones.html");
+    await expect(page.getByRole("button", { name: "Zone 2" })).toHaveAttribute("data-lit", "true");
+    await expect(page.getByRole("status")).toBeHidden();
   });
 });
 

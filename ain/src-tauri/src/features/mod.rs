@@ -10,6 +10,7 @@ pub mod palette;
 pub mod privacy;
 pub mod stats;
 pub mod volume;
+pub mod zones;
 
 mod live;
 mod worker;
@@ -24,4 +25,5 @@ pub fn register(app: Builder<Wry>) -> Builder<Wry> {
         .plugin(privacy::init())
         .plugin(dictation::init())
         .plugin(palette::init())
+        .plugin(zones::init())
 }

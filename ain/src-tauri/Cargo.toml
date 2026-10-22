@@ -52,6 +52,8 @@ gtk-layer-shell = { version = "0.8", features = ["v0_6"] }
 libc = "0.2"
 # Now playing, from MPRIS players over D-Bus.
 mpris = "2.1"
+# Zones: the pointer and other apps' windows, through the X server.
+x11rb = "0.13"
 
 [target."cfg(windows)".dependencies]
 clipboard-win = "5.4.1"
@@ -63,6 +65,7 @@ windows = { version = "0.62", features = [
     "Media_Control",
     "Storage_Streams",
     "Win32_Devices_FunctionDiscovery",
+    "Win32_Graphics_Dwm",
     "Win32_Media_Audio",
     "Win32_Media_Audio_Endpoints",
     "Win32_System_Com",

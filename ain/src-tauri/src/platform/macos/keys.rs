@@ -68,7 +68,14 @@ const GAP: Duration = Duration::from_millis(2);
 /// Set once macOS has shown its prompt this run.
 static ASKED: AtomicBool = AtomicBool::new(false);
 
-/// Whether we may send keys; the first time not, macOS shows its prompt pointing to the setting.
+/// Whether the user allowed the app under Accessibility, without asking.
+pub fn allowed() -> bool {
+    // SAFETY: no options: a plain query.
+    unsafe { AXIsProcessTrustedWithOptions(ptr::null()) != 0 }
+}
+
+/// Whether we may send keys (and move other apps' windows); the first time not, macOS shows its
+/// prompt pointing to the setting.
 pub fn trusted() -> bool {
     if ASKED.swap(true, Ordering::SeqCst) {
         // SAFETY: no options: a plain query.

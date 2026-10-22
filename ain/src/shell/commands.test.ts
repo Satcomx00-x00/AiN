@@ -53,6 +53,7 @@ describe("recording a shortcut", () => {
   it("shows shortcuts as readable keycaps", () => {
     expect(keycaps("Super+Shift+KeyB")).toEqual(["Win", "Shift", "B"]);
     expect(keycaps("Ctrl+Alt+Digit1")).toEqual(["Ctrl", "Alt", "1"]);
+    expect(keycaps("Ctrl+Alt+Super+ArrowLeft")).toEqual(["Ctrl", "Alt", "Win", "←"]);
   });
 
   it("names keys the macOS way on macOS", () => {

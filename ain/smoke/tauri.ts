@@ -81,6 +81,24 @@ function install(backend: Backend): void {
     "plugin:palette|run": () => null,
     "plugin:palette|system": () => null,
     "plugin:palette|open_url": () => null,
+    "plugin:zones|support": () => ({ moves: true, drags: true, note: null }),
+    "plugin:zones|layout": (a) => {
+      const count = a.count as number;
+      return Array.from({ length: count }, (_, i) => ({ x: i / count, y: 0, w: 1 / count, h: 1 }));
+    },
+    "plugin:zones|overlay_state": () => ({
+      zones: [
+        { x: 16, y: 16, w: 600, h: 688 },
+        { x: 632, y: 16, w: 632, h: 688 },
+      ],
+      lit: [],
+      picking: true,
+      screen: 0,
+      screens: 2,
+    }),
+    "plugin:zones|snap": () => null,
+    "plugin:zones|screen": () => null,
+    "plugin:zones|cancel": () => null,
     "plugin:capture|latest": () => new ArrayBuffer(0),
     "plugin:capture|save_png": () => "/Pictures/AiN/capture.png",
     "plugin:extensions|list": () => ({ dir: "/plugins", plugins: [] }),

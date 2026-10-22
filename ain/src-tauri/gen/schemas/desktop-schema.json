@@ -3295,6 +3295,84 @@
           "type": "string",
           "const": "volume:deny-state",
           "markdownDescription": "Denies the state command without any pre-configured scope."
+        },
+        {
+          "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-support`\n- `allow-layout`\n- `allow-overlay-state`\n- `allow-snap`\n- `allow-screen`\n- `allow-cancel`",
+          "type": "string",
+          "const": "zones:default",
+          "markdownDescription": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-support`\n- `allow-layout`\n- `allow-overlay-state`\n- `allow-snap`\n- `allow-screen`\n- `allow-cancel`"
+        },
+        {
+          "description": "Enables the cancel command without any pre-configured scope.",
+          "type": "string",
+          "const": "zones:allow-cancel",
+          "markdownDescription": "Enables the cancel command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the layout command without any pre-configured scope.",
+          "type": "string",
+          "const": "zones:allow-layout",
+          "markdownDescription": "Enables the layout command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the overlay_state command without any pre-configured scope.",
+          "type": "string",
+          "const": "zones:allow-overlay-state",
+          "markdownDescription": "Enables the overlay_state command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the screen command without any pre-configured scope.",
+          "type": "string",
+          "const": "zones:allow-screen",
+          "markdownDescription": "Enables the screen command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the snap command without any pre-configured scope.",
+          "type": "string",
+          "const": "zones:allow-snap",
+          "markdownDescription": "Enables the snap command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the support command without any pre-configured scope.",
+          "type": "string",
+          "const": "zones:allow-support",
+          "markdownDescription": "Enables the support command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the cancel command without any pre-configured scope.",
+          "type": "string",
+          "const": "zones:deny-cancel",
+          "markdownDescription": "Denies the cancel command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the layout command without any pre-configured scope.",
+          "type": "string",
+          "const": "zones:deny-layout",
+          "markdownDescription": "Denies the layout command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the overlay_state command without any pre-configured scope.",
+          "type": "string",
+          "const": "zones:deny-overlay-state",
+          "markdownDescription": "Denies the overlay_state command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the screen command without any pre-configured scope.",
+          "type": "string",
+          "const": "zones:deny-screen",
+          "markdownDescription": "Denies the screen command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the snap command without any pre-configured scope.",
+          "type": "string",
+          "const": "zones:deny-snap",
+          "markdownDescription": "Denies the snap command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the support command without any pre-configured scope.",
+          "type": "string",
+          "const": "zones:deny-support",
+          "markdownDescription": "Denies the support command without any pre-configured scope."
         }
       ]
     },

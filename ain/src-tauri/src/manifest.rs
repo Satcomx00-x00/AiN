@@ -45,6 +45,7 @@ macro_rules! manifest {
                     raw: [],
                     events: [OutputChanged, SourcesChanged]
                 }
+                zones: features::zones { typed: [support, layout, overlay_state, snap, screen, cancel], raw: [], events: [OverlayChanged] }
             }
         }
     };

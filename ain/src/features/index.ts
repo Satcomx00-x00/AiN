@@ -13,9 +13,10 @@ import { stats } from "./stats";
 import { styles } from "./styles";
 import { timer } from "./timer";
 import { volume } from "./volume";
+import { zones } from "./zones";
 
 /** Every plugin the app knows about. Where each shows up is chosen in Settings (defaults in `layout.ts`). */
-export const catalogue: readonly Plugin<Services, Fields>[] = [clock, timer, clipboard, stats, media, volume, privacy, screenshot, dictation, palette];
+export const catalogue: readonly Plugin<Services, Fields>[] = [clock, timer, clipboard, stats, media, volume, privacy, screenshot, dictation, palette, zones];
 
 /**
  * What plugins from the plugins folder may use: their ids can't clash with a built-in feature's,
