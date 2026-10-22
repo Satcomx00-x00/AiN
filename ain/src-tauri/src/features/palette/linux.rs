@@ -29,7 +29,7 @@ const TERMINALS: &[(&str, &[&str])] = &[
     ("konsole", &["-e"]),
     ("xfce4-terminal", &["-x"]),
     ("mate-terminal", &["-x"]),
-    ("ptyxis", &["--"]),
+    ("ptyxis", &["--new-window", "--"]),
     ("alacritty", &["-e"]),
     ("kitty", &[]),
     ("foot", &[]),
