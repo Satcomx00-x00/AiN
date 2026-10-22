@@ -1,0 +1,8 @@
+{
+  "uuid": "ain-zones@satcom.dev",
+  "name": "AiN zones",
+  "description": "Lets AiN snap windows into zones on GNOME: tells it which window you are in and when one is being moved, and moves windows where it asks. Installed by AiN.",
+  "shell-version": ["45", "46", "47", "48", "49", "50"],
+  "url": "https://github.com/Satcomx00-x00/AiN",
+  "version-name": "1"
+}

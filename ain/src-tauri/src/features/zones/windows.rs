@@ -30,7 +30,11 @@ pub fn open() -> Option<Box<dyn Desktop>> {
 }
 
 pub fn support() -> Support {
-    Support { moves: true, drags: true, note: None }
+    Support { moves: true, drags: true, note: None, install: false }
+}
+
+pub fn install_helper() -> std::io::Result<()> {
+    Err(std::io::Error::from(std::io::ErrorKind::Unsupported))
 }
 
 pub fn allowed() -> bool {

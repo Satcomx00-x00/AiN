@@ -1,5 +1,5 @@
 import "./zones.css";
-import { h } from "../../sdk/dom";
+import { button, h } from "../../sdk/dom";
 import { choice, number, toggle } from "../../sdk/options";
 import { definePlugin } from "../../sdk/plugin";
 import type { Box, Template, ZonesPort } from "./service";
@@ -85,7 +85,24 @@ export const zones = definePlugin({
   settingsPanel(root, { zones: port }: { zones: ZonesPort }, host) {
     const preview = h("div", { class: "zn-preview", "aria-hidden": "true" });
     const note = h("p", { class: "field-hint zn-note" });
-    root.append(preview, note);
+    // GNOME on Wayland needs AiN's helper extension to move windows: installed from here.
+    const install = button("Install the GNOME Shell helper", () => {
+      install.disabled = true;
+      install.textContent = "Installing…";
+      port.installHelper().then(
+        () => {
+          install.hidden = true;
+          note.textContent = "Installed. Log out and back in once: GNOME starts it at login.";
+        },
+        (e: unknown) => {
+          install.disabled = false;
+          install.textContent = "Install the GNOME Shell helper";
+          note.textContent = `Couldn't install it: ${String(e)}`;
+        },
+      );
+    }, { class: "secondary zn-install" });
+    install.hidden = true;
+    root.append(preview, note, install);
     let drawn = "";
     let alive = true;
     const draw = () => {
@@ -109,6 +126,7 @@ export const zones = definePlugin({
       (s) => {
         note.textContent = s.note ?? "";
         note.hidden = !s.note;
+        install.hidden = !s.install;
       },
       () => {},
     );

@@ -110,10 +110,14 @@ pub fn open() -> Option<Box<dyn Desktop>> {
 pub fn support() -> Support {
     let note =
         (!keys::allowed()).then(|| "Allow AiN under System Settings → Privacy & Security → Accessibility to move windows.".to_string());
-    Support { moves: true, drags: true, note }
+    Support { moves: true, drags: true, note, install: false }
 }
 
 /// Asks for Accessibility access the first time it's missing (macOS shows its own prompt).
+pub fn install_helper() -> std::io::Result<()> {
+    Err(std::io::Error::from(std::io::ErrorKind::Unsupported))
+}
+
 pub fn allowed() -> bool {
     keys::trusted()
 }

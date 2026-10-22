@@ -39,3 +39,8 @@
 .zn-note[hidden] {
   display: none;
 }
+
+.zn-install {
+  justify-self: start;
+  margin-top: 6px;
+}

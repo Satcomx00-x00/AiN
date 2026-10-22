@@ -118,7 +118,7 @@ describe("the layout preview", () => {
     const p: ZonesPort = {
       ...idleZones,
       layout: async (template, count) => (asked.push(`${template} ${count}`), idleZones.layout(template, count, false)),
-      support: async () => ({ moves: true, drags: true, note: "Allow AiN under Accessibility." }),
+      support: async () => ({ moves: true, drags: true, note: "Allow AiN under Accessibility.", install: false }),
     };
     const root = document.createElement("div");
     document.body.append(root);
@@ -128,11 +128,35 @@ describe("the layout preview", () => {
     options = { ...options, count: 4 };
     document.dispatchEvent(new Event("input"));
     await vi.waitFor(() => expect(root.querySelectorAll(".zn-cell")).toHaveLength(4));
+    expect(root.querySelector<HTMLButtonElement>(".zn-install")?.hidden).toBe(true);
     stop();
     options = { ...options, count: 5 };
     document.dispatchEvent(new Event("input"));
     await new Promise((r) => setTimeout(r, 10));
     expect(asked).toEqual(["columns 2", "columns 4"]);
+  });
+});
+
+describe("the GNOME helper", () => {
+  it("is offered where the desktop needs it, and says what's left to do once installed", async () => {
+    let installed = 0;
+    const p: ZonesPort = {
+      ...idleZones,
+      support: async () => ({ moves: false, drags: false, note: "GNOME lets no app move other apps' windows.", install: true }),
+      installHelper: async () => void installed++,
+    };
+    const root = document.createElement("div");
+    document.body.append(root);
+    zones.settingsPanel!(root, { zones: p }, { options: () => ({ template: "columns", count: 2, spacing: 8 }) as never, setOptions: () => {}, openPage: () => {} });
+    const install = await vi.waitFor(() => {
+      const b = root.querySelector<HTMLButtonElement>(".zn-install");
+      expect(b?.hidden).toBe(false);
+      return b!;
+    });
+    install.click();
+    await vi.waitFor(() => expect(install.hidden).toBe(true));
+    expect(installed).toBe(1);
+    expect(root.querySelector(".zn-note")?.textContent).toBe("Installed. Log out and back in once: GNOME starts it at login.");
   });
 });
 

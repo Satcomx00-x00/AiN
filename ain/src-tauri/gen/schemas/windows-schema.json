@@ -3297,16 +3297,22 @@
           "markdownDescription": "Denies the state command without any pre-configured scope."
         },
         {
-          "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-support`\n- `allow-layout`\n- `allow-overlay-state`\n- `allow-snap`\n- `allow-screen`\n- `allow-cancel`",
+          "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-support`\n- `allow-install-helper`\n- `allow-layout`\n- `allow-overlay-state`\n- `allow-snap`\n- `allow-screen`\n- `allow-cancel`",
           "type": "string",
           "const": "zones:default",
-          "markdownDescription": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-support`\n- `allow-layout`\n- `allow-overlay-state`\n- `allow-snap`\n- `allow-screen`\n- `allow-cancel`"
+          "markdownDescription": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-support`\n- `allow-install-helper`\n- `allow-layout`\n- `allow-overlay-state`\n- `allow-snap`\n- `allow-screen`\n- `allow-cancel`"
         },
         {
           "description": "Enables the cancel command without any pre-configured scope.",
           "type": "string",
           "const": "zones:allow-cancel",
           "markdownDescription": "Enables the cancel command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the install_helper command without any pre-configured scope.",
+          "type": "string",
+          "const": "zones:allow-install-helper",
+          "markdownDescription": "Enables the install_helper command without any pre-configured scope."
         },
         {
           "description": "Enables the layout command without any pre-configured scope.",
@@ -3343,6 +3349,12 @@
           "type": "string",
           "const": "zones:deny-cancel",
           "markdownDescription": "Denies the cancel command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the install_helper command without any pre-configured scope.",
+          "type": "string",
+          "const": "zones:deny-install-helper",
+          "markdownDescription": "Denies the install_helper command without any pre-configured scope."
         },
         {
           "description": "Denies the layout command without any pre-configured scope.",

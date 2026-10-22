@@ -1,8 +1,8 @@
-//! Linux: windows are moved through the window manager, as the EWMH (freedesktop.org window
-//! manager hints) asks: `_NET_ACTIVE_WINDOW` names the window the user is in, frame extents give
-//! its visible frame (server-side decorations, or a GTK window's shadows), and
-//! `_NET_MOVERESIZE_WINDOW` moves it. That is X11 only: Wayland lets no app move another's
-//! windows, and there zones report so.
+//! Linux. On X11, windows are moved through the window manager, as the EWMH (freedesktop.org
+//! window manager hints) asks: `_NET_ACTIVE_WINDOW` names the window the user is in, frame
+//! extents give its visible frame (server-side decorations, or a GTK window's shadows), and
+//! `_NET_MOVERESIZE_WINDOW` moves it. Wayland lets no app move another's windows: on GNOME, AiN's
+//! GNOME Shell extension does it (`gnome.rs`); elsewhere zones report that they can't.
 
 use x11rb::{
     connection::Connection,
@@ -10,7 +10,10 @@ use x11rb::{
     rust_connection::RustConnection,
 };
 
-use super::{Desktop, Handle, Pointer, Rect, Support};
+use super::{
+    Desktop, Handle, Pointer, Rect, Support,
+    gnome::{self, Gnome, Helper},
+};
 
 /// The atoms used, interned once.
 struct Atoms {
@@ -47,9 +50,17 @@ fn wayland() -> bool {
 }
 
 pub fn open() -> Option<Box<dyn Desktop>> {
-    if wayland() {
-        return None;
+    match (wayland(), gnome::session()) {
+        (false, _) => x11().map(|x| Box::new(x) as Box<dyn Desktop>),
+        (true, true) => {
+            gnome::refresh();
+            Gnome::open().map(|g| Box::new(g) as Box<dyn Desktop>)
+        }
+        (true, false) => None,
     }
+}
+
+fn x11() -> Option<X11> {
     let (conn, screen) = x11rb::connect(None).ok()?;
     let root = conn.setup().roots.get(screen)?.root;
     let intern = |name: &str| Some(conn.intern_atom(false, name.as_bytes()).ok()?.reply().ok()?.atom);
@@ -67,18 +78,33 @@ pub fn open() -> Option<Box<dyn Desktop>> {
         desktop: intern("_NET_WM_WINDOW_TYPE_DESKTOP")?,
         dock: intern("_NET_WM_WINDOW_TYPE_DOCK")?,
     };
-    Some(Box::new(X11 { conn, root, atoms }))
+    Some(X11 { conn, root, atoms })
 }
 
 pub fn support() -> Support {
-    match (wayland(), x11rb::connect(None).is_ok()) {
-        (true, _) => Support {
-            moves: false,
-            drags: false,
-            note: Some("Wayland lets no app move other apps' windows: zones work in an X11 session.".into()),
+    let ready = Support { moves: true, drags: true, note: None, install: false };
+    let note = |note: &str, install| Support { moves: false, drags: false, note: Some(note.into()), install };
+    match (wayland(), gnome::session()) {
+        (false, _) if x11rb::connect(None).is_ok() => ready,
+        (false, _) => note("Couldn't reach the X server.", false),
+        (true, true) => match Gnome::open().map_or(Helper::Missing, |g| g.helper()) {
+            Helper::Running => ready,
+            Helper::Waiting => note("Log out and back in once: GNOME starts AiN's helper at login.", false),
+            Helper::Missing => {
+                note("GNOME lets no app move other apps' windows: install AiN's small GNOME Shell extension to use zones.", true)
+            }
         },
-        (false, false) => Support { moves: false, drags: false, note: Some("Couldn't reach the X server.".into()) },
-        (false, true) => Support { moves: true, drags: true, note: None },
+        (true, false) => {
+            note("This Wayland desktop lets no app move other apps' windows: zones work on GNOME, and in an X11 session.", false)
+        }
+    }
+}
+
+/// Installs the helper GNOME Shell needs to let zones move windows.
+pub fn install_helper() -> std::io::Result<()> {
+    match wayland() && gnome::session() {
+        true => gnome::install(),
+        false => Err(std::io::Error::from(std::io::ErrorKind::Unsupported)),
     }
 }
 

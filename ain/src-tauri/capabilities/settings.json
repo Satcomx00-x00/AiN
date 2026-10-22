@@ -19,6 +19,7 @@
     "oauth:default",
     "updates:default",
     "zones:allow-support",
+    "zones:allow-install-helper",
     "zones:allow-layout"
   ]
 }

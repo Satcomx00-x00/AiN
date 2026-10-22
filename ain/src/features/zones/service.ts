@@ -34,6 +34,8 @@ export interface ZonesPort {
   screen(by: number): Promise<void>;
   /** Closes the picker, moving nothing; `refocus` gives the focus back to the window it was for. */
   cancel(refocus: boolean): Promise<void>;
+  /** Installs what the desktop needs for zones to move windows (GNOME's helper extension). */
+  installHelper(): Promise<void>;
 }
 
 const box = (b: { x: number | null; y: number | null; w: number | null; h: number | null }): Box => ({ x: num(b.x), y: num(b.y), w: num(b.w), h: num(b.h) });
@@ -47,14 +49,16 @@ export const tauriZones: ZonesPort = {
   snap: async (zone) => void (await commands.snap(zone)),
   screen: async (by) => void (await commands.screen(by)),
   cancel: async (refocus) => void (await commands.cancel(refocus)),
+  installHelper: async () => void (await commands.installHelper()),
 };
 
 /** Even columns, nothing to move: for the browser previews. */
 export const idleZones: ZonesPort = {
-  support: async () => ({ moves: false, drags: false, note: "Zones move windows in the app, not in this preview." }),
+  support: async () => ({ moves: false, drags: false, note: "Zones move windows in the app, not in this preview.", install: false }),
   layout: async (_, count) => Array.from({ length: Math.max(1, count) }, (_, i) => ({ x: i / Math.max(1, count), y: 0, w: 1 / Math.max(1, count), h: 1 })),
   watchOverlay: async (onChange) => (onChange({ zones: [], lit: [], picking: false, screen: 0, screens: 1 }), () => {}),
   snap: async () => {},
   screen: async () => {},
   cancel: async () => {},
+  installHelper: async () => {},
 };

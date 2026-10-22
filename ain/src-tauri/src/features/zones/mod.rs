@@ -8,6 +8,8 @@
 //! the shortcuts, and shows the `zones` overlay window, which only draws what it is sent.
 
 mod drag;
+#[cfg(target_os = "linux")]
+mod gnome;
 mod layout;
 #[cfg(target_os = "linux")]
 mod linux;
@@ -32,7 +34,10 @@ mod os {
         None
     }
     pub fn support() -> Support {
-        Support { moves: false, drags: false, note: Some("Zones can't move windows on this system.".into()) }
+        Support { moves: false, drags: false, note: Some("Zones can't move windows on this system.".into()), install: false }
+    }
+    pub fn install_helper() -> std::io::Result<()> {
+        Err(std::io::Error::from(std::io::ErrorKind::Unsupported))
     }
     pub fn allowed() -> bool {
         false
@@ -131,6 +136,8 @@ pub struct Support {
     pub drags: bool,
     /// What to know or do first, e.g. a permission to give.
     pub note: Option<String>,
+    /// Whether the desktop needs a helper `install_helper` can put in place (GNOME on Wayland).
+    pub install: bool,
 }
 
 /// A zone as the overlay draws it: CSS pixels from the overlay's top left corner.
@@ -405,14 +412,15 @@ impl Zones {
             Err(e) => return report("overlay", Err::<(), _>(e)),
         };
         let result = (|| -> tauri::Result<()> {
-            window.set_ignore_cursor_events(!picking)?;
             window.set_focusable(picking)?;
             if picking {
+                window.set_ignore_cursor_events(false)?;
                 cover(&window, &screen.physical)?;
-                window.show()?;
-                window.set_focus()
+                popup::focus(&self.app, &window).map_err(|e| tauri::Error::Io(std::io::Error::other(e.to_string())))
             } else {
-                os::show_passive(&window, &screen.physical)
+                os::show_passive(&window, &screen.physical)?;
+                // Once shown: on Linux a window that was never on screen can't let clicks through.
+                window.set_ignore_cursor_events(true)
             }
         })();
         report("show", result);
@@ -471,6 +479,15 @@ impl Shared {
 #[specta::specta]
 fn support() -> Support {
     os::support()
+}
+
+/// Installs what the desktop needs for zones to move windows: on GNOME, AiN's GNOME Shell
+/// extension, which starts at the next login.
+#[tauri::command]
+#[specta::specta]
+async fn install_helper() -> Res<()> {
+    tauri::async_runtime::spawn_blocking(os::install_helper).await.map_err(|e| crate::Error::msg(e.to_string()))??;
+    Ok(())
 }
 
 /// A layout's zones, as fractions of a screen, for Settings to draw.

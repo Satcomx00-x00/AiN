@@ -9,6 +9,11 @@ import * as __TAURI_EVENT from "@tauri-apps/api/event";
 export const commands = {
 	/**  What zones can do here: Settings says it under the layout. */
 	support: () => __TAURI_INVOKE<Support>("plugin:zones|support"),
+	/**
+	 *  Installs what the desktop needs for zones to move windows: on GNOME, AiN's GNOME Shell
+	 *  extension, which starts at the next login.
+	 */
+	installHelper: () => __TAURI_INVOKE<null>("plugin:zones|install_helper"),
 	/**  A layout's zones, as fractions of a screen, for Settings to draw. */
 	layout: (template: Template, count: number, portrait: boolean) => __TAURI_INVOKE<Frac[]>("plugin:zones|layout", { template, count, portrait }),
 	/**  What the overlay shows now; it follows `OverlayChanged` after. */
@@ -58,6 +63,8 @@ export type Support = {
 	drags: boolean,
 	/**  What to know or do first, e.g. a permission to give. */
 	note: string | null,
+	/**  Whether the desktop needs a helper `install_helper` can put in place (GNOME on Wayland). */
+	install: boolean,
 };
 
 /**  The layouts, as PowerToys' FancyZones has them. */
