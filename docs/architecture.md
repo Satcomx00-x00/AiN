@@ -55,7 +55,15 @@ disappears is tested on every platform.
 | privacy | Capability Access Manager | recording streams (`pactl`) and open `/dev/video*` | Core Audio's process list (macOS 14+) and Core Media IO (camera on or off) |
 | dictation | types the text | types it with `xdotool`, `wtype` or `ydotool`, else copies it | types it once Accessibility is allowed, else copies it |
 | popup paste | `SendInput` | the same tools | Cmd+V, once Accessibility is allowed |
+| palette | the shell's Applications folder (Start menu apps), PowerShell, `shutdown.exe` and the power API | desktop entries, the first terminal found, logind and the session manager | `.app` bundles, Terminal, `pmset`, System Events and the Finder |
+| zones | the foreground window, its frame from the DWM, `SetWindowPos` | EWMH through the X server (X11 only) | the Accessibility API, once allowed |
 | clipboard, stats, capture | all platforms | | |
+
+Zones follow the pointer on a paced worker (`worker::spawn_paced`): every 15 ms while a window
+is pressed, every 45 ms otherwise, not at all when dragging is off. The drag itself is a state
+machine (`zones/drag.rs`) fed a `Desktop` trait, tested against a fake one; the geometry
+(`zones/layout.rs`) is plain functions. The `zones` overlay window only draws what it is sent, and
+during a drag it is shown without taking the focus from the window being dragged.
 
 Helpers several backends share live in `platform/`: `pactl` and the key tools on Linux, Core Audio's
 property API and synthetic keys on macOS. macOS permission prompts are explained by the strings in
