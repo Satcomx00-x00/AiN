@@ -23,14 +23,16 @@ export const surfaceOf = (entry: Entry): Surface => entry.command.surface ?? "po
 export interface Binding {
   readonly shortcut: string;
   readonly surface: Surface;
+  /** What the command does: Wayland desktops list it in their own shortcut settings. */
+  readonly label: string;
 }
 
-/** Command id → shortcut and surface, for every command that has a shortcut. */
+/** Command id → shortcut, surface and label, for every command that has a shortcut. */
 export const bindings = (catalogue: readonly AnyPlugin[], chosen: Readonly<Record<string, string | null>>): Record<string, Binding> =>
   Object.fromEntries(
     commandsOf(catalogue).flatMap((e) => {
       const shortcut = shortcutOf(e, chosen);
-      return shortcut ? [[e.id, { shortcut, surface: surfaceOf(e) }]] : [];
+      return shortcut ? [[e.id, { shortcut, surface: surfaceOf(e), label: e.command.label }]] : [];
     }),
   );
 

@@ -52,8 +52,11 @@ gtk-layer-shell = { version = "0.8", features = ["v0_6"] }
 libc = "0.2"
 # Now playing, from MPRIS players over D-Bus.
 mpris = "2.1"
-# Zones: the pointer and other apps' windows, through the X server.
+# Zones: the pointer and other apps' windows, through the X server…
 x11rb = "0.13"
+# …or, on GNOME's Wayland, through AiN's GNOME Shell extension; and global shortcuts through the
+# desktop portal (the same D-Bus library as mpris).
+dbus = "0.9"
 
 [target."cfg(windows)".dependencies]
 clipboard-win = "5.4.1"

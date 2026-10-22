@@ -3,12 +3,15 @@
 //!
 //! The frontend owns which commands exist and their shortcuts (they live in settings); this plugin
 //! registers them, shows the popup for whichever fires, and does the paste (`windows.rs`,
-//! `macos.rs`, `linux.rs`).
+//! `macos.rs`, `linux.rs`). On Wayland, which lets no app grab keys, the desktop portal binds the
+//! shortcuts instead (`portal.rs`).
 
 #[cfg(target_os = "linux")]
 mod linux;
 #[cfg(target_os = "macos")]
 mod macos;
+#[cfg(target_os = "linux")]
+mod portal;
 #[cfg(windows)]
 mod windows;
 
@@ -28,6 +31,8 @@ mod os {
     pub fn paste_into(_previous: Option<isize>) {}
 }
 
+#[cfg(target_os = "linux")]
+use std::sync::OnceLock;
 use std::{collections::BTreeMap, sync::Mutex, thread, time::Duration};
 
 use serde::{Deserialize, Serialize};
@@ -56,6 +61,15 @@ struct Popup {
     failures: Mutex<BTreeMap<String, String>>,
     /// The window (on macOS, the app) that had focus before the popup, to paste into.
     previous: Mutex<Option<isize>>,
+    /// The token the desktop sent with the last shortcut, which a window it shows needs to get the
+    /// focus on Wayland; used once.
+    #[cfg(target_os = "linux")]
+    token: Mutex<Option<String>>,
+    /// Each bound command's surface, for the shortcuts the portal reports.
+    #[cfg(target_os = "linux")]
+    surfaces: Mutex<BTreeMap<String, Surface>>,
+    #[cfg(target_os = "linux")]
+    portal: OnceLock<Option<portal::Portal>>,
 }
 
 /// Sent to the popup or the overlay with the command to show.
@@ -101,6 +115,9 @@ pub struct Action {
 pub struct Binding {
     shortcut: String,
     surface: Surface,
+    /// What the command does, for the desktop's own list of shortcuts (on Wayland).
+    #[cfg_attr(not(target_os = "linux"), expect(dead_code, reason = "only the Wayland portal shows it"))]
+    label: String,
 }
 
 /// Runs a command: the popup at once, a capture (off the main thread) then the overlay, or an action.
@@ -142,10 +159,18 @@ pub fn reason(error: &str) -> String {
 #[tauri::command]
 #[specta::specta]
 async fn bind(app: AppHandle, popup: State<'_, Popup>, bindings: BTreeMap<String, Binding>) -> Res<BTreeMap<String, String>> {
+    #[cfg(target_os = "linux")]
+    if portal::wanted() {
+        *lock(&popup.surfaces) = bindings.iter().map(|(id, b)| (id.clone(), b.surface)).collect();
+        let failures = through_portal(&app, bindings).await?;
+        *lock(&popup.failures) = failures.clone();
+        BindingsChanged(failures.clone()).emit(&app)?;
+        return Ok(failures);
+    }
     let shortcuts = app.global_shortcut();
     let _ = shortcuts.unregister_all();
     let mut failures = BTreeMap::new();
-    for (command, Binding { shortcut, surface }) in bindings {
+    for (command, Binding { shortcut, surface, .. }) in bindings {
         let id = command.clone();
         let result = shortcuts.on_shortcut(shortcut.as_str(), move |app, _, event| match event.state {
             ShortcutState::Pressed => trigger(app, &id, surface, ActionKind::Press),
@@ -159,6 +184,68 @@ async fn bind(app: AppHandle, popup: State<'_, Popup>, bindings: BTreeMap<String
     *lock(&popup.failures) = failures.clone();
     BindingsChanged(failures.clone()).emit(&app)?;
     Ok(failures)
+}
+
+/// Binds the shortcuts through the desktop portal, started the first time; blocks (off the async
+/// runtime) while the desktop asks the user to confirm them.
+#[cfg(target_os = "linux")]
+async fn through_portal(app: &AppHandle, bindings: BTreeMap<String, Binding>) -> Res<BTreeMap<String, String>> {
+    let shortcuts: Vec<portal::Shortcut> =
+        bindings.into_iter().map(|(id, b)| portal::Shortcut { id, description: b.label, trigger: portal::trigger(&b.shortcut) }).collect();
+    let app = app.clone();
+    let failures = tauri::async_runtime::spawn_blocking(move || {
+        let popup = app.state::<Popup>();
+        let started = popup.portal.get_or_init(|| {
+            let handle = app.clone();
+            portal::Portal::start(app.config().identifier.clone(), move |event| on_portal(&handle, event))
+                .inspect_err(|e| eprintln!("island: shortcuts: {e}"))
+                .ok()
+        });
+        match started {
+            Some(portal) => portal.bind(shortcuts),
+            None => shortcuts.into_iter().map(|s| (s.id, "The desktop's shortcut service couldn't start".into())).collect(),
+        }
+    })
+    .await
+    .map_err(|e| crate::Error::msg(e.to_string()))?;
+    Ok(failures)
+}
+
+/// A shortcut the portal reports: run as the X11 grab would, its token kept for the window it shows.
+#[cfg(target_os = "linux")]
+fn on_portal(app: &AppHandle, event: portal::Event) {
+    let popup = app.state::<Popup>();
+    let (id, kind, token) = match event {
+        portal::Event::Pressed { id, token } => (id, ActionKind::Press, token),
+        portal::Event::Released { id } => (id, ActionKind::Release, None),
+    };
+    let Some(surface) = lock(&popup.surfaces).get(&id).copied() else { return };
+    if kind == ActionKind::Press {
+        *lock(&popup.token) = token;
+        trigger(app, &id, surface, kind);
+    } else if surface == Surface::Action {
+        trigger(app, &id, surface, kind);
+    }
+}
+
+/// Shows `window` and gives it the focus. On Wayland the desktop only hands the focus over with
+/// the token of the shortcut that asked for the window, which this uses up.
+pub fn focus(app: &AppHandle, window: &WebviewWindow) -> Res<()> {
+    #[cfg(target_os = "linux")]
+    if let Some(token) = app.try_state::<Popup>().and_then(|p| lock(&p.token).take()) {
+        let target = window.clone();
+        app.run_on_main_thread(move || {
+            use gtk::prelude::GtkWindowExt;
+            if let Ok(gtk) = target.gtk_window() {
+                gtk.set_startup_id(&token);
+            }
+        })?;
+    }
+    #[cfg(not(target_os = "linux"))]
+    let _ = app;
+    window.show()?;
+    window.set_focus()?;
+    Ok(())
 }
 
 /// Shortcuts that couldn't be registered at the last `bind`.
@@ -221,9 +308,7 @@ pub fn show(app: &AppHandle, command: &str) -> Res<()> {
         window.set_position(LogicalPosition::new(origin.x + (area.width - SIZE.width) / 2.0, origin.y + area.height * TOP))?;
     }
     Shown { command: command.into() }.emit(app)?;
-    window.show()?;
-    window.set_focus()?;
-    Ok(())
+    focus(app, &window)
 }
 
 /// Captures the monitor under the pointer, then covers it with the overlay showing that capture.
@@ -257,9 +342,7 @@ fn capture(app: &AppHandle, command: &str) -> Res<()> {
     window.set_position(origin)?;
     window.set_size(size)?;
     Shown { command: command.into() }.emit(app)?;
-    window.show()?;
-    window.set_focus()?;
-    Ok(())
+    focus(app, &window)
 }
 
 crate::ipc::popup!();

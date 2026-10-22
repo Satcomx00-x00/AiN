@@ -23,9 +23,9 @@ describe("commands", () => {
   });
 
   it("binds only commands that have a shortcut", () => {
-    expect(bindings(catalogue, {})).toEqual({ "clipboard.history": { shortcut: "Super+Shift+KeyB", surface: "popup" } });
+    expect(bindings(catalogue, {})).toEqual({ "clipboard.history": { shortcut: "Super+Shift+KeyB", surface: "popup", label: "history" } });
     expect(bindings(catalogue, { "timer.start": "Alt+KeyT", "clipboard.history": null })).toEqual({
-      "timer.start": { shortcut: "Alt+KeyT", surface: "popup" },
+      "timer.start": { shortcut: "Alt+KeyT", surface: "popup", label: "start" },
     });
   });
 });

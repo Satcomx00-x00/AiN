@@ -243,7 +243,7 @@ describe("dictation", async () => {
   });
 
   it("binds its shortcut as an action, with no popup", () => {
-    expect(bindings(catalogue, {})["dictation.toggle"]).toEqual({ shortcut: "Ctrl+Alt+KeyD", surface: "action" });
+    expect(bindings(catalogue, {})["dictation.toggle"]).toEqual({ shortcut: "Ctrl+Alt+KeyD", surface: "action", label: "Dictate" });
   });
 });
 
