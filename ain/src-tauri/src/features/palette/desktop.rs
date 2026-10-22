@@ -181,7 +181,7 @@ Name=Firefox Web Browser
 Name[fr]=Navigateur Web Firefox
 GenericName=Web Browser
 Comment=Browse the World Wide Web
-Comment[fr]=Naviguer sur le Web
+Comment[fr]=Parcourir le Web
 Keywords=Internet;WWW;Browser;Web\;Explorer;
 Exec=firefox %u
 Terminal=false
@@ -201,7 +201,7 @@ Exec=firefox --new-window %u
     fn reads_the_entry_in_the_users_language() {
         let entry = parse(FIREFOX, &langs("fr_FR.UTF-8")).unwrap();
         assert_eq!(entry.name, "Navigateur Web Firefox");
-        assert_eq!(entry.comment.as_deref(), Some("Naviguer sur le Web"));
+        assert_eq!(entry.comment.as_deref(), Some("Parcourir le Web"));
         assert_eq!(entry.generic.as_deref(), Some("Web Browser"), "no French generic name: the default");
         assert_eq!(entry.keywords, ["Internet", "WWW", "Browser", "Web;Explorer"]);
         assert_eq!(entry.exec, "firefox %u", "the first group's Exec, not an action's");
