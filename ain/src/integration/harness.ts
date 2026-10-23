@@ -12,6 +12,7 @@ import type { ModelInfo, Phase } from "../features/dictation/service";
 import type { Control, Track } from "../features/media/service";
 import type { Usage } from "../features/privacy/service";
 import type { Stats } from "../features/stats/service";
+import type { ModelInfo as Voice, Phase as Reading } from "../features/tts/service";
 import type { Output, Source } from "../features/volume/service";
 import type { PopupPort } from "../shell/commands";
 import type { CommunityPort, Offer } from "../shell/community";
@@ -60,6 +61,7 @@ export const TRACK: Track = {
 };
 
 const READY: ModelInfo = { model: "parakeet-v3", dir: "/models", installed: ["parakeet-v3"], state: "ready" } as ModelInfo;
+const VOICE: Voice = { model: "kokoro-en", dir: "/models", installed: ["kokoro-en"], state: "ready" } as Voice;
 
 /** A plugin file's definition, as its default export would build it from the SDK. */
 export type Definition = (island: Sdk) => unknown;
@@ -72,6 +74,10 @@ export function system() {
   const usage = channel<Usage | null>({ mic: [], camera: [] });
   const phase = channel<Phase>({ phase: "idle" });
   const model = channel<ModelInfo>(READY);
+  const reading = channel<Reading>({ phase: "idle" });
+  const voice = channel<Voice>(VOICE);
+  /** What read aloud was asked: a control, or a text to read. */
+  const spoken: string[] = [];
   let sample: Stats | null = { cpu: 42, memUsed: 8e9, memTotal: 16e9, rxPerSec: 0, txPerSec: 0, sampledAt: NOW };
   let clips: Clip[] = [];
   const controls: Control[] = [];
@@ -102,6 +108,15 @@ export function system() {
       openFolder: async () => {},
       microphones: async () => [],
       control: async () => {},
+      download: async () => {},
+      remove: async () => {},
+    },
+    tts: {
+      watch: reading.watch,
+      watchModel: voice.watch,
+      openFolder: async () => {},
+      control: async (c) => void spoken.push(c),
+      speak: async (text) => void spoken.push(text),
       download: async () => {},
       remove: async () => {},
     },
@@ -184,15 +199,16 @@ export function system() {
     importer,
     community,
     secrets,
-    /** What the system says: push a track, an output volume, mic/camera use, a dictation phase, a stats sample. */
+    /** What the system says: push a track, an output volume, mic/camera use, a dictation or reading phase, a stats sample. */
     push: {
       track: (t: Track | null) => media.push(t),
       output: (o: Output | null) => output.push(o),
       usage: (u: Usage | null) => usage.push(u),
       phase: (p: Phase) => phase.push(p),
+      reading: (p: Reading) => reading.push(p),
       stats: (s: Partial<Stats> | null) => void (sample = s && sample ? { ...sample, ...s } : null),
     },
-    recorded: { regions, canvases, rules, bound, controls },
+    recorded: { regions, canvases, rules, bound, controls, spoken },
     /** Shows or hides the pill, as the backend's auto-hide rule would. */
     reveal: (shown: boolean) => reveal(shown),
     /** The hardware island: e.g. a MacBook notch. Set before the island starts. */

@@ -13,6 +13,7 @@ const { tauriStats, fromWire } = await import("./stats/service");
 const { tauriClipboard } = await import("./clipboard/service");
 const { tauriVolume, output } = await import("./volume/service");
 const { tauriDictation, phase } = await import("./dictation/service");
+const { tauriTts } = await import("./tts/service");
 const { tauriMedia } = await import("./media/service");
 const { tauriCapture, decode } = await import("./screenshot/service");
 
@@ -108,6 +109,22 @@ describe("dictation", () => {
     expect(invoke).toHaveBeenLastCalledWith("plugin:dictation|delete_model");
     await tauriDictation.openFolder();
     expect(invoke).toHaveBeenLastCalledWith("plugin:dictation|open_model_dir");
+  });
+});
+
+describe("read aloud", () => {
+  it("calls each command by its Rust name", async () => {
+    vi.mocked(invoke).mockResolvedValue(null);
+    await tauriTts.control("toggle");
+    expect(invoke).toHaveBeenLastCalledWith("plugin:tts|control", { command: "toggle" });
+    await tauriTts.speak("Hi");
+    expect(invoke).toHaveBeenLastCalledWith("plugin:tts|speak", { text: "Hi" });
+    await tauriTts.download();
+    expect(invoke).toHaveBeenLastCalledWith("plugin:tts|download_model");
+    await tauriTts.remove();
+    expect(invoke).toHaveBeenLastCalledWith("plugin:tts|delete_model");
+    await tauriTts.openFolder();
+    expect(invoke).toHaveBeenLastCalledWith("plugin:tts|open_model_dir");
   });
 });
 

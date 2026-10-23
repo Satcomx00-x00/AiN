@@ -1,6 +1,8 @@
 //! Audio shaping for the recognizer: mono 16 kHz, decoded in bounded chunks while the user talks.
 //! Same approach as Orca's offline dictation.
 
+pub use crate::features::audio::resample;
+
 /// The rate Parakeet expects.
 pub const RATE: u32 = 16_000;
 /// Cutting mid-word hurts the transcript, so each cut goes in the quietest spot of the chunk's
@@ -12,24 +14,6 @@ const WINDOW_SECONDS: f32 = 0.1;
 pub fn mono<T: Copy>(data: &[T], channels: usize, to_f32: impl Fn(T) -> f32) -> impl Iterator<Item = f32> {
     let channels = channels.max(1);
     data.chunks(channels).map(move |frame| frame.iter().map(|&s| to_f32(s)).sum::<f32>() / frame.len() as f32)
-}
-
-/// Linear resampling, good enough for speech.
-pub fn resample(samples: &[f32], from: u32, to: u32) -> Vec<f32> {
-    if samples.is_empty() || from == 0 || to == 0 || from == to {
-        return samples.to_vec();
-    }
-    let len = ((samples.len() as f64 * f64::from(to) / f64::from(from)).round() as usize).max(1);
-    let ratio = f64::from(from) / f64::from(to);
-    (0..len)
-        .map(|i| {
-            let at = i as f64 * ratio;
-            let left = (at.floor() as usize).min(samples.len() - 1);
-            let right = (left + 1).min(samples.len() - 1);
-            let weight = (at - left as f64) as f32;
-            samples[left] * (1.0 - weight) + samples[right] * weight
-        })
-        .collect()
 }
 
 /// Loudness of a stretch of audio in 0–1, on a decibel scale from -50 dB (silence) to -10 dB.
@@ -109,14 +93,6 @@ mod tests {
         let stereo = [0.5_f32, -0.5, 1.0, 0.0];
         assert_eq!(mono(&stereo, 2, |s| s).collect::<Vec<_>>(), [0.0, 0.5]);
         assert_eq!(mono(&[i16::MAX], 1, |s| f32::from(s) / 32768.0).count(), 1);
-    }
-
-    #[test]
-    fn resamples_linearly() {
-        assert_eq!(resample(&[0.0, 1.0], 16_000, 16_000), [0.0, 1.0]);
-        let down = resample(&[0.0; 48_000], 48_000, RATE);
-        assert_eq!(down.len(), 16_000);
-        assert_eq!(resample(&[0.0, 1.0], 1, 2), [0.0, 0.5, 1.0, 1.0]);
     }
 
     #[test]

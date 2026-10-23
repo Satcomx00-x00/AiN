@@ -55,6 +55,8 @@ const OPTION: u64 = 1 << 19;
 const COMMAND: u64 = 1 << 20;
 /// `kVK_ANSI_V`.
 const KEY_V: u16 = 9;
+/// `kVK_ANSI_C`.
+const KEY_C: u16 = 8;
 /// The most UTF-16 units one key event carries.
 const PER_EVENT: usize = 20;
 /// The shortcut's modifiers may still be down; typed characters would turn into shortcuts.
@@ -153,6 +155,21 @@ pub fn paste() -> bool {
     wait_for_modifiers();
     press(KEY_V, COMMAND, &[]);
     true
+}
+
+/// Presses Cmd+C; false when not allowed.
+pub fn copy() -> bool {
+    if !trusted() {
+        return false;
+    }
+    wait_for_modifiers();
+    press(KEY_C, COMMAND, &[]);
+    true
+}
+
+/// Changes with every new clipboard content.
+pub fn clipboard_count() -> i64 {
+    objc2_app_kit::NSPasteboard::generalPasteboard().changeCount() as i64
 }
 
 #[cfg(test)]

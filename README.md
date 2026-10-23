@@ -127,6 +127,7 @@ Each widget can show on the pill, in its own tab, or both.
 | **Mic & camera** | Which apps use the microphone (orange) or the camera (green) right now | ✅ | ⚠️ apps on the mic from macOS 14; for the camera, only that one is in use | ✅ your own apps |
 | **Clipboard** | Your recently copied text, one click to copy it again; kept in memory only, never written to disk | ✅ | ✅ | ✅ |
 | **Dictation** | Speak, and the words are typed where your cursor is. Recognized on your computer by one of 7 models you download once (Parakeet, Whisper, SenseVoice, Moonshine) | ✅ | ⚠️ typing needs Accessibility access | ⚠️ typing needs `xdotool` (X11), `wtype` or `ydotool` (Wayland) |
+| **Read aloud** | Select text in any app, press the shortcut, and it is read out loud. Spoken on your computer by one of 6 voice models you download once (Kokoro, Kitten, Piper in English, French, German and Spanish), with a choice of voice and speed | ✅ | ⚠️ reading the selection needs Accessibility access | ✅ |
 
 Where typing isn't allowed, dictated text is copied for you to paste (see [permissions](#permissions-and-helper-tools)).
 
@@ -139,6 +140,7 @@ Global shortcuts open these even while the island is folded. You can rebind them
 | **Clipboard picker** | Search your clipboard history, pick with the arrows or <kbd>Alt</kbd>+<kbd>1</kbd>…<kbd>9</kbd>, and it is pasted into the app you were in | ✅ | ⚠️ pasting needs Accessibility access | ⚠️ shortcut on X11 only; pasting needs `xdotool`, `wtype` or `ydotool` |
 | **Screenshot editor** | Freezes the screen; select an area, draw on it (pen, marker, rectangle, ellipse, colors, sizes, undo), then copy or save it as a PNG | ✅ | ✅ | ⚠️ shortcut on X11 only |
 | **Dictation** | Starts and stops dictating | ✅ | ✅ | ⚠️ shortcut on X11 only |
+| **Read aloud** | Reads the selected text, or stops reading | ✅ | ✅ | ⚠️ shortcut on X11 only |
 
 On Wayland, Linux gives apps no global shortcuts: the island and its tabs work, the shortcuts don't.
 
@@ -163,6 +165,7 @@ the `store` branch to list it.
 | Clipboard history picker | <kbd>Win</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd> |
 | Annotate a screenshot | <kbd>Win</kbd>+<kbd>Alt</kbd>+<kbd>S</kbd> |
 | Start or stop dictation | <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>D</kbd> |
+| Read the selected text aloud, or stop | <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>R</kbd> |
 
 You can rebind them all in **Settings → Shortcuts**. On Windows, <kbd>Win</kbd> + a single letter is reserved by the
 OS, so add <kbd>Shift</kbd> or <kbd>Alt</kbd>. On macOS, <kbd>Win</kbd> is <kbd>Cmd</kbd>; on Linux, the Super key.
@@ -188,7 +191,9 @@ Download the latest build for your OS from [Releases](https://github.com/Satcomx
 ### Permissions and helper tools
 
 Typing dictated text and pasting from the clipboard picker press keys in another app, which macOS and Linux only
-allow in some conditions. When they can't, the text stays on the clipboard for you to paste.
+allow in some conditions. When they can't, the text stays on the clipboard for you to paste. Read aloud copies the
+selection on Windows and macOS (then puts back the text you had copied); on Linux it reads the primary selection,
+with no keys pressed.
 
 | OS | What it needs |
 | --- | --- |

@@ -3009,6 +3009,96 @@
           "markdownDescription": "Denies the open_repo command without any pre-configured scope."
         },
         {
+          "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-state`\n- `allow-model-status`\n- `allow-control`\n- `allow-speak`\n- `allow-download-model`\n- `allow-delete-model`\n- `allow-open-model-dir`",
+          "type": "string",
+          "const": "tts:default",
+          "markdownDescription": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-state`\n- `allow-model-status`\n- `allow-control`\n- `allow-speak`\n- `allow-download-model`\n- `allow-delete-model`\n- `allow-open-model-dir`"
+        },
+        {
+          "description": "Enables the control command without any pre-configured scope.",
+          "type": "string",
+          "const": "tts:allow-control",
+          "markdownDescription": "Enables the control command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the delete_model command without any pre-configured scope.",
+          "type": "string",
+          "const": "tts:allow-delete-model",
+          "markdownDescription": "Enables the delete_model command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the download_model command without any pre-configured scope.",
+          "type": "string",
+          "const": "tts:allow-download-model",
+          "markdownDescription": "Enables the download_model command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the model_status command without any pre-configured scope.",
+          "type": "string",
+          "const": "tts:allow-model-status",
+          "markdownDescription": "Enables the model_status command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the open_model_dir command without any pre-configured scope.",
+          "type": "string",
+          "const": "tts:allow-open-model-dir",
+          "markdownDescription": "Enables the open_model_dir command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the speak command without any pre-configured scope.",
+          "type": "string",
+          "const": "tts:allow-speak",
+          "markdownDescription": "Enables the speak command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the state command without any pre-configured scope.",
+          "type": "string",
+          "const": "tts:allow-state",
+          "markdownDescription": "Enables the state command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the control command without any pre-configured scope.",
+          "type": "string",
+          "const": "tts:deny-control",
+          "markdownDescription": "Denies the control command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the delete_model command without any pre-configured scope.",
+          "type": "string",
+          "const": "tts:deny-delete-model",
+          "markdownDescription": "Denies the delete_model command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the download_model command without any pre-configured scope.",
+          "type": "string",
+          "const": "tts:deny-download-model",
+          "markdownDescription": "Denies the download_model command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the model_status command without any pre-configured scope.",
+          "type": "string",
+          "const": "tts:deny-model-status",
+          "markdownDescription": "Denies the model_status command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the open_model_dir command without any pre-configured scope.",
+          "type": "string",
+          "const": "tts:deny-open-model-dir",
+          "markdownDescription": "Denies the open_model_dir command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the speak command without any pre-configured scope.",
+          "type": "string",
+          "const": "tts:deny-speak",
+          "markdownDescription": "Denies the speak command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the state command without any pre-configured scope.",
+          "type": "string",
+          "const": "tts:deny-state",
+          "markdownDescription": "Denies the state command without any pre-configured scope."
+        },
+        {
           "description": "This permission set configures which kind of\nupdater functions are exposed to the frontend.\n\n#### Granted Permissions\n\nThe full workflow from checking for updates to installing them\nis enabled.\n\n\n#### This default permission set includes:\n\n- `allow-check`\n- `allow-download`\n- `allow-install`\n- `allow-download-and-install`",
           "type": "string",
           "const": "updater:default",
