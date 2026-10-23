@@ -178,6 +178,18 @@ Download the latest build for your OS from [Releases](https://github.com/Satcomx
 | Linux | `.deb`, `.rpm`, `.AppImage` (requires `gtk-layer-shell`) |
 | macOS | `.dmg`, `.app` |
 
+Or with **npm**, where installers aren't an option: it installs the build for your system, with nothing to compile
+and no admin rights needed.
+
+```sh
+npm install --global ain-app
+ain
+```
+
+`ain` starts AiN and returns (it keeps running in the tray). On Linux it is the AppImage, on macOS the `.app` (Apple
+silicon runs it through Rosetta), on Windows `ain.exe`. Update with `npm update --global ain-app`: the app's own
+updater stays off in an npm install. See [`npm/`](npm/README.md).
+
 > [!NOTE]
 > The binaries are not signed yet, so Windows SmartScreen and macOS Gatekeeper will show a warning on first launch.
 
@@ -244,6 +256,7 @@ How the code is organized, and how to add a feature: [docs/architecture.md](docs
 | `ain/src-tauri/src/shell/` | Native side of the app: island window, popup, capture, settings, tray, plugin folder |
 | `ain/src-tauri/src/features/` | Native side of each feature, with one backend per OS (`windows.rs`, `linux.rs`, `macos.rs`) |
 | `ain/examples/plugins/` | Example third-party plugins: a widget, a startup animation, a pill style |
+| `npm/` | The npm packages (`npm install --global ain-app`): the `ain` launcher, and how each build is staged |
 | `cliff.toml` | [git-cliff](https://git-cliff.org) changelog configuration |
 | `.github/workflows/` | CI and release pipelines |
 
@@ -280,12 +293,12 @@ To skip one hook once: `PREK_SKIP=cargo-test git push`. Configuration: [`prek.to
 Every push to `main` and every pull request runs:
 
 - commit message linting (commitlint)
-- frontend: typecheck, unit and integration tests, production build
+- frontend: typecheck, unit and integration tests, production build; the npm packages' typecheck and tests
 - browser tests: end-to-end tests and smoke tests of the production build, in Chromium and WebKit
 - Rust: `rustfmt`, then `clippy -D warnings` and `cargo test` on Linux, Windows and macOS (x64), and a check that the
   committed TypeScript bindings match the Rust code
 - an AppImage build, uploaded as a workflow artifact, then launched on a virtual display: it must start, lay out its
-  window and keep running (`.github/scripts/launch-check.sh`)
+  window and keep running (`.github/scripts/launch-check.sh`); then the same, installed with npm and started by `ain`
 
 Releases are continuous: every green CI run on `main` (a merged pull request, a push) can cut one.
 
@@ -295,6 +308,8 @@ Releases are continuous: every green CI run on `main` (a merged pull request, a 
    `package.json`, `Cargo.toml`, `Cargo.lock` and `CHANGELOG.md`, commits `chore(release): vX.Y.Z` and pushes the tag.
 3. The app is built for Windows, Linux and macOS (x64).
 4. The release is published with the changelog section as its notes.
+5. Each build's npm package, then the `ain-app` launcher, is published to npm (once npm is set up: see
+   [`npm/README.md`](npm/README.md)).
 
 Commits merged while CI runs are released together, by the run of the newest one. To release anyway, or to pick
 the bump (`major` for 1.0.0), use **Actions → Release → Run workflow** on `main`: CI then runs first, as a gate.
