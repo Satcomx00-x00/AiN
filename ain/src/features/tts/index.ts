@@ -2,7 +2,7 @@ import { button, h, icon } from "../../sdk/dom";
 import { choice, folder, number } from "../../sdk/options";
 import { type Glance, definePlugin } from "../../sdk/plugin";
 import { type SelectOption, select } from "../../sdk/select";
-import { fieldRow as row, modelCard, modelFiles } from "../model-files";
+import { keepLoaded, fieldRow as row, modelCard, modelFiles } from "../model-files";
 import type { ModelInfo, Phase, TtsPort } from "./service";
 import { DEFAULT_MODEL, MODELS, modelById } from "./models";
 
@@ -73,6 +73,7 @@ export const tts = definePlugin({
     voice: { ...number("Voice", 0, { min: 0, max: 63 }), inPanel: true },
     speed: number("Speed", 1, { min: 0.5, max: 2, step: 0.05, unit: "×" }),
     modelDir: folder("Model folder", "Default folder"),
+    keepLoaded: keepLoaded(),
   },
   commands: [
     {

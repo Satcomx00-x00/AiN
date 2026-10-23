@@ -270,7 +270,8 @@ pub fn init() -> TauriPlugin<Wry> {
     ipc().plugin(|app| {
         let default_dir = app.path().app_data_dir()?.join("models");
         let emit = |app: &AppHandle, info| drop(ModelChanged(info).emit(app));
-        let models = Arc::new(ModelStore::new(FEATURE, model::MODELS, &settings::current(app), default_dir, emit));
+        let models = Arc::new(ModelStore::new(FEATURE, model::MODELS, &settings::current(app), default_dir, emit, engine::load));
+        models.preload();
         let shared = Arc::new(Shared { phase: Live::new(Phase::Idle), models, session: AtomicU64::new(0) });
         let worker = spawn(app.clone(), Arc::clone(&shared))?;
         let (handle, followed) = (app.clone(), Arc::clone(&shared));
@@ -300,7 +301,7 @@ mod tests {
     fn reads_the_chosen_model_and_folder() {
         let default = std::env::temp_dir().join("island-default");
         let chosen = std::env::temp_dir().join("island-chosen");
-        let store = |settings| ModelStore::<_, ()>::new(FEATURE, model::MODELS, &settings, default.clone(), |_, _| {});
+        let store = |settings| ModelStore::<_, ()>::new(FEATURE, model::MODELS, &settings, default.clone(), |_, _| {}, |_, _| Ok(()));
         let settings = serde_json::json!({ "options": { "dictation": { "model": "whisper-base", "modelDir": chosen.to_str() } } });
         assert_eq!(store(settings).chosen().1, chosen.join("whisper-base-int8"));
         assert_eq!(store(serde_json::json!({})).chosen().1, default.join("parakeet-tdt-0.6b-v3-int8"));

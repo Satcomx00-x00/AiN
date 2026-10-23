@@ -1,8 +1,11 @@
 //! The model a feature runs on this machine (dictation's speech model, read aloud's voice): which
-//! one the settings pick and where it is stored, its download, and its loaded engine, kept warm
-//! while in use. Each feature lists its models (`Downloadable`) and loads them its own way.
+//! one the settings pick and where it is stored, its download, and its loaded engines. Each model
+//! loaded stays warm while in use, side by side with the others (switching back costs no reload),
+//! and the chosen one can be kept loaded for good. Each feature lists its models (`Downloadable`)
+//! and loads them its own way (`Loader`).
 
 use std::{
+    collections::HashMap,
     io,
     path::{Path, PathBuf},
     sync::{
@@ -35,6 +38,14 @@ pub trait Downloadable: Sync + 'static {
     fn size(&self) -> u64;
     /// Downloads it into the models folder `base`, calling `progress(received, total)` along the way.
     fn download(&self, base: &Path, cancel: &AtomicBool, progress: &mut dyn FnMut(u64, u64)) -> Result<(), DownloadError>;
+}
+
+/// Loads a model's engine from its folder.
+pub type Loader<M, E> = fn(&'static M, &Path) -> Result<E, String>;
+
+/// The "keepLoaded" setting: the chosen model stays loaded instead of being let go once cold.
+fn keep_loaded(feature: &str, settings: &Value) -> bool {
+    settings::option(settings, feature, "keepLoaded").and_then(Value::as_bool).unwrap_or(false)
 }
 
 /// The model with this id, or the first (the default).
@@ -85,6 +96,12 @@ fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
     m.lock().unwrap_or_else(|e| e.into_inner())
 }
 
+/// An engine in memory, and when it was last used.
+struct Loaded<E> {
+    engine: Arc<E>,
+    used: Instant,
+}
+
 /// A feature's models of type `M`, run by engines of type `E`.
 pub struct ModelStore<M: 'static, E> {
     feature: &'static str,
@@ -96,9 +113,10 @@ pub struct ModelStore<M: 'static, E> {
     info: Live<ModelInfo>,
     /// Sends the feature's own "model changed" event.
     emit: fn(&AppHandle, ModelInfo),
-    /// Loaded on first use, kept warm, let go once cold.
-    engine: Mutex<Option<Arc<E>>>,
-    last_used: Mutex<Instant>,
+    load: Loader<M, E>,
+    /// By model id: loaded on first use, kept warm, let go once cold (unless kept loaded).
+    engines: Mutex<HashMap<&'static str, Loaded<E>>>,
+    keep_loaded: AtomicBool,
     downloading: AtomicBool,
     stop_download: AtomicBool,
 }
@@ -110,6 +128,7 @@ impl<M: Downloadable, E: Send + Sync + 'static> ModelStore<M, E> {
         settings: &Value,
         default_dir: PathBuf,
         emit: fn(&AppHandle, ModelInfo),
+        load: Loader<M, E>,
     ) -> Self {
         let place = Self::read(feature, models, settings, &default_dir);
         Self {
@@ -119,8 +138,9 @@ impl<M: Downloadable, E: Send + Sync + 'static> ModelStore<M, E> {
             place: Mutex::new(place),
             default_dir,
             emit,
-            engine: Mutex::new(None),
-            last_used: Mutex::new(Instant::now()),
+            load,
+            engines: Mutex::default(),
+            keep_loaded: AtomicBool::new(keep_loaded(feature, settings)),
             downloading: AtomicBool::new(false),
             stop_download: AtomicBool::new(false),
         }
@@ -167,15 +187,37 @@ impl<M: Downloadable, E: Send + Sync + 'static> ModelStore<M, E> {
     }
 
     /// Re-reads the settings; when they pick another model or folder, that one is used from then
-    /// on. A download in progress finishes first, then the new choice applies.
-    pub fn follow_settings(&self, app: &AppHandle, settings: &Value) {
+    /// on, while the one before stays warm a while. A download in progress finishes first, then the
+    /// new choice applies.
+    pub fn follow_settings(self: &Arc<Self>, app: &AppHandle, settings: &Value) {
+        self.keep_loaded.store(keep_loaded(self.feature, settings), Ordering::SeqCst);
         let place = Self::read(self.feature, self.models, settings, &self.default_dir);
-        if *lock(&self.place) == place || self.downloading.load(Ordering::SeqCst) {
+        if *lock(&self.place) != place && !self.downloading.load(Ordering::SeqCst) {
+            if lock(&self.place).base != place.base {
+                // Same ids, other files: what is loaded no longer matches.
+                lock(&self.engines).clear();
+            }
+            *lock(&self.place) = place.clone();
+            self.publish(app, place.model.status(&place.dir()));
+        }
+        self.preload();
+    }
+
+    /// Loads the chosen model in the background when it is to stay loaded and isn't yet.
+    pub fn preload(self: &Arc<Self>) {
+        let wanted = self.keep_loaded.load(Ordering::SeqCst) && !self.downloading.load(Ordering::SeqCst) && self.ready();
+        if !wanted || lock(&self.engines).contains_key(self.chosen().0.id()) {
             return;
         }
-        *lock(&self.place) = place.clone();
-        lock(&self.engine).take();
-        self.publish(app, place.model.status(&place.dir()));
+        let store = Arc::clone(self);
+        let spawned = std::thread::Builder::new().name(format!("{}-preload", self.feature)).spawn(move || {
+            if let Err(e) = store.engine() {
+                eprintln!("island: {}: {e}", store.feature);
+            }
+        });
+        if let Err(e) = spawned {
+            eprintln!("island: {}: {e}", self.feature);
+        }
     }
 
     /// Starts downloading the chosen model in the background; progress goes out as it comes.
@@ -198,7 +240,7 @@ impl<M: Downloadable, E: Send + Sync + 'static> ModelStore<M, E> {
             };
             store.publish(&app, status);
             store.downloading.store(false, Ordering::SeqCst);
-            // The user may have picked another model meanwhile.
+            // The user may have picked another model meanwhile; this also preloads it if asked.
             store.follow_settings(&app, &settings::current(&app));
         });
         if let Err(e) = spawned {
@@ -214,8 +256,8 @@ impl<M: Downloadable, E: Send + Sync + 'static> ModelStore<M, E> {
             self.stop_download.store(true, Ordering::SeqCst);
             return Ok(());
         }
-        lock(&self.engine).take();
         let place = self.place();
+        lock(&self.engines).remove(place.model.id());
         remove(&place.dir())?;
         self.publish(app, place.model.status(&place.dir()));
         Ok(())
@@ -227,29 +269,40 @@ impl<M: Downloadable, E: Send + Sync + 'static> ModelStore<M, E> {
         dir.ancestors().find(|p| p.is_dir()).map(Path::to_path_buf).unwrap_or(dir)
     }
 
-    /// The engine for the chosen model, loaded by `load` if needed (a caller waits while another loads it).
-    pub fn engine(&self, load: impl FnOnce(&'static M, &Path) -> Result<E, String>) -> Result<Arc<E>, String> {
-        let mut slot = lock(&self.engine);
-        self.touch();
-        if let Some(e) = &*slot {
-            return Ok(Arc::clone(e));
-        }
+    /// The engine for the chosen model, loaded if needed (a caller waits while another loads one).
+    pub fn engine(&self) -> Result<Arc<E>, String> {
+        let mut engines = lock(&self.engines);
         let (model, dir) = self.chosen();
-        let e = Arc::new(load(model, &dir)?);
-        *slot = Some(Arc::clone(&e));
-        Ok(e)
-    }
-
-    /// Notes the engine was just used, so it stays warm.
-    pub fn touch(&self) {
-        *lock(&self.last_used) = Instant::now();
-    }
-
-    /// Lets the engine go once unused for `keep`: it takes hundreds of MB of memory.
-    pub fn let_cold_go(&self, keep: Duration) {
-        if lock(&self.last_used).elapsed() >= keep {
-            lock(&self.engine).take();
+        if let Some(loaded) = engines.get_mut(model.id()) {
+            loaded.used = Instant::now();
+            return Ok(Arc::clone(&loaded.engine));
         }
+        let engine = Arc::new((self.load)(model, &dir)?);
+        engines.insert(model.id(), Loaded { engine: Arc::clone(&engine), used: Instant::now() });
+        Ok(engine)
+    }
+
+    /// Notes the chosen model's engine was just used, so it stays warm.
+    pub fn touch(&self) {
+        if let Some(loaded) = lock(&self.engines).get_mut(self.chosen().0.id()) {
+            loaded.used = Instant::now();
+        }
+    }
+
+    /// The ids of the models loaded now.
+    #[cfg(test)]
+    pub fn loaded(&self) -> Vec<&'static str> {
+        let mut ids: Vec<_> = lock(&self.engines).keys().copied().collect();
+        ids.sort_unstable();
+        ids
+    }
+
+    /// Lets each engine go once unused for `keep` (they take hundreds of MB of memory), but the
+    /// chosen one when kept loaded. Skipped while one is loading, so the caller never waits.
+    pub fn let_cold_go(&self, keep: Duration) {
+        let Ok(mut engines) = self.engines.try_lock() else { return };
+        let pinned = self.keep_loaded.load(Ordering::SeqCst).then(|| self.chosen().0.id());
+        engines.retain(|id, loaded| Some(*id) == pinned || loaded.used.elapsed() < keep);
     }
 }
 
@@ -279,8 +332,12 @@ mod tests {
 
     const FAKES: &[Fake] = &[Fake("first"), Fake("second")];
 
-    fn store(settings: Value, default: &Path) -> ModelStore<Fake, ()> {
-        ModelStore::new("feature", FAKES, &settings, default.to_path_buf(), |_, _| {})
+    fn store(settings: Value, default: &Path) -> ModelStore<Fake, &'static str> {
+        ModelStore::new("feature", FAKES, &settings, default.to_path_buf(), |_, _| {}, |model, _| Ok(model.id()))
+    }
+
+    fn choose(store: &ModelStore<Fake, &'static str>, model: &'static str) {
+        lock(&store.place).model = find(FAKES, Some(model));
     }
 
     #[test]
@@ -306,10 +363,38 @@ mod tests {
     #[test]
     fn keeps_the_engine_while_warm() {
         let store = store(serde_json::json!({}), &std::env::temp_dir());
-        let first = store.engine(|_, _| Ok(())).unwrap();
-        assert!(Arc::ptr_eq(&first, &store.engine(|_, _| Err("loaded again".into())).unwrap()));
+        let first = store.engine().unwrap();
+        assert!(Arc::ptr_eq(&first, &store.engine().unwrap()));
         store.let_cold_go(Duration::ZERO);
-        assert!(store.engine(|_, _| Err("cold".into())).is_err());
+        assert!(store.loaded().is_empty());
+    }
+
+    #[test]
+    fn keeps_several_models_loaded_side_by_side() {
+        let store = store(serde_json::json!({}), &std::env::temp_dir());
+        assert_eq!(*store.engine().unwrap(), "first");
+        choose(&store, "second");
+        assert_eq!(*store.engine().unwrap(), "second");
+        assert_eq!(store.loaded(), ["first", "second"]);
+        store.let_cold_go(Duration::from_secs(60));
+        assert_eq!(store.loaded(), ["first", "second"]);
+    }
+
+    #[test]
+    fn a_kept_model_outlives_the_cold() {
+        let settings = serde_json::json!({ "options": { "feature": { "keepLoaded": true } } });
+        let store = store(settings, &std::env::temp_dir());
+        store.engine().unwrap();
+        choose(&store, "second");
+        store.engine().unwrap();
+        store.let_cold_go(Duration::ZERO);
+        assert_eq!(store.loaded(), ["second"]);
+    }
+
+    #[test]
+    fn reads_keep_loaded() {
+        assert!(keep_loaded("feature", &serde_json::json!({ "options": { "feature": { "keepLoaded": true } } })));
+        assert!(!keep_loaded("feature", &serde_json::json!({})));
     }
 
     #[test]

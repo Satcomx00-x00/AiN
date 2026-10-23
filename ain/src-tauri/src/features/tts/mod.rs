@@ -201,7 +201,8 @@ pub fn init() -> TauriPlugin<Wry> {
     ipc().plugin(|app| {
         let default_dir = app.path().app_data_dir()?.join("models");
         let emit = |app: &AppHandle, info| drop(ModelChanged(info).emit(app));
-        let models = Arc::new(ModelStore::new(FEATURE, model::MODELS, &settings::current(app), default_dir, emit));
+        let models = Arc::new(ModelStore::new(FEATURE, model::MODELS, &settings::current(app), default_dir, emit, engine::load));
+        models.preload();
         let shared = Arc::new(Shared { phase: Live::new(Phase::Idle), models, session: AtomicU64::new(0) });
         let worker = spawn(app.clone(), Arc::clone(&shared))?;
         let (handle, followed) = (app.clone(), Arc::clone(&shared));
@@ -226,7 +227,7 @@ mod tests {
 
     #[test]
     fn defaults_to_the_first_voice_model() {
-        let store = ModelStore::<_, ()>::new(FEATURE, model::MODELS, &serde_json::json!({}), "models".into(), |_, _| {});
+        let store = ModelStore::<_, ()>::new(FEATURE, model::MODELS, &serde_json::json!({}), "models".into(), |_, _| {}, |_, _| Ok(()));
         assert!(store.chosen().1.ends_with("kokoro-en-v0_19"));
     }
 
