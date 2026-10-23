@@ -12,6 +12,7 @@
 //! `disabled` and never reach the network.
 
 use std::{
+    path::Path,
     sync::{Mutex, MutexGuard},
     thread,
     time::Duration,
@@ -151,10 +152,21 @@ fn emit(app: &AppHandle, report: Report) {
     }
 }
 
+/// Whether npm installed this copy (`npm install --global ain-app`): the program, or the AppImage
+/// it runs from, is inside a `node_modules` folder. npm updates it then, not the app.
+fn installed_by_npm(exe: &Path, appimage: Option<&Path>) -> bool {
+    appimage.into_iter().chain([exe]).any(|p| p.components().any(|c| c.as_os_str() == "node_modules"))
+}
+
 /// Why updates are off in this build, if they are.
 fn disabled_reason(app: &AppHandle) -> Option<&'static str> {
     if cfg!(debug_assertions) {
         return Some("Development build: updates are off.");
+    }
+    let exe = std::env::current_exe().unwrap_or_default();
+    let appimage = std::env::var_os("APPIMAGE");
+    if installed_by_npm(&exe, appimage.as_deref().map(Path::new)) {
+        return Some("Installed with npm: update it with npm update --global ain-app.");
     }
     let pubkey = app.config().plugins.0.get("updater").and_then(|u| u.get("pubkey")).and_then(|k| k.as_str());
     pubkey.is_none_or(|k| k.trim().is_empty()).then_some("This build has no update key: updates are off.")
@@ -307,6 +319,17 @@ mod tests {
         assert_eq!(manifest("me/app"), "https://github.com/me/app/releases/latest/download/latest.json");
         assert_eq!(releases("me/app"), "https://github.com/me/app/releases");
         assert!(Url::parse(&manifest(REPO)).is_ok());
+    }
+
+    #[test]
+    fn npm_updates_what_npm_installed() {
+        let npm = Path::new("/usr/lib/node_modules/ain-app-darwin-x64/AiN.app/Contents/MacOS/ain");
+        assert!(installed_by_npm(npm, None));
+        let mounted = Path::new("/tmp/.mount_AiNxyz/usr/bin/ain");
+        assert!(installed_by_npm(mounted, Some(Path::new("/home/me/.npm-global/lib/node_modules/ain-app-linux-x64/AiN.AppImage"))));
+        assert!(!installed_by_npm(mounted, Some(Path::new("/home/me/Applications/AiN.AppImage"))));
+        assert!(!installed_by_npm(Path::new("/usr/bin/ain"), None));
+        assert!(!installed_by_npm(Path::new("/opt/node_modules_backup/ain"), None), "a whole folder name, not a prefix");
     }
 
     #[test]
