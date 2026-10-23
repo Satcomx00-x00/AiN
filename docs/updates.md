@@ -58,12 +58,13 @@ flowchart LR
 | macOS | `.app` | replaces the bundle with the one from `.app.tar.gz` |
 | Linux | AppImage | replaces the AppImage file in place |
 | Linux | `.deb` / `.rpm` | installs the package with `dpkg -i` / `rpm -U`, asking for the password through `pkexec` |
+| Any | npm (`npm install --global ain-app`) | nothing: off, as npm updates it (`npm update --global ain-app`). Detected from the program, or its AppImage, being in a `node_modules` folder |
 
 The state the backend reports (and emits as `UpdateChanged` on every change):
 
 ```mermaid
 stateDiagram-v2
-    [*] --> disabled: debug build or no pubkey
+    [*] --> disabled: debug build, npm install or no pubkey
     [*] --> idle
     idle --> checking
     upToDate --> checking

@@ -97,6 +97,11 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
       - run: bun run build
+      # The npm packages (npm/): plain JS, typed through JSDoc, and their tests.
+      - name: npm packages
+        run: |
+          bunx tsc -p ../npm
+          node --test ../npm/packages.test.mjs
 
   browser:
     name: Browser tests (${{ matrix.name }})
@@ -394,10 +399,29 @@ jobs:
         run: |
           sudo apt-get install -y --no-install-recommends xvfb x11-utils dbus-x11 imagemagick
           ../.github/scripts/launch-check.sh "$(ls src-tauri/target/release/bundle/appimage/*.AppImage)" launch-check
+      # The same AppImage as npm users get it: staged and packed as a release does, installed from
+      # those tarballs (what this checks, not a dependency: hence zizmor's ignore; `--omit=optional`
+      # keeps the registry's platform package out), and started by `ain`, the launcher.
+      - name: Launch the app through npm # zizmor: ignore[adhoc-packages]
+        run: |
+          version="$(jq -r .version package.json)"
+          stage="$RUNNER_TEMP/npm-stage" packs="$RUNNER_TEMP/npm-packs" global="$RUNNER_TEMP/npm-global"
+          node ../npm/stage.mjs linux-x64 "$version" src-tauri/target/release "$stage/linux-x64"
+          node ../npm/stage.mjs launcher "$version" "$stage/launcher"
+          # npm users install nothing on the system: the AppImage must carry GTK's layer-shell too.
+          (cd "$RUNNER_TEMP" && "$stage/linux-x64/AiN.AppImage" --appimage-extract 'usr/lib/libgtk-layer-shell*' >/dev/null)
+          compgen -G "$RUNNER_TEMP/squashfs-root/usr/lib/libgtk-layer-shell*" >/dev/null ||
+            { echo "::error::The AppImage doesn't carry libgtk-layer-shell"; exit 1; }
+          mkdir -p "$packs"
+          npm pack "$stage/linux-x64" "$stage/launcher" --pack-destination "$packs"
+          npm install --global --prefix "$global" --omit=optional --no-audit --no-fund "$packs"/*.tgz
+          AIN_FOREGROUND=1 ../.github/scripts/launch-check.sh "$global/bin/ain" npm-launch-check
       - if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: launch-check
-          path: ain/launch-check
+          path: |
+            ain/launch-check
+            ain/npm-launch-check
           if-no-files-found: ignore
           retention-days: 7

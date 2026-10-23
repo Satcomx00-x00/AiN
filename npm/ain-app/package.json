@@ -1,0 +1,22 @@
+{
+  "name": "ain-app",
+  "version": "0.0.0",
+  "description": "AiN, a dynamic-island style widget bar for the desktop, with a command palette and window zones. Install it with npm, start it with `ain`.",
+  "keywords": ["desktop", "widget", "dynamic-island", "command-palette", "window-manager", "tauri"],
+  "homepage": "https://github.com/Satcomx00-x00/AiN#readme",
+  "bugs": "https://github.com/Satcomx00-x00/AiN/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Satcomx00-x00/AiN.git",
+    "directory": "npm/ain-app"
+  },
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "ain": "bin/ain.js"
+  },
+  "files": ["bin", "lib/target.js"],
+  "engines": {
+    "node": ">=20"
+  }
+}
