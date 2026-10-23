@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 
-const { reading, statusText, tts, ttsGlance, voiceOptions } = await import(".");
+const { SAMPLE, reading, statusText, tts, ttsGlance, voiceOptions } = await import(".");
 const { bindings } = await import("../../shell/commands");
 const { catalogue } = await import("..");
 import type { ModelInfo, Phase, TtsPort } from "./service";
@@ -51,6 +51,19 @@ describe("on the pill", () => {
     expect(reading({ phase: "preparing" }) && !reading({ phase: "idle" })).toBe(true);
   });
 
+  it("lets problems fade from the pill, but shows a failure while it is fresh", () => {
+    expect(ttsGlance({ phase: "needsModel" }, 1000, 9000)).toBeNull();
+    expect(ttsGlance({ phase: "nothingSelected" }, 1000, 9000)).toBeNull();
+    expect(ttsGlance({ phase: "error", message: "x" }, 1000, 2000)).toEqual({ text: "Reading failed", tone: "alert" });
+  });
+
+  it("says what to do in each phase", () => {
+    expect(statusText({ phase: "idle" }, "")).toContain("Ctrl+Alt+R");
+    expect(statusText({ phase: "needsModel" }, "")).toBe("Choose and download a voice in Settings to start reading.");
+    expect(statusText({ phase: "nothingSelected" }, "")).toBe("No text is selected. Select some, then press the shortcut again.");
+    expect(statusText({ phase: "preparing" }, "")).toBe("Preparing the voice…");
+  });
+
   it("binds its shortcut as an action, with no popup", () => {
     expect(bindings(catalogue, {})["tts.read"]).toEqual({ shortcut: "Ctrl+Alt+KeyR", surface: "action" });
   });
@@ -79,6 +92,17 @@ describe("in the island", () => {
     phase({ phase: "idle" });
     main.click();
     expect(port.speak).toHaveBeenCalledWith("Hello");
+  });
+
+  it("stays put when the backend refuses to read", async () => {
+    const { port, phase, model, main } = mount();
+    model({ ...at, state: "ready" });
+    phase({ phase: "speaking", text: "Hello" });
+    phase({ phase: "idle" });
+    port.speak.mockRejectedValueOnce(new Error("no speakers"));
+    main.click();
+    await tick();
+    expect([port.speak.mock.calls, main.disabled]).toEqual([[["Hello"]], false]);
   });
 
   it("sends the user to Settings to set the voice up", async () => {
@@ -129,6 +153,34 @@ describe("in Settings", () => {
     model({ ...at, state: "ready" });
     named(root, "Try the voice")?.click();
     expect(port.speak).toHaveBeenCalledOnce();
+  });
+
+  it("saves the voice picked in the list", async () => {
+    const { root, host, voices, model } = mount();
+    model({ ...at, state: "ready" });
+    voices.querySelector<HTMLButtonElement>(".ui-select-trigger")!.click();
+    [...root.querySelectorAll<HTMLElement>("[role=option]")].find((o) => o.textContent?.startsWith("Adam"))?.click();
+    expect(host.setOptions).toHaveBeenCalledWith({ voice: 5 });
+  });
+
+  it("stays put when trying the voice fails", async () => {
+    const { root, port, model } = mount();
+    model({ ...at, state: "ready" });
+    port.speak.mockRejectedValueOnce(new Error("no speakers"));
+    named(root, "Try the voice")?.click();
+    await tick();
+    expect(port.speak).toHaveBeenCalledWith(SAMPLE);
+  });
+
+  it("offers the default model's voices for an unknown model", () => expect(voiceOptions("gone")).toEqual(voiceOptions("kokoro-en")));
+
+  it("has nothing to stop when the model couldn't be watched", async () => {
+    const fake = fakePort();
+    fake.port.watchModel.mockRejectedValueOnce(new Error("backend gone"));
+    const host = { options: () => ({ model: "kokoro-en", voice: 0, speed: 1, modelDir: "" }), setOptions: vi.fn(), openPage: vi.fn() };
+    const cleanup = tts.settingsPanel?.(document.createElement("div"), { tts: fake.port } as never, host);
+    expect(() => (cleanup as () => void)()).not.toThrow();
+    await tick();
   });
 
   it("stops watching the model when the card goes away", async () => {

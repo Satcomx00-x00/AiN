@@ -146,4 +146,24 @@ describe("the volume tab", () => {
     await vi.advanceTimersByTimeAsync(0);
     expect(widget.glance?.(Date.now())).toBeNull();
   });
+
+  it("keeps working when the backend refuses a change or a reading", async () => {
+    const m = await mixer();
+    vi.mocked(m.port.setLevel).mockRejectedValueOnce(new Error("device gone"));
+    vi.mocked(m.port.setMuted).mockRejectedValueOnce(new Error("device gone"));
+    vi.mocked(m.port.peak).mockRejectedValueOnce(new Error("device gone"));
+    const slider = m.rows()[0]!.querySelector<HTMLInputElement>("input")!;
+    slider.value = "20";
+    slider.dispatchEvent(new Event("input"));
+    m.rows()[0]!.querySelector<HTMLButtonElement>(".mx-mute")!.click();
+    await vi.advanceTimersByTimeAsync(200);
+    expect([m.port.setLevel, m.port.setMuted].map((f) => vi.mocked(f).mock.calls.length)).toEqual([1, 1]);
+    expect(m.rows()[0]?.querySelector(".mx-value")?.textContent).toBe("20%");
+    expect(vi.mocked(m.port.peak).mock.calls.length).toBeGreaterThan(1);
+  });
+
+  it("keeps a name that is all parentheses", async () => {
+    const m = await mixer([source("(Default)", { default: true })]);
+    expect(m.names()).toEqual(["(Default)"]);
+  });
 });

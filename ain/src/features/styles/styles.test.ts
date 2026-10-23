@@ -82,6 +82,8 @@ describe("Solo", () => {
     expect(texts(root)).toEqual(["62%"]);
     view.draw({ ...quiet, left: { text: "Done", tone: "alert" }, right: { text: "62%" } });
     expect(texts(root)).toEqual(["Done"]);
+    view.draw(quiet);
+    expect(texts(root)).toEqual([""]);
   });
 });
 
