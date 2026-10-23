@@ -19,16 +19,22 @@ const ESPEAK: &str = "espeak-ng-data";
 const TOKENS: &str = "tokens.txt";
 /// Kokoro's and Kitten's speakers.
 const VOICES: &str = "voices.bin";
+/// Multilingual Kokoro's English and Chinese pronunciations; other languages go through espeak-ng.
+const LEXICON_EN: &str = "lexicon-us-en.txt";
+const LEXICON_ZH: &str = "lexicon-zh.txt";
+const DICT: &str = "dict";
 
 /// How sherpa-onnx runs a model.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Kind {
-    /// Piper voices: model, tokens; one speaker each.
+    /// Piper voices: model, tokens; one speaker, or a few.
     Vits,
     /// model, voices, tokens.
     Kokoro,
     /// model, voices, tokens.
     Kitten,
+    /// Multilingual Kokoro: model, voices, tokens, lexicons; speaks `lang` (an espeak-ng language).
+    KokoroMulti { lang: &'static str },
 }
 
 impl Kind {
@@ -37,6 +43,7 @@ impl Kind {
         match self {
             Self::Vits => &[TOKENS, ESPEAK],
             Self::Kokoro | Self::Kitten => &[VOICES, TOKENS, ESPEAK],
+            Self::KokoroMulti { .. } => &[VOICES, TOKENS, ESPEAK, DICT, LEXICON_EN, LEXICON_ZH],
         }
     }
 }
@@ -51,6 +58,9 @@ pub struct Model {
     pub file: &'static str,
     /// The archive's size, roughly, until the download says.
     pub size: u64,
+    /// The one speaker it reads with, whatever the "voice" setting: a multilingual model's voice
+    /// for its language.
+    pub speaker: Option<i32>,
     /// The archive's SHA-256 once pinned (`cargo test -- --ignored prints_the_archives_to_pin`);
     /// until then the archive is trusted as served over HTTPS by the release.
     sha256: Option<&'static str>,
@@ -58,13 +68,22 @@ pub struct Model {
 
 /// Every model on offer; the first is the default. The ids match `src/features/tts/models.ts`.
 pub const MODELS: &[Model] = &[
-    Model { id: "kokoro-en", folder: "kokoro-en-v0_19", kind: Kind::Kokoro, file: "model.onnx", size: 305_000_000, sha256: None },
+    Model {
+        id: "kokoro-en",
+        folder: "kokoro-en-v0_19",
+        kind: Kind::Kokoro,
+        file: "model.onnx",
+        size: 305_000_000,
+        speaker: None,
+        sha256: None,
+    },
     Model {
         id: "kitten-nano",
         folder: "kitten-nano-en-v0_1-fp16",
         kind: Kind::Kitten,
         file: "model.fp16.onnx",
         size: 25_000_000,
+        speaker: None,
         sha256: None,
     },
     Model {
@@ -73,6 +92,7 @@ pub const MODELS: &[Model] = &[
         kind: Kind::Vits,
         file: "en_US-lessac-medium.onnx",
         size: 64_000_000,
+        speaker: None,
         sha256: None,
     },
     Model {
@@ -81,6 +101,35 @@ pub const MODELS: &[Model] = &[
         kind: Kind::Vits,
         file: "fr_FR-siwis-medium.onnx",
         size: 64_000_000,
+        speaker: None,
+        sha256: None,
+    },
+    Model {
+        id: "kokoro-fr",
+        folder: "kokoro-multi-lang-v1_0",
+        kind: Kind::KokoroMulti { lang: "fr" },
+        file: "model.onnx",
+        size: 350_000_000,
+        // ff_siwis, Kokoro's French voice.
+        speaker: Some(30),
+        sha256: None,
+    },
+    Model {
+        id: "piper-fr-upmc",
+        folder: "vits-piper-fr_FR-upmc-medium",
+        kind: Kind::Vits,
+        file: "fr_FR-upmc-medium.onnx",
+        size: 80_000_000,
+        speaker: None,
+        sha256: None,
+    },
+    Model {
+        id: "piper-fr-tom",
+        folder: "vits-piper-fr_FR-tom-medium",
+        kind: Kind::Vits,
+        file: "fr_FR-tom-medium.onnx",
+        size: 67_000_000,
+        speaker: None,
         sha256: None,
     },
     Model {
@@ -89,6 +138,7 @@ pub const MODELS: &[Model] = &[
         kind: Kind::Vits,
         file: "de_DE-thorsten-medium.onnx",
         size: 64_000_000,
+        speaker: None,
         sha256: None,
     },
     Model {
@@ -97,6 +147,7 @@ pub const MODELS: &[Model] = &[
         kind: Kind::Vits,
         file: "es_ES-davefx-medium.onnx",
         size: 64_000_000,
+        speaker: None,
         sha256: None,
     },
 ];
@@ -132,6 +183,15 @@ impl Model {
                 config.kokoro.voices = path(VOICES);
                 config.kokoro.tokens = path(TOKENS);
                 config.kokoro.data_dir = path(ESPEAK);
+            }
+            Kind::KokoroMulti { lang } => {
+                config.kokoro.model = path(self.file);
+                config.kokoro.voices = path(VOICES);
+                config.kokoro.tokens = path(TOKENS);
+                config.kokoro.data_dir = path(ESPEAK);
+                config.kokoro.dict_dir = path(DICT);
+                config.kokoro.lexicon = path(LEXICON_EN).zip(path(LEXICON_ZH)).map(|(en, zh)| format!("{en},{zh}"));
+                config.kokoro.lang = Some(lang.into());
             }
             Kind::Kitten => {
                 config.kitten.model = path(self.file);
@@ -258,6 +318,15 @@ mod tests {
     }
 
     #[test]
+    fn the_french_kokoro_speaks_french_with_its_french_voice() {
+        let model = find(Some("kokoro-fr"));
+        let config = model.config(Path::new("kokoro"));
+        assert_eq!((model.speaker, config.kokoro.lang.as_deref()), (Some(30), Some("fr")));
+        assert!(config.kokoro.lexicon.is_some_and(|l| l.contains(LEXICON_EN) && l.contains(LEXICON_ZH)));
+        assert!(model.kind.companions().contains(&DICT));
+    }
+
+    #[test]
     fn unpacks_an_archive_aside() {
         let base = scratch("unpack");
         fs::create_dir_all(&base).unwrap();
@@ -267,6 +336,25 @@ mod tests {
         unpack(&path, &into).unwrap();
         assert_eq!(fs::read_to_string(into.join("vits-piper-x/espeak-ng-data/phontab")).unwrap(), "data");
         remove(&base).unwrap();
+    }
+
+    #[test]
+    #[ignore = "reads French with each French model downloaded in $TTS_MODELS"]
+    fn smoke_reads_french() {
+        let base = std::path::PathBuf::from(std::env::var("TTS_MODELS").expect("TTS_MODELS: a models folder"));
+        for m in MODELS.iter().filter(|m| m.id.contains("-fr")) {
+            let dir = base.join(m.folder);
+            if !m.installed(&dir) {
+                continue;
+            }
+            let tts = super::super::engine::load(m, &dir).unwrap();
+            let config = sherpa_onnx::GenerationConfig { sid: m.speaker.unwrap_or(0), ..Default::default() };
+            let audio =
+                tts.generate_with_config("Bonjour, ceci est un essai de lecture à voix haute.", &config, None::<fn(&[f32], f32) -> bool>);
+            let seconds = audio.map_or(0.0, |a| a.samples().len() as f32 / a.sample_rate() as f32);
+            println!("{}: {seconds:.1} s", m.id);
+            assert!(seconds > 1.0, "{} read nothing", m.id);
+        }
     }
 
     #[test]

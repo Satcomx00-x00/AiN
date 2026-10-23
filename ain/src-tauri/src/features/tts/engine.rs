@@ -81,10 +81,11 @@ fn write(app: AppHandle, shared: Arc<Shared>, job: Job) {
         move || shared.session.load(Ordering::SeqCst) == id
     };
     let settings = Voice::read(&settings::current(&app));
+    let fixed = shared.models.chosen().0.speaker;
     let result = shared.models.engine().and_then(|tts| {
         let from = u32::try_from(tts.sample_rate()).unwrap_or(rate);
         let config = sherpa_onnx::GenerationConfig {
-            sid: settings.speaker.min(tts.num_speakers().max(1) - 1),
+            sid: fixed.unwrap_or_else(|| settings.speaker.min(tts.num_speakers().max(1) - 1)),
             speed: settings.speed,
             ..Default::default()
         };

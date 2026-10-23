@@ -134,6 +134,8 @@ describe("in Settings", () => {
     model({ ...at, model: "piper-fr-siwis", state: "ready" });
     expect(voices.closest<HTMLElement>(".field")?.hidden).toBe(true);
     expect(voiceOptions("kitten-nano")).toHaveLength(8);
+    expect(voiceOptions("piper-fr-upmc").map((v) => v.label)).toEqual(["Jessica (female)", "Pierre (male)"]);
+    expect(voiceOptions("kokoro-fr")).toEqual([]);
   });
 
   it("starts the new model on its first voice", async () => {
