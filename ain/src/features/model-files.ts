@@ -3,6 +3,10 @@
  * aloud): the model is chosen, downloaded and removed in Settings, and the island only shows it.
  */
 import { button, h } from "../sdk/dom";
+import { toggle } from "../sdk/options";
+
+/** The "keepLoaded" option: the chosen model stays in memory, ready at once, alongside the other features' models. */
+export const keepLoaded = () => toggle("Keep the model loaded", false, "Ready at once, at the cost of its memory; otherwise it is let go after 10 minutes unused.");
 
 /** A model's status, as the backend reports it. */
 export type ModelState = { state: "missing"; size: number } | { state: "downloading"; received: number; total: number } | { state: "ready" } | { state: "error"; message: string };

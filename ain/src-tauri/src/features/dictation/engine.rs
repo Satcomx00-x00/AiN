@@ -1,6 +1,7 @@
 //! The microphone and the recognizer.
 
 use std::{
+    path::Path,
     sync::{
         Arc, Mutex,
         atomic::Ordering,
@@ -86,46 +87,44 @@ fn open_mic(chosen: Option<&str>, captured: Arc<Mutex<Vec<f32>>>) -> Result<(cpa
     Ok((stream, rate))
 }
 
-/// The recognizer for the chosen model, loading it if needed.
-fn recognizer(shared: &Shared) -> Result<Arc<sherpa_onnx::OfflineRecognizer>, String> {
-    shared.models.engine(|model, dir| {
-        let path = |i| Some(model.path(dir, i));
-        let mut config = sherpa_onnx::OfflineRecognizerConfig::default();
-        config.feat_config.sample_rate = chunk::RATE as i32;
-        config.feat_config.feature_dim = 80;
-        let m = &mut config.model_config;
-        match model.kind {
-            model::Kind::Transducer => {
-                m.transducer.encoder = path(0);
-                m.transducer.decoder = path(1);
-                m.transducer.joiner = path(2);
-            }
-            model::Kind::Whisper => {
-                m.whisper.encoder = path(0);
-                m.whisper.decoder = path(1);
-                // No language: Whisper detects it.
-                m.whisper.task = Some("transcribe".into());
-                m.whisper.tail_paddings = -1;
-            }
-            model::Kind::SenseVoice => {
-                m.sense_voice.model = path(0);
-                m.sense_voice.language = Some("auto".into());
-                m.sense_voice.use_itn = true;
-            }
-            model::Kind::Moonshine => {
-                m.moonshine.preprocessor = path(0);
-                m.moonshine.encoder = path(1);
-                m.moonshine.uncached_decoder = path(2);
-                m.moonshine.cached_decoder = path(3);
-            }
+/// Loads the recognizer of `model`, stored in `dir`.
+pub fn load(model: &'static model::Model, dir: &Path) -> Result<sherpa_onnx::OfflineRecognizer, String> {
+    let path = |i| Some(model.path(dir, i));
+    let mut config = sherpa_onnx::OfflineRecognizerConfig::default();
+    config.feat_config.sample_rate = chunk::RATE as i32;
+    config.feat_config.feature_dim = 80;
+    let m = &mut config.model_config;
+    match model.kind {
+        model::Kind::Transducer => {
+            m.transducer.encoder = path(0);
+            m.transducer.decoder = path(1);
+            m.transducer.joiner = path(2);
         }
-        m.tokens = path(model.files.len() - 1);
-        config.model_config.num_threads = 2;
-        config.model_config.provider = Some("cpu".into());
-        config.decoding_method = Some("greedy_search".into());
-        sherpa_onnx::OfflineRecognizer::create(&config)
-            .ok_or_else(|| "The speech model couldn't be loaded; try downloading it again".to_string())
-    })
+        model::Kind::Whisper => {
+            m.whisper.encoder = path(0);
+            m.whisper.decoder = path(1);
+            // No language: Whisper detects it.
+            m.whisper.task = Some("transcribe".into());
+            m.whisper.tail_paddings = -1;
+        }
+        model::Kind::SenseVoice => {
+            m.sense_voice.model = path(0);
+            m.sense_voice.language = Some("auto".into());
+            m.sense_voice.use_itn = true;
+        }
+        model::Kind::Moonshine => {
+            m.moonshine.preprocessor = path(0);
+            m.moonshine.encoder = path(1);
+            m.moonshine.uncached_decoder = path(2);
+            m.moonshine.cached_decoder = path(3);
+        }
+    }
+    m.tokens = path(model.files.len() - 1);
+    config.model_config.num_threads = 2;
+    config.model_config.provider = Some("cpu".into());
+    config.decoding_method = Some("greedy_search".into());
+    sherpa_onnx::OfflineRecognizer::create(&config)
+        .ok_or_else(|| "The speech model couldn't be loaded; try downloading it again".to_string())
 }
 
 fn decode(recognizer: &sherpa_onnx::OfflineRecognizer, samples: &[f32]) -> String {
@@ -139,7 +138,7 @@ fn decode(recognizer: &sherpa_onnx::OfflineRecognizer, samples: &[f32]) -> Strin
 /// Decodes chunks as they come; once the session finishes, delivers the text (unless cancelled meanwhile).
 fn decoder(app: AppHandle, shared: Arc<Shared>, id: u64, chunks: Receiver<Vec<f32>>, finished: Receiver<()>) {
     let current = || shared.session.load(Ordering::SeqCst) == id;
-    let recognizer = match recognizer(&shared) {
+    let recognizer = match shared.models.engine() {
         Ok(r) => r,
         Err(message) => {
             return if current() {

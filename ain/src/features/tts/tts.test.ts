@@ -120,7 +120,7 @@ describe("in Settings", () => {
     const fake = fakePort();
     const root = document.createElement("div");
     document.body.replaceChildren(root);
-    const host = { options: () => ({ model: "kokoro-en", voice, speed: 1, modelDir: "" }), setOptions: vi.fn(), openPage: vi.fn() };
+    const host = { options: () => ({ model: "kokoro-en", voice, speed: 1, modelDir: "", keepLoaded: false }), setOptions: vi.fn(), openPage: vi.fn() };
     const cleanup = tts.settingsPanel?.(root, { tts: fake.port } as never, host);
     const [models, voices] = root.querySelectorAll<HTMLElement>(".ui-select");
     return { ...fake, root, host, cleanup, models: models!, voices: voices! };
@@ -177,7 +177,7 @@ describe("in Settings", () => {
   it("has nothing to stop when the model couldn't be watched", async () => {
     const fake = fakePort();
     fake.port.watchModel.mockRejectedValueOnce(new Error("backend gone"));
-    const host = { options: () => ({ model: "kokoro-en", voice: 0, speed: 1, modelDir: "" }), setOptions: vi.fn(), openPage: vi.fn() };
+    const host = { options: () => ({ model: "kokoro-en", voice: 0, speed: 1, modelDir: "", keepLoaded: false }), setOptions: vi.fn(), openPage: vi.fn() };
     const cleanup = tts.settingsPanel?.(document.createElement("div"), { tts: fake.port } as never, host);
     expect(() => (cleanup as () => void)()).not.toThrow();
     await tick();
@@ -197,5 +197,6 @@ describe("its settings", () => {
     expect(tts.options?.voice.inPanel).toBe(true);
     expect(tts.options?.speed.default).toBe(1);
     expect(tts.options?.modelDir.kind).toBe("folder");
+    expect(tts.options?.keepLoaded).toMatchObject({ kind: "toggle", default: false });
   });
 });

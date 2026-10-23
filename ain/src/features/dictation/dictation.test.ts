@@ -251,5 +251,6 @@ describe("its settings", () => {
     expect(dictation.options?.microphone.inPanel).toBe(true);
     expect(dictation.options?.microphone.default).toBe("");
     expect(dictation.options?.modelDir.kind).toBe("folder");
+    expect(dictation.options?.keepLoaded).toMatchObject({ kind: "toggle", default: false });
   });
 });

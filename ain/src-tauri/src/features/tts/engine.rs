@@ -2,6 +2,7 @@
 //! each sentence plays on the speakers as soon as it is ready.
 
 use std::{
+    path::Path,
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
@@ -12,7 +13,7 @@ use std::{
 use serde_json::Value;
 use tauri::AppHandle;
 
-use super::{FEATURE, KEEP_WARM, Phase, Request, Shared, lock, speakers};
+use super::{FEATURE, KEEP_WARM, Phase, Request, Shared, lock, model::Model, speakers};
 use crate::{features::audio, shell::settings};
 
 /// The speakers keep a little audio buffered: speech is over once the queue stays empty this long.
@@ -54,15 +55,13 @@ impl Voice {
     }
 }
 
-/// The voice for the chosen model, loading it if needed.
-fn voice(shared: &Shared) -> Result<Arc<sherpa_onnx::OfflineTts>, String> {
-    shared.models.engine(|model, dir| {
-        let mut config =
-            sherpa_onnx::OfflineTtsConfig { model: model.config(dir), max_num_sentences: 1, silence_scale: 0.2, ..Default::default() };
-        config.model.num_threads = 2;
-        config.model.provider = Some("cpu".into());
-        sherpa_onnx::OfflineTts::create(&config).ok_or_else(|| "The voice couldn't be loaded; try downloading it again".to_string())
-    })
+/// Loads the voice of `model`, stored in `dir`.
+pub fn load(model: &'static Model, dir: &Path) -> Result<sherpa_onnx::OfflineTts, String> {
+    let mut config =
+        sherpa_onnx::OfflineTtsConfig { model: model.config(dir), max_num_sentences: 1, silence_scale: 0.2, ..Default::default() };
+    config.model.num_threads = 2;
+    config.model.provider = Some("cpu".into());
+    sherpa_onnx::OfflineTts::create(&config).ok_or_else(|| "The voice couldn't be loaded; try downloading it again".to_string())
 }
 
 /// A text to write into the speakers' queue at their rate, as reading `id`.
@@ -82,7 +81,7 @@ fn write(app: AppHandle, shared: Arc<Shared>, job: Job) {
         move || shared.session.load(Ordering::SeqCst) == id
     };
     let settings = Voice::read(&settings::current(&app));
-    let result = voice(&shared).and_then(|tts| {
+    let result = shared.models.engine().and_then(|tts| {
         let from = u32::try_from(tts.sample_rate()).unwrap_or(rate);
         let config = sherpa_onnx::GenerationConfig {
             sid: settings.speaker.min(tts.num_speakers().max(1) - 1),

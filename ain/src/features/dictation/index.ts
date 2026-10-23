@@ -4,7 +4,7 @@ import { primaryKey } from "../../sdk/platform";
 import { type Glance, definePlugin } from "../../sdk/plugin";
 import { type SelectOption, select } from "../../sdk/select";
 import type { ClipboardPort } from "../clipboard/service";
-import { fieldRow as row, modelCard, modelFiles, modelLine as line } from "../model-files";
+import { keepLoaded, fieldRow as row, modelCard, modelFiles, modelLine as line } from "../model-files";
 import type { DictationPort, Microphone, ModelInfo, Phase } from "./service";
 import { DEFAULT_MODEL, MODELS, modelById } from "./models";
 
@@ -90,6 +90,7 @@ export const dictation = definePlugin({
     microphone: { ...text("Microphone"), inPanel: true },
     model: { ...choice("Speech model", DEFAULT_MODEL, MODELS.map((m) => [m.id, m.name] as const)), inPanel: true },
     modelDir: folder("Model folder", "Default folder"),
+    keepLoaded: keepLoaded(),
     trailingSpace: toggle("Space after the text", true),
   },
   commands: [
