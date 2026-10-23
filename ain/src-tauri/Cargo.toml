@@ -30,9 +30,13 @@ xcap = "0.9.8"
 cpal = "0.18.2"
 ureq = "3.4.2"
 base64 = "0.23"
-# Speech recognition for dictation, from prebuilt static libraries (Windows, Linux and macOS x64).
+# Speech recognition for dictation and speech synthesis for read aloud, from prebuilt static
+# libraries (Windows, Linux and macOS x64).
 sherpa-onnx = "1.13.8"
 sha2 = "0.11.1"
+# Read aloud's voices come as .tar.bz2 archives (bzip2 in pure Rust: no C toolchain needed).
+tar = "0.4.46"
+bzip2 = { version = "0.5.2", default-features = false, features = ["libbz2-rs-sys"] }
 tauri-plugin-dialog = "2"
 # Typed TypeScript bindings for commands and events; pinned exactly while specta 2 is a release candidate.
 specta = { version = "=2.0.0-rc.25", features = ["derive"] }
@@ -42,7 +46,7 @@ tauri-specta = { version = "=2.0.0-rc.25", features = ["derive", "typescript"] }
 getrandom = "0.3"
 
 [target.'cfg(target_os = "macos")'.dependencies]
-objc2-app-kit = { version = "0.3", features = ["NSWindow", "NSScreen", "NSResponder", "NSRunningApplication", "NSWorkspace", "libc"] }
+objc2-app-kit = { version = "0.3", features = ["NSWindow", "NSScreen", "NSResponder", "NSRunningApplication", "NSWorkspace", "NSPasteboard", "libc"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 arboard = { version = "3.6.1", default-features = false, features = ["image-data", "wayland-data-control"] }
@@ -66,6 +70,7 @@ windows = { version = "0.62", features = [
     "Win32_Media_Audio_Endpoints",
     "Win32_System_Com",
     "Win32_System_Com_StructuredStorage",
+    "Win32_System_DataExchange",
     "Win32_System_Variant",
     "Win32_UI_Shell_PropertiesSystem",
     "Win32_System_Threading",

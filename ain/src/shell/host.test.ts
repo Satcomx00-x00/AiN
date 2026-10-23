@@ -4,8 +4,9 @@ import type { Greeting, Stage } from "../sdk/greeting";
 import type { Host } from "../sdk/plugin";
 import { secret, text } from "../sdk/options";
 import type { AnyStyle, Folded } from "../sdk/style";
-import { mount } from "./host";
+import { load, mount } from "./host";
 import { type Settings, defaults } from "./settings";
+import { BARE } from "./styles";
 import type { WindowPort } from "./window";
 
 const EMPTY = { glance: { left: [], right: [] }, tabs: [] };
@@ -630,5 +631,198 @@ describe("what plugins see of the island", () => {
     await expect(h.secret("city")).rejects.toThrow(`"city" isn't one of spy's secret options`);
     await expect(h.secret("weather/apiKey")).rejects.toThrow();
     expect(asked).toEqual(["spy/token"]);
+  });
+});
+
+/** A plugin that hands over the host it is given, with a glance that can widen the pill. */
+function spyPlugin(extra: Record<string, unknown> = {}) {
+  const got: { host?: Host<never>; wide: boolean; ticks: number } = { wide: false, ticks: 0 };
+  const plugin = {
+    id: "spy",
+    label: "Spy",
+    description: "",
+    icon: "",
+    slots: ["glance"] as const,
+    setup: (_: unknown, h: Host<never>) => {
+      got.host = h;
+      return { glance: () => ({ text: "Spy", wide: got.wide }), tick: () => void got.ticks++ };
+    },
+    ...extra,
+  };
+  return { plugin, got };
+}
+
+/** Mounts the island with one spying glance, its startup animation already over. */
+async function startSpy(extras: Parameters<typeof mount>[5] = {}, general: Partial<Settings["general"]> = {}, extra: Record<string, unknown> = {}) {
+  const spy = spyPlugin(extra);
+  vi.spyOn(window, "matchMedia").mockReturnValue({ matches: false } as MediaQueryList);
+  const el = document.createElement("div");
+  document.body.replaceChildren(el);
+  win = fakeWindow();
+  const placed = { ...withGeneral({ greeting: "none", ...general }), layout: { glance: { left: [], right: ["spy"] }, tabs: [] } };
+  const handle = await mount(el, [spy.plugin as never], {}, win.port, placed, { styles: [PILL.style], ...extras });
+  await settleAll();
+  return { el, handle, placed, ...spy };
+}
+
+describe("plugins set up outside the island", () => {
+  it("get a host that does nothing, and reads as the default pill", async () => {
+    const { plugin, got } = spyPlugin();
+    const { mounted } = load([plugin as never], { glance: { left: ["spy"], right: [] }, tabs: [] }, {});
+    expect(mounted.has("spy")).toBe(true);
+    const host = got.host!;
+    expect([host.refresh(), host.setOptions({ a: 1 } as never), host.openSettings(), host.openPage()]).toEqual([undefined, undefined, undefined, undefined]);
+    expect(host.options()).toEqual({});
+    expect(await host.secret("token" as never)).toBe("");
+    expect(host.appearance()).toEqual({ style: "pill", size: "normal", theme: "island", tone: "dark", notch: false });
+  });
+});
+
+describe("what plugins can ask of the island", () => {
+  it("runs the beat again when a plugin has news", async () => {
+    const { got } = await startSpy();
+    const before = got.ticks;
+    got.host!.refresh();
+    await settleAll();
+    expect(got.ticks).toBe(before + 1);
+  });
+
+  it("gives a plugin without options none, and saves what it changes under its id", async () => {
+    const saved: unknown[] = [];
+    const { got } = await startSpy({ saveOptions: (id, patch) => void saved.push([id, patch]) });
+    expect(got.host!.options()).toEqual({});
+    got.host!.setOptions({ shown: true } as never);
+    expect(saved).toEqual([["spy", { shown: true }]]);
+  });
+
+  it("opens Settings at the plugin's card, or anywhere from the gear", async () => {
+    const opened: (string | undefined)[] = [];
+    const { el, got } = await startSpy({ openSettings: (t) => void opened.push(t) });
+    got.host!.openSettings();
+    el.querySelector<HTMLButtonElement>("button.gear[aria-label=Settings]")!.click();
+    expect(opened).toEqual(["widgets:spy", undefined]);
+  });
+
+  it("gives an empty secret when there is no store to read it from", async () => {
+    const { got } = await startSpy({}, {}, { options: { token: secret("Token") } });
+    expect(await (got.host as unknown as Host<Record<string, string>>).secret("token")).toBe("");
+  });
+
+  it("drops option changes when nothing saves them", async () => {
+    const { got } = await startSpy();
+    expect(got.host!.setOptions({ x: 1 } as never)).toBeUndefined();
+    expect(got.host!.options()).toEqual({});
+  });
+});
+
+describe("opening and closing", () => {
+  const open = async (el: HTMLElement) => {
+    el.dispatchEvent(new MouseEvent("click"));
+    await settleAll();
+  };
+
+  it("stays folded when the island loses focus before it had room to open", async () => {
+    const { el } = await startSpy();
+    el.dispatchEvent(new MouseEvent("click"));
+    window.dispatchEvent(new Event("blur"));
+    await settleAll();
+    expect(el.dataset.open).toBe("false");
+    expect(el.style.getPropertyValue("--h")).toBe("32px");
+  });
+
+  it("closes when the window loses focus", async () => {
+    const { el } = await startSpy();
+    await open(el);
+    expect(el.dataset.open).toBe("true");
+    window.dispatchEvent(new Event("blur"));
+    await settleAll();
+    expect(el.dataset.open).toBe("false");
+  });
+
+  it("shrinks the input region only once the pill has folded, at the size it has then", async () => {
+    vi.spyOn(window, "getComputedStyle").mockReturnValue({ transitionDuration: "0.5s" } as CSSStyleDeclaration);
+    const { el, handle, placed } = await startSpy();
+    await open(el);
+    window.dispatchEvent(new Event("blur"));
+    await settleAll();
+    const regions = win.regions.length;
+    // Other transitions, and those of what's inside, don't count.
+    el.firstElementChild!.dispatchEvent(Object.assign(new Event("transitionend", { bubbles: true }), { propertyName: "height" }));
+    el.dispatchEvent(Object.assign(new Event("transitionend"), { propertyName: "width" }));
+    expect(win.regions.length).toBe(regions);
+    // The pill size changed while it folded: the region follows the new one.
+    handle.configure({ ...placed, general: { ...placed.general, pillSize: "large" } });
+    await settleAll();
+    const afterResize = win.regions.length;
+    el.dispatchEvent(Object.assign(new Event("transitionend"), { propertyName: "height" }));
+    el.dispatchEvent(Object.assign(new Event("transitionend"), { propertyName: "height" }));
+    expect(win.regions.length).toBe(afterResize + 1);
+    expect(win.regions.at(-1)).toMatchObject({ height: 44 });
+  });
+
+  it("keeps the region open when the island opens again before it has folded", async () => {
+    vi.spyOn(window, "getComputedStyle").mockReturnValue({ transitionDuration: "0.5s" } as CSSStyleDeclaration);
+    const { el } = await startSpy();
+    await open(el);
+    window.dispatchEvent(new Event("blur"));
+    await open(el);
+    const regions = [...win.regions];
+    el.dispatchEvent(Object.assign(new Event("transitionend"), { propertyName: "height" }));
+    expect(win.regions).toEqual(regions);
+    expect(el.dataset.open).toBe("true");
+  });
+
+  it("resizes the open island when the settings change", async () => {
+    const { el, handle, placed } = await startSpy();
+    await open(el);
+    const before = win.regions.length;
+    handle.configure({ ...placed, general: { ...placed.general, pillSize: "large" } });
+    await settleAll();
+    expect(win.regions.length).toBeGreaterThan(before);
+    expect(el.dataset.open).toBe("true");
+  });
+
+  it("widens for a live activity only once folded: the open island keeps its size", async () => {
+    const { el, got } = await startSpy();
+    await open(el);
+    const h = el.style.getPropertyValue("--h");
+    const regions = win.regions.length;
+    got.wide = true;
+    got.host!.refresh();
+    await settleAll();
+    expect([el.dataset.wide, el.style.getPropertyValue("--h"), win.regions.length]).toEqual(["true", h, regions]);
+  });
+});
+
+describe("when the window can't do what the island asks", () => {
+  it("logs that auto-hide couldn't be set, and carries on", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(window, "matchMedia").mockReturnValue({ matches: false } as MediaQueryList);
+    const el = document.createElement("div");
+    document.body.replaceChildren(el);
+    win = fakeWindow();
+    const failing = new Error("no compositor");
+    win.port.autoHide = () => Promise.reject(failing);
+    await mount(el, [], {}, win.port, withGeneral({ greeting: "none" }), { styles: [PILL.style] });
+    await settleAll();
+    expect(error).toHaveBeenCalledWith("[island] could not set auto-hide", failing);
+    el.dispatchEvent(new MouseEvent("click"));
+    await settleAll();
+    expect(el.dataset.open).toBe("true");
+  });
+
+  it("keeps running, drawing nothing, when even the bare pill can't be drawn", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(BARE, "mount").mockImplementation(() => {
+      throw new Error("no canvas");
+    });
+    const { el } = await startWith(withGeneral({ greeting: "none" }), [], []);
+    await settleAll();
+    expect(el.dataset.style).toBe("bare");
+    expect(el.querySelector(".glance")?.childElementCount).toBe(0);
+    expect(error).toHaveBeenCalledWith(expect.stringContaining(`"bare": mount failed, so it was set aside`));
+    el.dispatchEvent(new MouseEvent("click"));
+    await settleAll();
+    expect(el.dataset.open).toBe("true");
   });
 });

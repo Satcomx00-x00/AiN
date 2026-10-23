@@ -153,6 +153,19 @@ const fake: Services = {
     download: async () => {},
     remove: async () => {},
   },
+  tts: {
+    watch: async (onChange) => (onChange(params.has("read") ? { phase: "speaking", text: "The island reads any text you select, on this computer." } : { phase: "idle" }), () => {}),
+    watchModel: async (onChange) => {
+      const at = { model: "kokoro-en", dir: "C:\\Users\\you\\AppData\\Roaming\\dev.satcom.ain\\models\\kokoro-en-v0_19", installed: ["kokoro-en"] };
+      onChange({ ...at, state: "ready" });
+      return () => {};
+    },
+    control: async () => {},
+    speak: async () => {},
+    openFolder: async () => {},
+    download: async () => {},
+    remove: async () => {},
+  },
   privacy: {
     watch: async (onChange) => (onChange({ mic: params.has("mic") ? ["Discord"] : [], camera: [] }), () => {}),
   },

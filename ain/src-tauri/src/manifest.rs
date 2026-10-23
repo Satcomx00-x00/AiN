@@ -39,6 +39,11 @@ macro_rules! manifest {
                 media: features::media { typed: [state, artwork, control], raw: [], events: [TrackChanged] }
                 privacy: features::privacy { typed: [state], raw: [], events: [UsageChanged] }
                 stats: features::stats { typed: [latest], raw: [], events: [] }
+                tts: features::tts {
+                    typed: [state, model_status, control, speak, download_model, delete_model, open_model_dir],
+                    raw: [],
+                    events: [PhaseChanged, ModelChanged]
+                }
                 volume: features::volume {
                     typed: [state, peak, sources, set_level, set_muted],
                     raw: [],

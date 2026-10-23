@@ -234,6 +234,10 @@ h1 {
   border-top: 1px solid var(--line);
 }
 
+.field[hidden] {
+  display: none;
+}
+
 .card > .field:first-child {
   border-top: 0;
 }

@@ -102,10 +102,9 @@ export async function mount<S>(
   let plugins = catalogue;
   let settings = initial;
   let i = shaped(hardware, initial.general);
-  // Plugins may push updates before the beat exists; those land on the first beat anyway.
-  let refresh = () => {};
   const hostFor = (plugin: AnyPlugin): Host<never> => ({
-    refresh: () => refresh(),
+    // Plugins are only set up once the beat exists (by the first configure).
+    refresh: () => beat.now(),
     options: () => resolve(plugin.options ?? {}, settings.options[plugin.id]) as never,
     setOptions: (patch) => saveOptions?.(plugin.id, patch),
     // Only the secrets it declares: not another plugin's.
@@ -117,7 +116,7 @@ export async function mount<S>(
     openPage: (params) => openSettings?.(pageTarget(plugin.id, params)),
     // The style actually drawing, which differs from the chosen one while that one is broken.
     appearance: () => ({
-      style: style?.id ?? settings.general.style,
+      style: style.id,
       size: settings.general.pillSize,
       theme: settings.general.theme,
       tone: isLight(settings.general.pillColor) ? "light" : "dark",
@@ -131,7 +130,8 @@ export async function mount<S>(
 
   // The folded pill at the chosen size, the style that draws it, and the size that style folds to.
   let pill: Pill = pillOf(i, initial.general.pillSize);
-  let style: AnyStyle | undefined;
+  // Mounted by the first configure, before any plugin is set up or anything is drawn.
+  let style!: AnyStyle;
   let folded = { width: pill.width, height: pill.height };
   /** Styles that failed this session: the island goes on with another one. */
   const broken = new Set<string>();
@@ -178,7 +178,9 @@ export async function mount<S>(
 
   // The style draws the folded island in here; startup animations hide it while they play.
   const glance = h("div", { class: "glance" });
-  let look: StyleView = { draw() {} };
+  /** What a style draws before the first one is mounted, or when one fails to mount: nothing. */
+  const NOTHING: StyleView = { draw() {} };
+  let look: StyleView = NOTHING;
   const panel = h("div", { class: "panel" });
   const gear = openSettings && button(icon(GEAR), () => openSettings(), { class: "gear", "aria-label": "Settings", title: "Settings" });
   const power = quit && armedButton(POWER, quit, { label: "Quit AiN", armed: "Click again to quit AiN" }, "gear quit");
@@ -216,7 +218,7 @@ export async function mount<S>(
     try {
       look = next.mount(glance, { options: () => styleOptions(next, settings.options) as never });
     } catch (e) {
-      look = { draw() {} };
+      look = NOTHING;
       fail(next, "mount", e);
       return;
     }
@@ -240,7 +242,7 @@ export async function mount<S>(
   function restyle() {
     const next = pickStyle();
     if (next !== style) mountLook(next);
-    const current = style ?? BARE;
+    const current = style;
     pill = pillOf(i, settings.general.pillSize);
     const nextFolded = foldedSize(current, pill, styleOptions(current, settings.options));
     const changed = nextFolded.width !== folded.width || nextFolded.height !== folded.height;
@@ -263,7 +265,7 @@ export async function mount<S>(
     try {
       look.draw(f);
     } catch (e) {
-      if (drawn) fail(drawn, "draw", e);
+      fail(drawn, "draw", e);
     }
   };
 
@@ -289,7 +291,6 @@ export async function mount<S>(
       if (!open) await resize();
     }
   });
-  refresh = () => beat.now();
 
   // One preview at a time; asks made while one plays wait for it, and only the last one plays.
   let previews: Promise<void> = Promise.resolve();

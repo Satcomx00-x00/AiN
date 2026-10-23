@@ -4,8 +4,11 @@ import { primaryKey } from "../../sdk/platform";
 import { type Glance, definePlugin } from "../../sdk/plugin";
 import { type SelectOption, select } from "../../sdk/select";
 import type { ClipboardPort } from "../clipboard/service";
+import { fieldRow as row, modelCard, modelFiles, modelLine as line } from "../model-files";
 import type { DictationPort, Microphone, ModelInfo, Phase } from "./service";
 import { DEFAULT_MODEL, MODELS, modelById } from "./models";
+
+export { mb, modelSetup } from "../model-files";
 
 const MIC = `<rect x="5.75" y="1.75" width="4.5" height="8" rx="2.25"/><path d="M3.25 7.5a4.75 4.75 0 0 0 9.5 0M8 12.25v2"/>`;
 const STOP = `<rect x="4.5" y="4.5" width="7" height="7" rx="1.5" fill="currentColor" stroke="none"/>`;
@@ -13,7 +16,6 @@ const STOP = `<rect x="4.5" y="4.5" width="7" height="7" rx="1.5" fill="currentC
 const SHOW_DONE_MS = 2500;
 const SHOW_PROBLEM_MS = 5000;
 
-export const mb = (bytes: number): string => `${Math.round(bytes / 1e6)} MB`;
 export const clock = (seconds: number): string => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, "0")}`;
 
 /** The pill while dictating: a recording dot and the time, then a brief result. `since` is when the phase began. */
@@ -36,22 +38,8 @@ export function dictationGlance(phase: Phase, since: number, now: number): Glanc
   }
 }
 
-const progressOf = (received: number, total: number) => (total ? received / total : 0);
-
 /** What the island's tab says about the chosen model: read-only, since it is chosen and managed in Settings. */
-export function modelLine(info: ModelInfo): { title: string; detail: string; progress: number | null } {
-  const { name } = modelById(info.model);
-  switch (info.state) {
-    case "missing":
-      return { title: name, detail: "Not downloaded yet", progress: null };
-    case "downloading":
-      return { title: name, detail: `Downloading… ${mb(info.received)} of ${mb(info.total)}`, progress: progressOf(info.received, info.total) };
-    case "ready":
-      return { title: name, detail: "Ready", progress: null };
-    case "error":
-      return { title: name, detail: `Download failed: ${info.message}`, progress: null };
-  }
-}
+export const modelLine = (info: ModelInfo) => line(modelById(info.model).name, info);
 
 /** The speech models as Settings lists them: what each is, its size, and whether it's downloaded. */
 export const modelOptions = (installed: readonly string[]): SelectOption[] =>
@@ -65,20 +53,6 @@ export function micOptions(mics: readonly Microphone[], chosen: string): SelectO
     ...mics.map((m) => ({ value: m.id, label: m.name })),
     ...(chosen && !known ? [{ value: chosen, label: "Disconnected microphone", detail: "The system default is used meanwhile" }] : []),
   ];
-}
-
-/** What Settings says about the chosen model, and what its button does there. */
-export function modelSetup(info: ModelInfo): { detail: string; action: "download" | "stop" | "remove"; label: string; progress: number | null } {
-  switch (info.state) {
-    case "missing":
-      return { detail: "Not downloaded", action: "download", label: `Download · ${mb(info.size)}`, progress: null };
-    case "downloading":
-      return { detail: `Downloading… ${mb(info.received)} of ${mb(info.total)}`, action: "stop", label: "Stop", progress: progressOf(info.received, info.total) };
-    case "ready":
-      return { detail: "Downloaded", action: "remove", label: "Remove", progress: null };
-    case "error":
-      return { detail: `Download failed: ${info.message}`, action: "download", label: "Retry", progress: null };
-  }
 }
 
 /** The line next to the mic button; after a dictation, what was typed. */
@@ -129,24 +103,11 @@ export const dictation = definePlugin({
   ],
   // Choosing the microphone and the model, and downloading the model, happen here in Settings.
   settingsPanel(root, { dictation: port }: { dictation: DictationPort }, host) {
-    let model: ModelInfo | null = null;
     let mics: Microphone[] = [];
     const mic = select(micOptions([], host.options().microphone), host.options().microphone, (id) => host.setOptions({ microphone: id }), "Microphone");
     const picker = select(modelOptions([]), host.options().model, (id) => host.setOptions({ model: id }), "Speech model");
-    const detail = h("div", { class: "field-hint" });
-    const bar = h("div", { class: "progress" }, h("i"));
-    const action = button("", () => {
-      const setup = model && modelSetup(model);
-      const run = setup?.action === "download" ? port.download() : setup ? port.remove() : null;
-      run?.catch((e: unknown) => (detail.textContent = String(e)));
-    }, { class: "secondary" });
-    const folder = button("Show folder", () => void port.openFolder().catch(() => {}), { class: "secondary" });
-    const row = (label: string, control: HTMLElement) => h("div", { class: "field wide" }, h("div", {}, h("div", { class: "field-label" }, label)), control);
-    root.append(
-      row("Microphone", mic.el),
-      row("Speech model", picker.el),
-      h("div", { class: "field" }, h("div", {}, h("div", { class: "field-label" }, "Model files"), detail, bar), h("div", { class: "recorder" }, folder, action)),
-    );
+    const files = modelFiles(port);
+    root.append(row("Microphone", mic.el), row("Speech model", picker.el), files.el);
     // Microphones come and go: look again whenever the window comes back to the front.
     const listMics = () =>
       port.microphones().then((next) => {
@@ -157,21 +118,10 @@ export const dictation = definePlugin({
       }, () => {});
     void listMics();
     window.addEventListener("focus", listMics);
-    const draw = () => {
-      if (!model) return;
+    const watching = port.watchModel((model) => {
       picker.setOptions(modelOptions(model.installed));
       picker.set(model.model);
-      const setup = modelSetup(model);
-      detail.textContent = setup.detail;
-      detail.title = model.dir;
-      bar.hidden = setup.progress === null;
-      bar.style.setProperty("--p", String(setup.progress ?? 0));
-      action.textContent = setup.label;
-      action.classList.toggle("danger", setup.action === "remove");
-    };
-    const watching = port.watchModel((next) => {
-      model = next;
-      draw();
+      files.draw(model);
     });
     return () => {
       window.removeEventListener("focus", listMics);
@@ -191,11 +141,7 @@ export const dictation = definePlugin({
     const copy = button("Copy", () => void clipboard.copy(lastText).catch(() => {}), { class: "chip" });
 
     // The model, read-only: it is chosen, downloaded and stored in Settings.
-    const modelTitle = h("strong");
-    const modelDetail = h("span", { class: "muted" });
-    const modelBar = h("div", { class: "bar thin" }, h("i"));
-    const setUp = button("Set up in Settings", () => host.openSettings(), { class: "chip" });
-    const modelCard = h("div", { class: "dict-model" }, h("div", { class: "dict-model-text" }, modelTitle, modelDetail, modelBar), setUp);
+    const card = modelCard(() => host.openSettings());
 
     const draw = () => {
       const listening = phase.phase === "listening";
@@ -211,18 +157,7 @@ export const dictation = definePlugin({
       level.hidden = !listening;
       level.style.setProperty("--p", String(phase.phase === "listening" ? phase.level : 0));
 
-      if (model) {
-        const line = modelLine(model);
-        modelTitle.textContent = line.title;
-        modelDetail.textContent = line.detail;
-        modelBar.hidden = line.progress === null;
-        modelBar.style.setProperty("--p", String(line.progress ?? 0));
-        modelCard.dataset.state = model.state;
-        modelDetail.title = model.dir;
-        // Ready, there's nothing to set up; while downloading, Settings is where it can be stopped.
-        setUp.hidden = model.state === "ready";
-        setUp.textContent = model.state === "downloading" ? "Settings" : "Set up in Settings";
-      }
+      if (model) card.draw(modelById(model.model).name, model);
     };
 
     void port.watch((next) => {
@@ -238,7 +173,7 @@ export const dictation = definePlugin({
     });
 
     return {
-      panel: (root) => root.append(h("div", { class: "dictation" }, h("div", { class: "dict-head" }, main, h("div", { class: "dict-now" }, status, level), copy), modelCard)),
+      panel: (root) => root.append(h("div", { class: "dictation" }, h("div", { class: "dict-head" }, main, h("div", { class: "dict-now" }, status, level), copy), card.el)),
       glance: (now) => dictationGlance(phase, since, now),
       ambient: () => (phase.phase === "listening" ? "#ff453a" : null),
     };

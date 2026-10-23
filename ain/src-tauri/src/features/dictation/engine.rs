@@ -86,53 +86,46 @@ fn open_mic(chosen: Option<&str>, captured: Arc<Mutex<Vec<f32>>>) -> Result<(cpa
     Ok((stream, rate))
 }
 
-/// The recognizer, loading it if needed (a caller waits while another thread loads it).
+/// The recognizer for the chosen model, loading it if needed.
 fn recognizer(shared: &Shared) -> Result<Arc<sherpa_onnx::OfflineRecognizer>, String> {
-    let mut slot = lock(&shared.recognizer);
-    *lock(&shared.last_used) = Instant::now();
-    if let Some(r) = &*slot {
-        return Ok(Arc::clone(r));
-    }
-    let place = shared.place();
-    let (model, dir) = (place.model(), place.dir());
-    let path = |i| Some(model.path(&dir, i));
-    let mut config = sherpa_onnx::OfflineRecognizerConfig::default();
-    config.feat_config.sample_rate = chunk::RATE as i32;
-    config.feat_config.feature_dim = 80;
-    let m = &mut config.model_config;
-    match model.kind {
-        model::Kind::Transducer => {
-            m.transducer.encoder = path(0);
-            m.transducer.decoder = path(1);
-            m.transducer.joiner = path(2);
+    shared.models.engine(|model, dir| {
+        let path = |i| Some(model.path(dir, i));
+        let mut config = sherpa_onnx::OfflineRecognizerConfig::default();
+        config.feat_config.sample_rate = chunk::RATE as i32;
+        config.feat_config.feature_dim = 80;
+        let m = &mut config.model_config;
+        match model.kind {
+            model::Kind::Transducer => {
+                m.transducer.encoder = path(0);
+                m.transducer.decoder = path(1);
+                m.transducer.joiner = path(2);
+            }
+            model::Kind::Whisper => {
+                m.whisper.encoder = path(0);
+                m.whisper.decoder = path(1);
+                // No language: Whisper detects it.
+                m.whisper.task = Some("transcribe".into());
+                m.whisper.tail_paddings = -1;
+            }
+            model::Kind::SenseVoice => {
+                m.sense_voice.model = path(0);
+                m.sense_voice.language = Some("auto".into());
+                m.sense_voice.use_itn = true;
+            }
+            model::Kind::Moonshine => {
+                m.moonshine.preprocessor = path(0);
+                m.moonshine.encoder = path(1);
+                m.moonshine.uncached_decoder = path(2);
+                m.moonshine.cached_decoder = path(3);
+            }
         }
-        model::Kind::Whisper => {
-            m.whisper.encoder = path(0);
-            m.whisper.decoder = path(1);
-            // No language: Whisper detects it.
-            m.whisper.task = Some("transcribe".into());
-            m.whisper.tail_paddings = -1;
-        }
-        model::Kind::SenseVoice => {
-            m.sense_voice.model = path(0);
-            m.sense_voice.language = Some("auto".into());
-            m.sense_voice.use_itn = true;
-        }
-        model::Kind::Moonshine => {
-            m.moonshine.preprocessor = path(0);
-            m.moonshine.encoder = path(1);
-            m.moonshine.uncached_decoder = path(2);
-            m.moonshine.cached_decoder = path(3);
-        }
-    }
-    m.tokens = path(model.files.len() - 1);
-    config.model_config.num_threads = 2;
-    config.model_config.provider = Some("cpu".into());
-    config.decoding_method = Some("greedy_search".into());
-    let r = sherpa_onnx::OfflineRecognizer::create(&config).ok_or("The speech model couldn't be loaded; try downloading it again")?;
-    let r = Arc::new(r);
-    *slot = Some(Arc::clone(&r));
-    Ok(r)
+        m.tokens = path(model.files.len() - 1);
+        config.model_config.num_threads = 2;
+        config.model_config.provider = Some("cpu".into());
+        config.decoding_method = Some("greedy_search".into());
+        sherpa_onnx::OfflineRecognizer::create(&config)
+            .ok_or_else(|| "The speech model couldn't be loaded; try downloading it again".to_string())
+    })
 }
 
 fn decode(recognizer: &sherpa_onnx::OfflineRecognizer, samples: &[f32]) -> String {
@@ -161,7 +154,7 @@ fn decoder(app: AppHandle, shared: Arc<Shared>, id: u64, chunks: Receiver<Vec<f3
         }
         parts.push(decode(&recognizer, &samples));
     }
-    *lock(&shared.last_used) = Instant::now();
+    shared.models.touch();
     // The chunk channel also closes on cancel; only a finished session gets delivered.
     if finished.try_recv().is_err() || !current() {
         return;
@@ -187,8 +180,7 @@ impl Mic {
     }
 
     fn start(&mut self, app: &AppHandle, shared: &Arc<Shared>) {
-        let place = shared.place();
-        if !place.model().installed(&place.dir()) {
+        if !shared.models.ready() {
             return shared.publish(app, Phase::NeedsModel);
         }
         if matches!(shared.phase.get(), Phase::Transcribing) {
@@ -210,7 +202,7 @@ impl Mic {
         if let Err(e) = spawned {
             return shared.publish(app, Phase::Error { message: e.to_string() });
         }
-        let chunker = chunk::Chunker::new(chunk::RATE, place.model().chunk_seconds);
+        let chunker = chunk::Chunker::new(chunk::RATE, shared.models.chosen().0.chunk_seconds);
         self.session = Some(Session { stream, captured, rate, chunker, chunks, finished, started: Instant::now() });
         shared.publish(app, Phase::Listening { level: 0.0, seconds: 0.0 });
     }
@@ -218,8 +210,8 @@ impl Mic {
     /// Moves captured audio along to the decoder and reports the level; when idle, lets a cold model go.
     fn pump(&mut self, app: &AppHandle, shared: &Arc<Shared>) {
         let Some(session) = &mut self.session else {
-            if lock(&shared.last_used).elapsed() > KEEP_WARM && !matches!(shared.phase.get(), Phase::Transcribing) {
-                lock(&shared.recognizer).take();
+            if !matches!(shared.phase.get(), Phase::Transcribing) {
+                shared.models.let_cold_go(KEEP_WARM);
             }
             return;
         };

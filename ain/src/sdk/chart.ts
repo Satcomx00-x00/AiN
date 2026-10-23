@@ -23,8 +23,8 @@ export const curve = (values: readonly number[], width: number, height: number, 
   if (!first) return "";
   let d = `M${xy(first)}`;
   for (let i = 0; i < pts.length - 1; i++) {
-    const [p0, p1, p2, p3] = [pts[i - 1] ?? pts[i], pts[i], pts[i + 1], pts[i + 2] ?? pts[i + 1]];
-    if (!p0 || !p1 || !p2 || !p3) continue;
+    // pts[i] and pts[i + 1] exist for every i here; past either end, the end point stands in.
+    const [p0, p1, p2, p3] = [pts[i - 1] ?? pts[i], pts[i], pts[i + 1], pts[i + 2] ?? pts[i + 1]] as [Point, Point, Point, Point];
     const c1: Point = [p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6];
     const c2: Point = [p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6];
     d += ` C${xy(c1)} ${xy(c2)} ${xy(p2)}`;

@@ -54,6 +54,7 @@ disappears is tested on every platform.
 | volume | Core Audio | PipeWire/PulseAudio (`pactl`) | Core Audio (output devices; macOS has no per-app volume) |
 | privacy | Capability Access Manager | recording streams (`pactl`) and open `/dev/video*` | Core Audio's process list (macOS 14+) and Core Media IO (camera on or off) |
 | dictation | types the text | types it with `xdotool`, `wtype` or `ydotool`, else copies it | types it once Accessibility is allowed, else copies it |
+| tts (read aloud) | copies the selection (Ctrl+C), then puts the clipboard back | reads the primary selection | copies the selection (Cmd+C) once Accessibility is allowed, then puts the clipboard back |
 | popup paste | `SendInput` | the same tools | Cmd+V, once Accessibility is allowed |
 | clipboard, stats, capture | all platforms | | |
 
@@ -85,7 +86,7 @@ see [writing a plugin](plugins.md). The shell's `extensions` module finds them; 
 - a file's code never runs until the user turns it on in Settings (they are tracked by file name,
   since a plugin's id is only known by running it);
 - a plugin receives only the services it lists in `needs`, among those the app offers
-  (`extensionRules` in `features/index.ts`; not clipboard history, screen captures or dictation);
+  (`extensionRules` in `features/index.ts`; not clipboard history, screen captures, dictation or read aloud);
 - each part of its widget is switched off the first time it throws, instead of breaking the island;
 - it can't take a built-in feature's id, nor define shortcut commands.
 

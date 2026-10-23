@@ -8,9 +8,13 @@ pub mod dictation;
 pub mod media;
 pub mod privacy;
 pub mod stats;
+pub mod tts;
 pub mod volume;
 
+mod audio;
+mod download;
 mod live;
+mod models;
 mod worker;
 
 use tauri::{Builder, Wry};
@@ -22,4 +26,5 @@ pub fn register(app: Builder<Wry>) -> Builder<Wry> {
         .plugin(volume::init())
         .plugin(privacy::init())
         .plugin(dictation::init())
+        .plugin(tts::init())
 }

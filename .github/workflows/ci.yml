@@ -16,6 +16,7 @@ permissions:
 env:
   CARGO_TERM_COLOR: always
   BUN_VERSION: "1.3.14"
+  LLVM_COV_VERSION: "0.9.1"
 
 defaults:
   run:
@@ -86,12 +87,30 @@ jobs:
           bun-version: ${{ env.BUN_VERSION }}
       - run: bun install --frozen-lockfile
       - run: bun run typecheck
-      - run: bun run test
+      # Unit and integration tests, failing below 100% coverage (thresholds in vitest.config.ts).
+      - run: bun run test:coverage
+      - if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: frontend-coverage
+          path: ain/coverage
+          if-no-files-found: ignore
+          retention-days: 7
       - run: bun run build
 
   browser:
-    name: Browser tests
-    runs-on: ubuntu-latest
+    name: Browser tests (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux x64
+            os: ubuntu-24.04
+          - name: Windows 11 x64
+            os: windows-2025
+          - name: macOS x64
+            os: macos-15-intel
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -109,7 +128,7 @@ jobs:
       - if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.os }}
           path: |
             ain/playwright-report
             ain/test-results
@@ -154,8 +173,10 @@ jobs:
           - name: Linux x64
             os: ubuntu-24.04
             target: x86_64-unknown-linux-gnu
-          - name: Windows x64
-            os: windows-latest
+          # GitHub has no hosted Windows 11 x64 runner: Server 2025 is built from the same release
+          # (24H2, build 26100), the same kernel, Win32, WinRT, Core Audio and WebView2.
+          - name: Windows 11 x64
+            os: windows-2025
             target: x86_64-pc-windows-msvc
           - name: macOS x64
             os: macos-15-intel
@@ -175,10 +196,12 @@ jobs:
       - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
         with:
           targets: ${{ matrix.target }}
-          components: clippy
+          components: clippy, llvm-tools-preview
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           workspaces: ain/src-tauri -> target
+      - name: Install cargo-llvm-cov
+        run: cargo install cargo-llvm-cov --locked --version "$LLVM_COV_VERSION"
       # rust-cache keeps sherpa-onnx-sys's build output but prunes the native libraries it extracted
       # under target/, which it then never fetches again: make it start over.
       - name: Refetch sherpa-onnx's native libraries
@@ -193,9 +216,142 @@ jobs:
       - name: Clippy
         working-directory: ain/src-tauri
         run: cargo clippy --locked --all-targets --target ${{ matrix.target }} -- -D warnings
+      # The tests, this OS's backends included, measured: lines and functions each OS runs.
+      - name: Tests, with coverage
+        working-directory: ain/src-tauri
+        run: |
+          cargo llvm-cov --locked --target ${{ matrix.target }} --no-report
+          cargo llvm-cov report --target ${{ matrix.target }} --lcov --output-path lcov.info
+          cargo llvm-cov report --target ${{ matrix.target }} --summary-only | tee coverage-summary.txt
+          {
+            echo "### Rust coverage, ${{ matrix.name }}"
+            echo '```'
+            cat coverage-summary.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: rust-coverage-${{ matrix.target }}
+          path: ain/src-tauri/lcov.info
+          retention-days: 7
+
+  # Fedora 44 in a container: its own libraries (GTK, WebKitGTK, PipeWire) and toolchain, the
+  # tests against them, then the .rpm installed with dnf and the installed app launched.
+  fedora:
+    name: Fedora 44 x64
+    runs-on: ubuntu-24.04
+    container: fedora:44
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Fedora system dependencies
+        working-directory: .
+        run: ./.github/scripts/fedora-deps.sh
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          workspaces: ain/src-tauri -> target
+          key: fedora-44
+      # rust-cache keeps sherpa-onnx-sys's build output but prunes the native libraries it extracted
+      # under target/, which it then never fetches again: make it start over.
+      - name: Refetch sherpa-onnx's native libraries
+        working-directory: ain/src-tauri
+        run: |
+          rm -rf target/sherpa-onnx-prebuilt
+          cargo clean --locked -p sherpa-onnx-sys
+      - run: bun install --frozen-lockfile
+      - run: bun run test
+      - run: bun run build
       - name: Tests
         working-directory: ain/src-tauri
-        run: cargo test --locked --target ${{ matrix.target }}
+        run: cargo test --locked
+      - run: bun run tauri build --ci --bundles rpm
+      - name: Install the .rpm
+        run: |
+          rpms=(src-tauri/target/release/bundle/rpm/*.rpm)
+          rpm=${rpms[0]}
+          dnf install -y "$rpm"
+          rpm -qlp "$rpm" | grep -m 1 '^/usr/bin/' > installed-binary
+          echo "Installed $(rpm -qp "$rpm") as $(cat installed-binary)"
+      - name: Launch the installed app
+        # WebKitGTK sandboxes its web processes with bubblewrap, which can't make namespaces inside
+        # an unprivileged container; on a desktop the sandbox stays on.
+        env:
+          WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS: "1"
+        run: ../.github/scripts/launch-check.sh "$(cat installed-binary)" launch-check
+      - if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: launch-check-fedora-44
+          path: ain/launch-check
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # The packaged app on Windows and macOS, as users get it: installed (Windows) and launched.
+  # Linux's counterparts are the AppImage job below and Fedora's .rpm above.
+  launch:
+    name: Install and launch (${{ matrix.name }})
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows 11 x64
+            os: windows-2025
+            bundles: nsis
+          - name: macOS x64
+            os: macos-15-intel
+            bundles: app
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          workspaces: ain/src-tauri -> target
+          key: launch
+      # rust-cache keeps sherpa-onnx-sys's build output but prunes the native libraries it extracted
+      # under target/, which it then never fetches again: make it start over.
+      - name: Refetch sherpa-onnx's native libraries
+        working-directory: ain/src-tauri
+        run: |
+          rm -rf target/sherpa-onnx-prebuilt
+          cargo clean --locked -p sherpa-onnx-sys
+      - run: bun install --frozen-lockfile
+      - run: bun run tauri build --ci --bundles ${{ matrix.bundles }}
+      # The per-user NSIS installer, silent, as an update would run it; then the installed app.
+      - name: Install, launch and uninstall (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem src-tauri/target/release/bundle/nsis/*-setup.exe | Select-Object -First 1
+          Start-Process $setup.FullName -ArgumentList '/S' -Wait
+          $dir = Join-Path $env:LOCALAPPDATA 'AiN'
+          $exe = Get-ChildItem $dir -Filter *.exe | Where-Object Name -notmatch 'uninstall' | Select-Object -First 1
+          if (-not $exe) { Write-Output "::error::nothing installed in $dir"; exit 1 }
+          ../.github/scripts/launch-check.ps1 -App $exe.FullName -Out launch-check
+          Start-Process (Join-Path $dir 'uninstall.exe') -ArgumentList '/S' -Wait
+      - name: Launch (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          app=(src-tauri/target/release/bundle/macos/*.app)
+          ../.github/scripts/launch-check-macos.sh "${app[0]}" launch-check
+      - if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: launch-check-${{ matrix.os }}
+          path: ain/launch-check
+          if-no-files-found: ignore
+          retention-days: 7
 
   appimage:
     name: AppImage (Linux x64)

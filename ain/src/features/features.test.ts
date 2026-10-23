@@ -14,6 +14,7 @@ describe("clock", () => {
   it("Jan 1 2026 (Thursday) is week 1", () => expect(isoWeek(new Date(2026, 0, 1))).toBe(1));
   it("Dec 29 2025 belongs to 2026 week 1", () => expect(isoWeek(new Date(2025, 11, 29))).toBe(1));
   it("Jan 1 2027 (Friday) is week 53 of 2026", () => expect(isoWeek(new Date(2027, 0, 1))).toBe(53));
+  it("Sunday Jan 4 2026 closes week 1", () => expect(isoWeek(new Date(2026, 0, 4))).toBe(1));
 });
 
 describe("timer", () => {

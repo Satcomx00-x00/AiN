@@ -84,7 +84,7 @@ test.describe("hover", () => {
     await expect(island).toHaveAttribute("data-open", "true");
     await expect.poll(() => box(island)).toMatchObject({ width: 420, height: 188 });
     await expect(island.locator(".panel")).toBeVisible();
-    await expect(island.locator("[role=tab]")).toHaveCount(8);
+    await expect(island.locator("[role=tab]")).toHaveCount(9);
     await page.mouse.move(640, 600);
     await expect(island).toHaveAttribute("data-open", "false");
     await expect.poll(() => box(island)).toMatchObject({ width: 296, height: 32 });
