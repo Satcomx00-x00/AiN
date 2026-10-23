@@ -222,10 +222,11 @@ jobs:
         run: |
           cargo llvm-cov --locked --target ${{ matrix.target }} --no-report
           cargo llvm-cov report --target ${{ matrix.target }} --lcov --output-path lcov.info
+          cargo llvm-cov report --target ${{ matrix.target }} --summary-only | tee coverage-summary.txt
           {
             echo "### Rust coverage, ${{ matrix.name }}"
             echo '```'
-            cargo llvm-cov report --target ${{ matrix.target }} --summary-only
+            cat coverage-summary.txt
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7

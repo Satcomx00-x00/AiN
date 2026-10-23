@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # System libraries and tools to build, package (.rpm) and launch-check the Tauri app on Fedora
 # (x64), the counterpart of linux-deps.sh. Runs as root in a `fedora` container, or with sudo.
+# Node.js too: vitest runs on Node, as on the hosted runners (Bun, standing in for a missing
+# Node, imports modules from data: URLs differently).
 set -euo pipefail
 
 SUDO=""
@@ -16,6 +18,7 @@ $SUDO dnf install -y --setopt=install_weak_deps=False \
   git \
   curl \
   unzip \
+  nodejs \
   xz \
   file \
   patchelf \
