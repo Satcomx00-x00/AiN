@@ -111,6 +111,17 @@ describe("settings", () => {
     await store.playGreeting("boing");
     expect(played).toEqual(["sparkle"]);
   });
+
+  it("the in-memory store remembers whether to start with the system, and has no window to open or app to quit", async () => {
+    const store = memorySettings();
+    expect(await store.autostart()).toBe(false);
+    await store.setAutostart(true);
+    expect(await store.autostart()).toBe(true);
+    await expect(Promise.all([store.open("widgets:clock"), store.quit()])).resolves.toEqual([undefined, undefined]);
+    const navigated = vi.fn();
+    (await store.onNavigate(navigated))();
+    expect(navigated).not.toHaveBeenCalled();
+  });
 });
 
 describe("reordering", () => {
@@ -191,6 +202,9 @@ describe("themes and the color picker", () => {
     expect(palette(monokai, "#1e1e1e", "#66d9ef")["--fg"]).toBe(monokai.fg);
     expect(palette(monokai, "#f2f2f7", "#66d9ef")["--fg"]).toBe("#1c1c1e");
     expect(palette(monokai, "#272822", "#ffcc66")["--on-accent"]).toBe("#1c1c1e");
+    expect(palette(monokai, "#272822", "#1e3a8a")["--on-accent"]).toBe("#ffffff");
+    // A light theme on a dark pill gets a light neutral text instead of its dark one.
+    expect(palette(themeById("tokyo-night-day"), "#101010", "#2e7de9")["--fg"]).toBe("#f5f5f7");
   });
 });
 

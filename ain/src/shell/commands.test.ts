@@ -43,6 +43,9 @@ describe("recording a shortcut", () => {
   it("builds modifiers in a stable order with the physical key", () =>
     expect(fromKey(key("KeyB", { shiftKey: true, metaKey: true, ctrlKey: true }))).toBe("Ctrl+Shift+Super+KeyB"));
 
+  it("puts Alt after Ctrl and before Shift", () =>
+    expect(fromKey(key("KeyV", { shiftKey: true, altKey: true, ctrlKey: true }))).toBe("Ctrl+Alt+Shift+KeyV"));
+
   it("waits while only modifiers are held", () => expect(fromKey(key("ShiftLeft", { shiftKey: true }))).toBeNull());
 
   it("needs a modifier, except for function keys", () => {

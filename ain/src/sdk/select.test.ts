@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { select } = await import("./select");
 
@@ -10,6 +10,7 @@ const options = [
 ];
 
 beforeEach(() => document.body.replaceChildren());
+afterEach(() => vi.restoreAllMocks());
 
 function mount(value = "a") {
   const onChange = vi.fn();
@@ -87,6 +88,90 @@ describe("select", () => {
     document.body.dispatchEvent(new Event("pointerdown", { bubbles: true }));
     expect(list.hidden).toBe(true);
     expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("moves the highlight with the pointer, and up, to the end and back with the keys", () => {
+    const { trigger, list, rows, key } = mount("a");
+    trigger.click();
+    const active = () => rows().findIndex((r) => r.classList.contains("active"));
+    rows()[1]!.dispatchEvent(new Event("pointermove"));
+    rows()[1]!.dispatchEvent(new Event("pointermove"));
+    expect(active()).toBe(1);
+    key(list, "End");
+    expect(active()).toBe(2);
+    key(list, "ArrowUp");
+    expect(active()).toBe(1);
+    expect(list.getAttribute("aria-activedescendant")).toMatch(/-1$/);
+  });
+
+  it("chooses with Space, and closes on Tab without keeping the key from moving focus", () => {
+    const { trigger, list, onChange } = mount("a");
+    trigger.click();
+    list.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+    const space = new KeyboardEvent("keydown", { key: " ", bubbles: true, cancelable: true });
+    list.dispatchEvent(space);
+    expect([onChange.mock.calls, space.defaultPrevented, list.hidden]).toEqual([[["b"]], true, true]);
+    trigger.click();
+    const tab = new KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true });
+    list.dispatchEvent(tab);
+    expect([tab.defaultPrevented, list.hidden]).toEqual([false, true]);
+  });
+
+  it("leaves other keys alone, open or closed", () => {
+    const { trigger, list, onChange } = mount("a");
+    const onButton = new KeyboardEvent("keydown", { key: "a", bubbles: true, cancelable: true });
+    trigger.dispatchEvent(onButton);
+    expect([onButton.defaultPrevented, list.hidden]).toEqual([false, true]);
+    trigger.click();
+    const inList = new KeyboardEvent("keydown", { key: "x", bubbles: true, cancelable: true });
+    list.dispatchEvent(inList);
+    expect([inList.defaultPrevented, list.hidden]).toEqual([false, false]);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("toggles from its button, and stays open on more open keys or a click inside", () => {
+    const { s, trigger, list, key } = mount("a");
+    trigger.click();
+    key(trigger, "ArrowDown");
+    s.el.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+    expect(list.hidden).toBe(false);
+    trigger.click();
+    expect([list.hidden, trigger.getAttribute("aria-expanded")]).toEqual([true, "false"]);
+  });
+
+  it("does nothing on keys meant for the open list while it is closed", () => {
+    const { list, key, onChange } = mount("a");
+    key(list, "Enter");
+    key(list, "Escape");
+    expect([list.hidden, onChange.mock.calls.length]).toEqual([true, 0]);
+  });
+
+  it("doesn't open without options, and keeps the open list's highlight as they change", () => {
+    const empty = select([], "", vi.fn(), "Model");
+    document.body.append(empty.el);
+    empty.el.querySelector<HTMLButtonElement>(".ui-select-trigger")!.click();
+    expect(empty.el.querySelector<HTMLElement>("[role=listbox]")!.hidden).toBe(true);
+
+    const { s, trigger, list, rows } = mount("b");
+    trigger.click();
+    s.setOptions(options.map((o) => ({ ...o, meta: "new" })));
+    expect(rows().findIndex((r) => r.classList.contains("active"))).toBe(1);
+    expect(list.getAttribute("aria-activedescendant")).toMatch(/-1$/);
+    // Every option gone while open: nothing to highlight, and the list stays as it is.
+    s.setOptions([]);
+    expect([rows().length, list.hidden, trigger.textContent]).toEqual([0, false, ""]);
+  });
+
+  it("opens upward when there's more room above than below", () => {
+    const { s, trigger } = mount("a");
+    vi.spyOn(window, "innerHeight", "get").mockReturnValue(800);
+    const rect = vi.spyOn(trigger, "getBoundingClientRect").mockReturnValue({ top: 700, bottom: 720 } as DOMRect);
+    trigger.click();
+    expect(s.el.classList.contains("up")).toBe(true);
+    trigger.click();
+    rect.mockReturnValue({ top: 100, bottom: 600 } as DOMRect);
+    trigger.click();
+    expect(s.el.classList.contains("up")).toBe(false);
   });
 
   it("follows new options and values without reporting them as choices", () => {

@@ -69,6 +69,16 @@ describe("a placement's list in Settings → Layout", () => {
     expect(last?.classList.contains("over")).toBe(false);
   });
 
+  it("stops marking a row once the drag moves on past it", () => {
+    const l = list(["clock", "timer"]);
+    const [first, second] = l.rows();
+    first?.dispatchEvent(new Event("dragstart"));
+    second?.dispatchEvent(new Event("dragover", { cancelable: true }));
+    second?.dispatchEvent(new Event("dragleave"));
+    expect(second?.classList.contains("over")).toBe(false);
+    expect(l.onChange).not.toHaveBeenCalled();
+  });
+
   it("ignores a drop on the row being dragged", () => {
     const l = list(["clock", "timer"]);
     const [first] = l.rows();

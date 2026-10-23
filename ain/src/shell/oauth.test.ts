@@ -33,5 +33,6 @@ describe("the oauth service", () => {
     await expect(preview.signIn(google)).rejects.toThrow("only available in the app");
     expect(await preview.token(google)).toBeNull();
     expect(await preview.signedIn(google)).toBe(false);
+    expect(await preview.signOut(google)).toBeUndefined();
   });
 });

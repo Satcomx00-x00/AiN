@@ -30,4 +30,29 @@ describe("secretReader", () => {
     expect(log).toHaveBeenCalledWith(`[island] plugin "weather" can't read its secret "apiKey": Error: locked`);
     expect(await read("weather", "apiKey")).toBe("ok");
   });
+
+  it("logs when it can't follow changes, and still reads", async () => {
+    const port = memorySecrets();
+    await port.set("weather", "apiKey", "k");
+    vi.spyOn(port, "onChange").mockRejectedValueOnce(new Error("no events"));
+    const log = vi.fn();
+    const read = secretReader(port, log);
+    expect(await read("weather", "apiKey")).toBe("k");
+    expect(log).toHaveBeenCalledExactlyOnceWith("[island] can't follow secret changes: Error: no events");
+  });
+});
+
+describe("memorySecrets", () => {
+  it("keeps secrets trimmed, says which are saved, and stops telling a listener that stopped", async () => {
+    const port = memorySecrets();
+    const changes: string[] = [];
+    const stop = await port.onChange((plugin, key) => changes.push(`${plugin}/${key}`));
+    await port.set("weather", "apiKey", "  k3y ");
+    expect([await port.get("weather", "apiKey"), await port.get("weather", "token")]).toEqual(["k3y", null]);
+    expect(await port.saved("weather", ["token", "apiKey"])).toEqual([false, true]);
+    stop();
+    await port.set("weather", "apiKey", " ");
+    expect(await port.saved("weather", ["apiKey"])).toEqual([false]);
+    expect(changes).toEqual(["weather/apiKey"]);
+  });
 });
