@@ -1,27 +1,19 @@
-//! The voice and the speakers: sherpa-onnx writes the speech sentence by sentence on a thread of its
-//! own, and each sentence plays as soon as it is ready.
+//! Reading a text: sherpa-onnx writes the speech sentence by sentence on a thread of its own, and
+//! each sentence plays on the speakers as soon as it is ready.
 
 use std::{
-    collections::VecDeque,
     sync::{
-        Arc, Mutex,
+        Arc,
         atomic::{AtomicBool, Ordering},
     },
     time::{Duration, Instant},
 };
 
-use cpal::{
-    FromSample, SampleFormat, SizedSample,
-    traits::{DeviceTrait, HostTrait, StreamTrait},
-};
 use serde_json::Value;
 use tauri::AppHandle;
 
-use super::{FEATURE, KEEP_WARM, Phase, Request, Shared, lock, model, selection};
+use super::{FEATURE, KEEP_WARM, Phase, Request, Shared, lock, speakers};
 use crate::{features::audio, shell::settings};
-
-/// What the speakers still have to play, at their rate.
-type Queue = Arc<Mutex<VecDeque<f32>>>;
 
 /// The speakers keep a little audio buffered: speech is over once the queue stays empty this long.
 const TAIL: Duration = Duration::from_millis(300);
@@ -30,7 +22,7 @@ const SPEEDS: std::ops::RangeInclusive<f32> = 0.5..=2.0;
 /// One text being read.
 struct Playback {
     _stream: cpal::Stream,
-    queue: Queue,
+    queue: speakers::Queue,
     text: String,
     /// Until the voice has written the whole text (or failed, or was stopped).
     writing: Arc<AtomicBool>,
@@ -38,8 +30,11 @@ struct Playback {
     drained: Option<Instant>,
 }
 
-#[derive(Default)]
+/// Where the text to read comes from when the shortcut is pressed.
+pub type Selection = fn() -> Option<String>;
+
 pub struct Speaker {
+    selection: Selection,
     playback: Option<Playback>,
 }
 
@@ -59,86 +54,29 @@ impl Voice {
     }
 }
 
-fn open_stream<T>(device: &cpal::Device, config: cpal::StreamConfig, queue: Queue) -> Result<cpal::Stream, String>
-where
-    T: SizedSample + FromSample<f32> + Send + 'static,
-{
-    let channels = usize::from(config.channels).max(1);
-    device
-        .build_output_stream::<T, _, _>(
-            config,
-            move |data: &mut [T], _: &cpal::OutputCallbackInfo| {
-                let mut queue = lock(&queue);
-                for frame in data.chunks_mut(channels) {
-                    frame.fill(T::from_sample_(queue.pop_front().unwrap_or(0.0)));
-                }
-            },
-            |e| eprintln!("island: speakers: {e}"),
-            None,
-        )
-        .map_err(|e| e.to_string())
-}
-
-/// The system's default speakers, playing what `queue` holds; and their rate.
-fn open_speakers(queue: Queue) -> Result<(cpal::Stream, u32), String> {
-    let device = cpal::default_host().default_output_device().ok_or("No speakers found")?;
-    let supported = device.default_output_config().map_err(|e| e.to_string())?;
-    let (format, config) = (supported.sample_format(), supported.config());
-    let rate = config.sample_rate;
-    let stream = match format {
-        SampleFormat::F32 => open_stream::<f32>(&device, config, queue),
-        SampleFormat::I16 => open_stream::<i16>(&device, config, queue),
-        SampleFormat::I32 => open_stream::<i32>(&device, config, queue),
-        SampleFormat::U16 => open_stream::<u16>(&device, config, queue),
-        SampleFormat::U8 => open_stream::<u8>(&device, config, queue),
-        SampleFormat::I8 => open_stream::<i8>(&device, config, queue),
-        other => Err(format!("Unsupported speaker format {other}")),
-    }?;
-    stream.play().map_err(|e| e.to_string())?;
-    Ok((stream, rate))
-}
-
-/// The voice, loading it if needed (a caller waits while another thread loads it).
+/// The voice for the chosen model, loading it if needed.
 fn voice(shared: &Shared) -> Result<Arc<sherpa_onnx::OfflineTts>, String> {
-    let mut slot = lock(&shared.voice);
-    *lock(&shared.last_used) = Instant::now();
-    if let Some(v) = &*slot {
-        return Ok(Arc::clone(v));
-    }
-    let place = shared.place();
-    let (model, dir) = (place.model(), place.dir());
-    let path = |name: &str| Some(dir.join(name).to_string_lossy().into_owned());
-    let mut config = sherpa_onnx::OfflineTtsConfig { max_num_sentences: 1, silence_scale: 0.2, ..Default::default() };
-    let m = &mut config.model;
-    match model.kind {
-        model::Kind::Vits => {
-            m.vits.model = path(model.file);
-            m.vits.tokens = path(model::TOKENS);
-            m.vits.data_dir = path(model::ESPEAK);
-        }
-        model::Kind::Kokoro => {
-            m.kokoro.model = path(model.file);
-            m.kokoro.voices = path(model::VOICES);
-            m.kokoro.tokens = path(model::TOKENS);
-            m.kokoro.data_dir = path(model::ESPEAK);
-        }
-        model::Kind::Kitten => {
-            m.kitten.model = path(model.file);
-            m.kitten.voices = path(model::VOICES);
-            m.kitten.tokens = path(model::TOKENS);
-            m.kitten.data_dir = path(model::ESPEAK);
-        }
-    }
-    m.num_threads = 2;
-    m.provider = Some("cpu".into());
-    let v = sherpa_onnx::OfflineTts::create(&config).ok_or("The voice couldn't be loaded; try downloading it again")?;
-    let v = Arc::new(v);
-    *slot = Some(Arc::clone(&v));
-    Ok(v)
+    shared.models.engine(|model, dir| {
+        let mut config =
+            sherpa_onnx::OfflineTtsConfig { model: model.config(dir), max_num_sentences: 1, silence_scale: 0.2, ..Default::default() };
+        config.model.num_threads = 2;
+        config.model.provider = Some("cpu".into());
+        sherpa_onnx::OfflineTts::create(&config).ok_or_else(|| "The voice couldn't be loaded; try downloading it again".to_string())
+    })
 }
 
-/// Writes `text` into `queue` at `rate`, a sentence at a time, until done or no longer current.
-fn write(app: AppHandle, shared: Arc<Shared>, id: u64, text: String, rate: u32, queue: Queue, writing: Arc<AtomicBool>) {
+/// A text to write into the speakers' queue at their rate, as reading `id`.
+struct Job {
+    id: u64,
+    text: String,
+    rate: u32,
+    queue: speakers::Queue,
+    writing: Arc<AtomicBool>,
+}
+
+/// Writes the job's text a sentence at a time, until done or no longer current.
+fn write(app: AppHandle, shared: Arc<Shared>, job: Job) {
+    let Job { id, text, rate, queue, writing } = job;
     let current = {
         let shared = Arc::clone(&shared);
         move || shared.session.load(Ordering::SeqCst) == id
@@ -151,7 +89,7 @@ fn write(app: AppHandle, shared: Arc<Shared>, id: u64, text: String, rate: u32, 
             speed: settings.speed,
             ..Default::default()
         };
-        let (queue, still) = (Arc::clone(&queue), current.clone());
+        let still = current.clone();
         let on_sentence = move |samples: &[f32], _progress: f32| {
             if still() {
                 lock(&queue).extend(audio::resample(samples, from, rate));
@@ -164,7 +102,7 @@ fn write(app: AppHandle, shared: Arc<Shared>, id: u64, text: String, rate: u32, 
             _ => Ok(()),
         }
     });
-    *lock(&shared.last_used) = Instant::now();
+    shared.models.touch();
     if let Err(message) = result
         && current()
     {
@@ -174,10 +112,14 @@ fn write(app: AppHandle, shared: Arc<Shared>, id: u64, text: String, rate: u32, 
 }
 
 impl Speaker {
+    pub fn new(selection: Selection) -> Self {
+        Self { selection, playback: None }
+    }
+
     pub fn step(&mut self, app: &AppHandle, shared: &Arc<Shared>, request: Option<Request>) {
         match request {
             Some(Request::Toggle) if self.playback.is_some() => self.stop(app, shared),
-            Some(Request::Toggle) => match selection::selected() {
+            Some(Request::Toggle) => match (self.selection)() {
                 Some(text) => self.speak(app, shared, text),
                 None => shared.publish(app, Phase::NothingSelected),
             },
@@ -189,23 +131,19 @@ impl Speaker {
 
     fn speak(&mut self, app: &AppHandle, shared: &Arc<Shared>, text: String) {
         self.halt(shared);
-        let place = shared.place();
-        if !place.model().installed(&place.dir()) {
+        if !shared.models.ready() {
             return shared.publish(app, Phase::NeedsModel);
         }
-        let queue = Queue::default();
-        let (stream, rate) = match open_speakers(Arc::clone(&queue)) {
+        let queue = speakers::Queue::default();
+        let (stream, rate) = match speakers::open(Arc::clone(&queue)) {
             Ok(s) => s,
             Err(message) => return shared.publish(app, Phase::Error { message }),
         };
         let id = shared.session.fetch_add(1, Ordering::SeqCst) + 1;
         let writing = Arc::new(AtomicBool::new(true));
-        let spawned = std::thread::Builder::new().name("tts-write".into()).spawn({
-            let (app, shared, text, queue, writing) =
-                (app.clone(), Arc::clone(shared), text.clone(), Arc::clone(&queue), Arc::clone(&writing));
-            move || write(app, shared, id, text, rate, queue, writing)
-        });
-        if let Err(e) = spawned {
+        let job = Job { id, text: text.clone(), rate, queue: Arc::clone(&queue), writing: Arc::clone(&writing) };
+        let (app2, shared2) = (app.clone(), Arc::clone(shared));
+        if let Err(e) = std::thread::Builder::new().name("tts-write".into()).spawn(move || write(app2, shared2, job)) {
             return shared.publish(app, Phase::Error { message: e.to_string() });
         }
         self.playback = Some(Playback { _stream: stream, queue, text, writing, drained: None });
@@ -215,10 +153,7 @@ impl Speaker {
     /// Reports when speech starts and ends; when idle, lets a cold voice go.
     fn pump(&mut self, app: &AppHandle, shared: &Arc<Shared>) {
         let Some(playback) = &mut self.playback else {
-            if lock(&shared.last_used).elapsed() > KEEP_WARM {
-                lock(&shared.voice).take();
-            }
-            return;
+            return shared.models.let_cold_go(KEEP_WARM);
         };
         if !lock(&playback.queue).is_empty() {
             playback.drained = None;

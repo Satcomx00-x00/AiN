@@ -50,6 +50,10 @@ export function modelSetup(info: ModelState): { detail: string; action: "downloa
   }
 }
 
+/** A Settings row: a label, and the control (e.g. a model drop-down) under it. */
+export const fieldRow = (label: string, control: HTMLElement): HTMLElement =>
+  h("div", { class: "field wide" }, h("div", {}, h("div", { class: "field-label" }, label)), control);
+
 /** Settings' "Model files" row: the model's state and folder, and the buttons to show, download, stop or remove it. */
 export function modelFiles(port: ModelFilesPort): { readonly el: HTMLElement; draw(info: ModelInfo): void } {
   let model: ModelInfo | null = null;

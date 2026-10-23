@@ -2,7 +2,7 @@ import { button, h, icon } from "../../sdk/dom";
 import { choice, folder, number } from "../../sdk/options";
 import { type Glance, definePlugin } from "../../sdk/plugin";
 import { type SelectOption, select } from "../../sdk/select";
-import { modelCard, modelFiles } from "../model-files";
+import { fieldRow as row, modelCard, modelFiles } from "../model-files";
 import type { ModelInfo, Phase, TtsPort } from "./service";
 import { DEFAULT_MODEL, MODELS, modelById } from "./models";
 
@@ -90,7 +90,6 @@ export const tts = definePlugin({
     const voices = select(voiceOptions(host.options().model), voice, (v) => host.setOptions({ voice: Number(v) }), "Voice");
     const files = modelFiles(port);
     const sample = button("Try the voice", () => void port.speak(SAMPLE).catch(() => {}), { class: "secondary" });
-    const row = (label: string, control: HTMLElement) => h("div", { class: "field wide" }, h("div", {}, h("div", { class: "field-label" }, label)), control);
     const voiceRow = row("Voice", voices.el);
     root.append(row("Voice model", picker.el), voiceRow, files.el, h("div", { class: "field" }, h("div", {}, h("div", { class: "field-label" }, "Preview")), sample));
     const watching = port.watchModel((model) => {

@@ -8,8 +8,10 @@ use std::{
     sync::atomic::AtomicBool,
 };
 
-use crate::features::download;
-pub use crate::features::download::{DownloadError, Status, base_in, remove};
+#[cfg(test)]
+use crate::features::download::remove;
+pub use crate::features::download::{DownloadError, Status};
+use crate::features::{download, models::Downloadable};
 
 pub struct ModelFile {
     pub name: &'static str,
@@ -147,11 +149,6 @@ pub const MODELS: &[Model] = &[
     },
 ];
 
-/// The model with this id, or the default one.
-pub fn find(id: Option<&str>) -> &'static Model {
-    MODELS.iter().find(|m| Some(m.id) == id).unwrap_or(&MODELS[0])
-}
-
 impl Model {
     pub fn total_size(&self) -> u64 {
         self.files.iter().map(|f| f.size).sum()
@@ -176,14 +173,31 @@ impl Model {
     }
 }
 
-/// The ids of the models already downloaded in the models folder `base`.
-pub fn installed_in(base: &Path) -> Vec<&'static str> {
-    MODELS.iter().filter(|m| m.installed(&base.join(m.folder))).map(|m| m.id).collect()
+impl Downloadable for Model {
+    fn id(&self) -> &'static str {
+        self.id
+    }
+
+    fn folder(&self) -> &'static str {
+        self.folder
+    }
+
+    fn status(&self, dir: &Path) -> Status {
+        Model::status(self, dir)
+    }
+
+    fn size(&self) -> u64 {
+        self.total_size()
+    }
+
+    fn download(&self, base: &Path, cancel: &AtomicBool, progress: &mut dyn FnMut(u64, u64)) -> Result<(), DownloadError> {
+        download(self, &base.join(self.folder), cancel, progress)
+    }
 }
 
 /// Downloads the model's missing files into `dir`, calling `progress(received, total)` along the way.
 /// Each file streams into `<name>.part`, is hashed on the fly, and is renamed only if it matches.
-pub fn download(model: &Model, dir: &Path, cancel: &AtomicBool, mut progress: impl FnMut(u64, u64)) -> Result<(), DownloadError> {
+fn download(model: &Model, dir: &Path, cancel: &AtomicBool, mut progress: impl FnMut(u64, u64)) -> Result<(), DownloadError> {
     fs::create_dir_all(dir)?;
     let total = model.total_size();
     let mut done = 0;
@@ -217,6 +231,10 @@ pub fn download(model: &Model, dir: &Path, cancel: &AtomicBool, mut progress: im
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn find(id: Option<&str>) -> &'static Model {
+        crate::features::models::find(MODELS, id)
+    }
 
     #[test]
     fn pins_the_revision() {
@@ -259,7 +277,7 @@ mod tests {
         fs::create_dir_all(&dir).unwrap();
         fs::write(dir.join("tokens.txt"), "partial").unwrap();
         assert!(!model.installed(&dir));
-        assert!(installed_in(&base).is_empty());
+        assert!(crate::features::models::installed_in(MODELS, &base).is_empty());
         remove(&base).unwrap();
         remove(&base).unwrap();
     }

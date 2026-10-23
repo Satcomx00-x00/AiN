@@ -14,6 +14,7 @@ pub mod volume;
 mod audio;
 mod download;
 mod live;
+mod models;
 mod worker;
 
 use tauri::{Builder, Wry};

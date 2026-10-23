@@ -10,19 +10,19 @@ use std::{
 
 use bzip2::read::BzDecoder;
 
-use crate::features::download;
-pub use crate::features::download::{DownloadError, Status, base_in, remove};
+use crate::features::download::{DownloadError, Status, remove};
+use crate::features::{download, models::Downloadable};
 
 const RELEASE: &str = "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models";
 /// Every model reads its phonemes through espeak-ng, from this folder of its own.
-pub const ESPEAK: &str = "espeak-ng-data";
-pub const TOKENS: &str = "tokens.txt";
+const ESPEAK: &str = "espeak-ng-data";
+const TOKENS: &str = "tokens.txt";
 /// Kokoro's and Kitten's speakers.
-pub const VOICES: &str = "voices.bin";
+const VOICES: &str = "voices.bin";
 
 /// How sherpa-onnx runs a model.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Kind {
+enum Kind {
     /// Piper voices: model, tokens; one speaker each.
     Vits,
     /// model, voices, tokens.
@@ -46,7 +46,7 @@ pub struct Model {
     pub id: &'static str,
     /// Named after the archive, and the folder inside it; its own folder in the models folder.
     pub folder: &'static str,
-    pub kind: Kind,
+    kind: Kind,
     /// The model itself, in its folder.
     pub file: &'static str,
     /// The archive's size, roughly, until the download says.
@@ -101,11 +101,6 @@ pub const MODELS: &[Model] = &[
     },
 ];
 
-/// The model with this id, or the default one.
-pub fn find(id: Option<&str>) -> &'static Model {
-    MODELS.iter().find(|m| Some(m.id) == id).unwrap_or(&MODELS[0])
-}
-
 impl Model {
     pub fn url(&self) -> String {
         format!("{RELEASE}/{}.tar.bz2", self.folder)
@@ -121,14 +116,59 @@ impl Model {
     }
 }
 
-/// The ids of the models already downloaded in the models folder `base`.
-pub fn installed_in(base: &Path) -> Vec<&'static str> {
-    MODELS.iter().filter(|m| m.installed(&base.join(m.folder))).map(|m| m.id).collect()
+impl Model {
+    /// How sherpa-onnx runs it from `dir`: its files, by kind.
+    pub fn config(&self, dir: &Path) -> sherpa_onnx::OfflineTtsModelConfig {
+        let path = |name: &str| Some(dir.join(name).to_string_lossy().into_owned());
+        let mut config = sherpa_onnx::OfflineTtsModelConfig::default();
+        match self.kind {
+            Kind::Vits => {
+                config.vits.model = path(self.file);
+                config.vits.tokens = path(TOKENS);
+                config.vits.data_dir = path(ESPEAK);
+            }
+            Kind::Kokoro => {
+                config.kokoro.model = path(self.file);
+                config.kokoro.voices = path(VOICES);
+                config.kokoro.tokens = path(TOKENS);
+                config.kokoro.data_dir = path(ESPEAK);
+            }
+            Kind::Kitten => {
+                config.kitten.model = path(self.file);
+                config.kitten.voices = path(VOICES);
+                config.kitten.tokens = path(TOKENS);
+                config.kitten.data_dir = path(ESPEAK);
+            }
+        }
+        config
+    }
+}
+
+impl Downloadable for Model {
+    fn id(&self) -> &'static str {
+        self.id
+    }
+
+    fn folder(&self) -> &'static str {
+        self.folder
+    }
+
+    fn status(&self, dir: &Path) -> Status {
+        Model::status(self, dir)
+    }
+
+    fn size(&self) -> u64 {
+        self.size
+    }
+
+    fn download(&self, base: &Path, cancel: &AtomicBool, progress: &mut dyn FnMut(u64, u64)) -> Result<(), DownloadError> {
+        download(self, base, cancel, progress)
+    }
 }
 
 /// Downloads the model's archive into the models folder `base`, calling `progress(received, total)`
 /// along the way, then unpacks it beside its folder and moves it in once complete.
-pub fn download(model: &Model, base: &Path, cancel: &AtomicBool, mut progress: impl FnMut(u64, u64)) -> Result<(), DownloadError> {
+fn download(model: &Model, base: &Path, cancel: &AtomicBool, mut progress: impl FnMut(u64, u64)) -> Result<(), DownloadError> {
     fs::create_dir_all(base)?;
     let archive = base.join(format!("{}.tar.bz2.part", model.folder));
     let staging = base.join(format!("{}.unpack", model.folder));
@@ -164,6 +204,10 @@ fn unpack(archive: &Path, into: &Path) -> io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn find(id: Option<&str>) -> &'static Model {
+        crate::features::models::find(MODELS, id)
+    }
 
     fn scratch(name: &str) -> std::path::PathBuf {
         let dir = std::env::temp_dir().join(format!("island-tts-{name}-{}", std::process::id()));
@@ -209,7 +253,7 @@ mod tests {
         }
         assert!(!model.installed(&dir), "voices.bin is missing");
         fs::write(dir.join(VOICES), "x").unwrap();
-        assert_eq!(installed_in(&base), ["kitten-nano"]);
+        assert!(model.installed(&dir));
         remove(&base).unwrap();
     }
 

@@ -4,7 +4,7 @@ import { primaryKey } from "../../sdk/platform";
 import { type Glance, definePlugin } from "../../sdk/plugin";
 import { type SelectOption, select } from "../../sdk/select";
 import type { ClipboardPort } from "../clipboard/service";
-import { modelCard, modelFiles, modelLine as line } from "../model-files";
+import { fieldRow as row, modelCard, modelFiles, modelLine as line } from "../model-files";
 import type { DictationPort, Microphone, ModelInfo, Phase } from "./service";
 import { DEFAULT_MODEL, MODELS, modelById } from "./models";
 
@@ -107,7 +107,6 @@ export const dictation = definePlugin({
     const mic = select(micOptions([], host.options().microphone), host.options().microphone, (id) => host.setOptions({ microphone: id }), "Microphone");
     const picker = select(modelOptions([]), host.options().model, (id) => host.setOptions({ model: id }), "Speech model");
     const files = modelFiles(port);
-    const row = (label: string, control: HTMLElement) => h("div", { class: "field wide" }, h("div", {}, h("div", { class: "field-label" }, label)), control);
     root.append(row("Microphone", mic.el), row("Speech model", picker.el), files.el);
     // Microphones come and go: look again whenever the window comes back to the front.
     const listMics = () =>
