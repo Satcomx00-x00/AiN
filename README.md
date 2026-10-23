@@ -220,13 +220,16 @@ Tests:
 | Command | What it runs |
 | --- | --- |
 | `bun run test` | Unit tests next to the code (`src/**/*.test.ts`), plus the integration flows in `src/integration`: the real island and settings page on fake system services |
-| `bun run test:coverage` | The same, with a coverage report in `coverage/` |
+| `bun run test:coverage` | The same, with a coverage report in `coverage/`; fails below 100% |
 | `bun run test:e2e` | End-to-end tests in Chromium (`e2e/`): the island, settings, clipboard popup and capture editor on the dev server, with real layout, pointer and animations |
 | `bun run test:smoke` | Smoke tests (`smoke/`): builds, then opens each window of the production build with a stand-in for the Tauri backend |
 | `bun run screenshots` | Retakes the README's pictures of the pill styles, sizes, startup animation and appearance settings (`screenshots/`), into `img/` |
 
 The browser tests run in Chromium (the engine of Windows' WebView2) and WebKit (the engine of macOS' WKWebView and
 Linux's WebKitGTK). Install them once: `bunx playwright install chromium webkit`.
+
+The whole strategy, and the systems CI tests on (Windows 11, Ubuntu, Fedora 44, macOS, all x64), is in
+[docs/testing.md](docs/testing.md).
 
 Rust checks (from `ain/src-tauri`):
 
