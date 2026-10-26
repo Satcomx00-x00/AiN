@@ -55,5 +55,4 @@ Publishing is off until the repository variable `NPM_PUBLISH` is `true`.
 3. Set `NPM_PUBLISH` to `true` (Settings › Secrets and variables › Actions › Variables) and release.
 4. For each of the six packages, add a trusted publisher on npmjs.com (package › Settings): GitHub
    Actions, repository `Satcomx00-x00/AiN`, workflow `release.yml`. Then delete the `NPM_TOKEN`
-   secret. From then on the job publishes through OIDC and no token is stored. (No provenance attestation:
-   npm only issues them for public repositories.)
+   secret. From then on the job publishes through OIDC, with provenance, and no token is stored.

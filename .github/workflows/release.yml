@@ -354,9 +354,8 @@ jobs:
 
   # `bun i -g @satcomx00/ain`: one package per platform, and the main one, whose optional
   # dependencies make npm/bun fetch only the one for the machine (see npm/README.md). Off until the
-  # `NPM_PUBLISH` variable is `true`. Publishes with npm's trusted publishing (OIDC), or with the
-  # `NPM_TOKEN` secret when set (needed for each package's first version). No provenance: npm only
-  # attests packages built from public repositories.
+  # `NPM_PUBLISH` variable is `true`. Publishes with npm's trusted publishing (OIDC, with
+  # provenance), or with the `NPM_TOKEN` secret when set (needed for each package's first version).
   npm:
     name: Publish to npm
     needs: [plan, fedora, publish]
@@ -366,7 +365,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write # trusted publishing
+      id-token: write # trusted publishing and provenance
     defaults:
       run:
         working-directory: npm
@@ -410,5 +409,5 @@ jobs:
               echo "$name@$VERSION is already out"
               continue
             fi
-            npm publish "$dir" --access public
+            npm publish "$dir" --access public --provenance
           done < "$RUNNER_TEMP/packages.txt"
