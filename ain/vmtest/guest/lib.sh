@@ -82,7 +82,26 @@ ensure_app() { { app_running && [ -n "$(island)" ]; } || start_app; }
 
 # ---------- the pointer and the island ----------
 
-geom() { eval "$(xdotool getwindowgeometry --shell "$1")"; } # sets X Y WIDTH HEIGHT
+# geom WINDOW: sets X Y WIDTH HEIGHT to the part of WINDOW that takes input (its X11 input shape's
+# bounds), on screen. The island's window keeps one size: its input follows the pill.
+geom() {
+  eval "$(xdotool getwindowgeometry --shell "$1")"
+  local dx dy
+  read -r dx dy WIDTH HEIGHT < <(python3 -c "
+import ctypes, sys
+x11, xext = ctypes.CDLL('libX11.so.6'), ctypes.CDLL('libXext.so.6')
+class Rect(ctypes.Structure): _fields_ = [('x', ctypes.c_short), ('y', ctypes.c_short), ('w', ctypes.c_ushort), ('h', ctypes.c_ushort)]
+x11.XOpenDisplay.restype = ctypes.c_void_p
+xext.XShapeGetRectangles.restype = ctypes.POINTER(Rect)
+xext.XShapeGetRectangles.argtypes = [ctypes.c_void_p, ctypes.c_ulong, ctypes.c_int, ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_int)]
+d, n, order = x11.XOpenDisplay(None), ctypes.c_int(), ctypes.c_int()
+r = xext.XShapeGetRectangles(d, int(sys.argv[1]), 2, ctypes.byref(n), ctypes.byref(order))  # ShapeInput
+rs = [r[i] for i in range(n.value)]
+if not rs: sys.exit(print(0, 0, 0, 0))
+l, t = min(q.x for q in rs), min(q.y for q in rs)
+print(l, t, max(q.x + q.w for q in rs) - l, max(q.y + q.h for q in rs) - t)" "$1")
+  X=$((X + dx)) Y=$((Y + dy))
+}
 under() { xdotool getmouselocation --shell | sed -n 's/^WINDOW=//p'; }
 # point X Y: to the bottom-right corner, then a relative move: exact with the flat pointer profile.
 point() {

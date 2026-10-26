@@ -21,7 +21,7 @@ export interface WindowPort {
   island(): Promise<Island>;
   /**
    * `canvas`: the largest the window ever needs to be. `region`: the part that takes input now.
-   * The backend decides how: click-through hit-testing, or resizing where that isn't possible.
+   * The backend decides how: click-through hit-testing, or shaping the window's input where the cursor can't be seen (Wayland).
    */
   layout(canvas: Size, region: Size): Promise<void>;
   /**

@@ -42,12 +42,15 @@ fn info(info: State<'_, Info>) -> Island {
 #[tauri::command]
 #[specta::specta]
 async fn layout(window: Window, hit: State<'_, Arc<HitArea>>, canvas: Size, region: Size) -> Res<()> {
-    let region = window::clamp(region.width, region.height);
+    let (canvas, region) = (window::clamp(canvas.width, canvas.height), window::clamp(region.width, region.height));
+    // Not resized to the region there: each resize (and move, under XWayland) lands a frame or more
+    // after the last, so the pill jumped and shook as it opened and folded.
+    #[cfg(target_os = "linux")]
     if window::is_wayland() {
-        window::place(&window, region)?;
-        return Ok(());
+        hit.ensure_canvas(canvas, |c| window::place(&window, c))?;
+        return window::take_input(&window, canvas, region);
     }
-    let placed = hit.ensure_canvas(window::clamp(canvas.width, canvas.height), |c| window::place(&window, c))?;
+    let placed = hit.ensure_canvas(canvas, |c| window::place(&window, c))?;
     hit.set_region(hit::region_rect(placed, region, hit::MARGIN));
     hit.ensure_tracking(|area| {
         let w = window.clone();

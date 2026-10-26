@@ -25,8 +25,8 @@ pub fn clamp(width: f64, height: f64) -> LogicalSize<f64> {
     LogicalSize::new(width.clamp(1.0, MAX.width), height.clamp(1.0, MAX.height))
 }
 
-/// Wayland can't report the global cursor, so there the window is resized instead of hit-tested,
-/// and the compositor keeps it anchored to the top edge.
+/// Wayland can't report the global cursor, even to an XWayland window, so there the window's input
+/// is shaped to the pill instead of hit-tested.
 pub fn is_wayland() -> bool {
     cfg!(target_os = "linux") && std::env::var_os("WAYLAND_DISPLAY").is_some()
 }
@@ -72,6 +72,34 @@ pub fn place<R: Runtime>(w: &Window<R>, size: LogicalSize<f64>) -> Res<Placement
         w.set_position(origin)?;
     }
     Ok(Placement { origin, size: physical, scale })
+}
+
+/// The part of the window at `canvas` that takes input: `region`, centered at the top. Clicks
+/// anywhere else go through to what's under the window, which keeps its size and place.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+pub fn input_rect(canvas: LogicalSize<f64>, region: LogicalSize<f64>) -> (i32, i32, i32, i32) {
+    let (width, height) = (region.width.min(canvas.width).ceil(), region.height.min(canvas.height).ceil());
+    (((canvas.width - width) / 2.0).floor() as i32, 0, width as i32, height as i32)
+}
+
+/// Shapes the window's input to `input_rect`. GDK makes it the X11 window's input shape, or the
+/// Wayland surface's input region.
+#[cfg(target_os = "linux")]
+pub fn take_input<R: Runtime>(w: &Window<R>, canvas: LogicalSize<f64>, region: LogicalSize<f64>) -> Res<()> {
+    use gtk::{cairo, prelude::WidgetExt};
+    let (x, y, width, height) = input_rect(canvas, region);
+    let window = w.clone();
+    w.run_on_main_thread(move || {
+        let shaped = window.gtk_window().map(|g| {
+            g.window().map(|gdk| {
+                gdk.input_shape_combine_region(&cairo::Region::create_rectangle(&cairo::RectangleInt::new(x, y, width, height)), 0, 0);
+            })
+        });
+        if !matches!(shaped, Ok(Some(()))) {
+            eprintln!("island: could not shape the window's input");
+        }
+    })?;
+    Ok(())
 }
 
 #[cfg(target_os = "macos")]
@@ -129,6 +157,13 @@ mod tests {
     fn clamps_oversized_window() {
         let p = top_center(PhysicalPosition::new(0, 0), PhysicalSize::new(100, 100), PhysicalSize::new(300, 50));
         assert_eq!(p, PhysicalPosition::new(0, 0));
+    }
+
+    #[test]
+    fn input_is_top_centered_in_the_canvas() {
+        assert_eq!(input_rect(LogicalSize::new(472.0, 384.0), LogicalSize::new(220.0, 32.0)), (126, 0, 220, 32));
+        assert_eq!(input_rect(LogicalSize::new(472.0, 384.0), LogicalSize::new(219.5, 31.2)), (126, 0, 220, 32));
+        assert_eq!(input_rect(LogicalSize::new(200.0, 32.0), LogicalSize::new(472.0, 384.0)), (0, 0, 200, 32));
     }
 
     #[test]
