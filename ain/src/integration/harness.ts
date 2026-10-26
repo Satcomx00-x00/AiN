@@ -7,6 +7,7 @@
 import { vi } from "vitest";
 import type { Sdk } from "../sdk";
 import type { Services } from "../features/services";
+import { settingsProviders } from "../shell/providers";
 import type { Clip } from "../features/clipboard/service";
 import type { ModelInfo, Phase } from "../features/dictation/service";
 import type { Control, Track } from "../features/media/service";
@@ -87,6 +88,8 @@ export function system() {
   /** The plugins signed in to an account, by id. */
   const accounts = new Set<string>();
   const services: Services = {
+    // The providers saved in Settings; each lists the same two models.
+    providers: settingsProviders((onChange) => store.watch(onChange), async () => ["whisper-1", "tts-1"]),
     oauth: perPlugin((plugin) => ({
       signIn: async () => void accounts.add(plugin),
       token: async () => (accounts.has(plugin) ? `token of ${plugin}` : null),

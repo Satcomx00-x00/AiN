@@ -1,6 +1,7 @@
 //! Read aloud: select text anywhere, press a shortcut, and it is read out loud. Speech is written on
 //! this machine through sherpa-onnx (Kokoro, Kitten, Piper voices), by the model the user picks;
-//! nothing leaves the computer. Each model is downloaded once, when the user asks.
+//! nothing leaves the computer. Each model is downloaded once, when the user asks. Or, when the user
+//! picks one of their AI providers instead (`shell::providers`), its text-to-speech model reads.
 //!
 //! A worker thread owns the speakers. Each reading gets a thread that writes the speech a sentence
 //! at a time, so it starts after the first sentence rather than once the whole text is written.

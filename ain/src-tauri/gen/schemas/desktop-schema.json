@@ -2931,6 +2931,24 @@
           "markdownDescription": "Denies the state command without any pre-configured scope."
         },
         {
+          "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-models`",
+          "type": "string",
+          "const": "providers:default",
+          "markdownDescription": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-models`"
+        },
+        {
+          "description": "Enables the models command without any pre-configured scope.",
+          "type": "string",
+          "const": "providers:allow-models",
+          "markdownDescription": "Enables the models command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the models command without any pre-configured scope.",
+          "type": "string",
+          "const": "providers:deny-models",
+          "markdownDescription": "Denies the models command without any pre-configured scope."
+        },
+        {
           "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-get`\n- `allow-set`\n- `allow-saved-keys`",
           "type": "string",
           "const": "secrets:default",

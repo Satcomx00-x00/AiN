@@ -3,6 +3,15 @@
 All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.10.0](https://github.com/Satcomx00-x00/AiN/compare/v0.9.0..v0.10.0) - 2026-10-26
+
+### Features
+
+- **providers:** Global AI providers for dictation and read aloud ([#32](https://github.com/Satcomx00-x00/AiN/pull/32)) ([1513fb4](https://github.com/Satcomx00-x00/AiN/commit/1513fb4c56261c5400ad7f9514192a435fe37f10))
+
+### CI
+
+- Fail the rust jobs below a line coverage floor per os ([#28](https://github.com/Satcomx00-x00/AiN/pull/28)) ([08c825a](https://github.com/Satcomx00-x00/AiN/commit/08c825a60525b95bcb6b7f561222228667327825))
 ## [0.9.0](https://github.com/Satcomx00-x00/AiN/compare/v0.8.0..v0.9.0) - 2026-10-23
 
 ### Features

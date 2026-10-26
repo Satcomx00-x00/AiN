@@ -28,6 +28,7 @@ import type { Track } from "../features/media/service";
 import { idlePalette } from "../features/palette/service";
 import { idleZones } from "../features/zones/service";
 import { noOAuth } from "../shell/oauth";
+import { memoryProviders } from "../shell/providers";
 
 const params = new URLSearchParams(location.search);
 const t0 = Date.now();
@@ -65,6 +66,7 @@ const track: Track = {
 
 const fake: Services = {
   oauth: noOAuth,
+  providers: memoryProviders(),
   palette: idlePalette,
   zones: idleZones,
   stats: {

@@ -49,12 +49,14 @@ well, register it as a self-hosted runner and add it to the matrices.
 | Code | Target | How it's enforced |
 | --- | --- | --- |
 | Frontend (`ain/src`) | **100%** statements, branches, functions and lines | `vitest.config.ts` thresholds; `bun run test:coverage` fails the Frontend job below them |
-| Backend (`ain/src-tauri`) | Measured per OS | `cargo llvm-cov` on Windows, Linux and macOS: a summary in each job's page, `lcov.info` as an artifact |
+| Backend (`ain/src-tauri`) | Lines: **52%** Linux, **48%** Windows and macOS, at least | `cargo llvm-cov` on each OS fails the Rust job below its floor (`min_lines` in `ci.yml`), with a summary in the job's page and `lcov.info` as an artifact |
 
 Left out of the frontend's figure, on purpose: the generated IPC bindings (`bindings.ts`, checked
 by `cargo test` instead), the dev-only preview page, and the integration harness, which is test code.
 
-The backend can't be held to one figure: each OS compiles only its own backends (`windows.rs`,
+The floors sit about 2 points under what each OS measured when they were set (53.97%, 50.10%,
+50.43%): raise them as tests are added, never lower them to get green. The backend can't be held to
+one figure: each OS compiles only its own backends (`windows.rs`,
 `linux.rs`, `macos/`), so every line is covered on the OS it runs on, and the three reports
 together cover the code. What a CI machine can't do is tested by hand: the hardware smoke tests,
 marked `#[ignore]`, list this machine's microphones and download the voice archives:

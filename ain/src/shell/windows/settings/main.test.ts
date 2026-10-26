@@ -836,3 +836,117 @@ describe("Opening Settings at a place", () => {
     expect(page.page.querySelector(".highlight")).toBeNull();
   });
 });
+
+describe("Settings → AI providers", () => {
+  const type = (input: HTMLInputElement, value: string) => {
+    input.value = value;
+    input.dispatchEvent(new Event("change"));
+  };
+  const box = (card: HTMLElement, label: string) => card.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`)!;
+
+  it("adds a known service, ready to read its key from the usual variable", async () => {
+    environment();
+    const sys = system();
+    const page = await load(sys, "providers");
+    expect(page.heading()).toBe("AI providers");
+    press(page.page, "Add");
+    await page.saved();
+    expect((await sys.settings()).providers).toEqual([{ id: "openai", name: "OpenAI", preset: "openai", baseUrl: "https://api.openai.com/v1", auth: { kind: "env", name: "OPENAI_API_KEY" } }]);
+    pick(page.page.querySelector<HTMLElement>("#card-provider-add")!, "Groq");
+    press(page.page, "Add");
+    await page.saved();
+    expect((await sys.settings()).providers.map((p) => p.id)).toEqual(["openai", "groq"]);
+    expect(page.card("Groq")).toBeDefined();
+  });
+
+  it("edits a custom server: its name, its address, and a token file", async () => {
+    environment();
+    const sys = system();
+    dialog.open.mockResolvedValueOnce("/run/secrets/jwt").mockRejectedValueOnce(new Error("no portal")).mockResolvedValueOnce(null);
+    const other = { id: "openai", name: "OpenAI", preset: "openai", baseUrl: "https://api.openai.com/v1", auth: { kind: "file", path: "/k" } } as const;
+    await sys.save((s) => ({ ...s, providers: [{ id: "custom", name: "Custom", preset: "custom", baseUrl: "http://localhost:8000/v1", auth: { kind: "none" } }, other] }));
+    const page = await load(sys, "providers", { inApp: true });
+    const card = page.card("Custom");
+    type(box(card, "Name"), " Lab ");
+    type(box(card, "Name"), "");
+    expect(box(card, "Name").value).toBe("Lab");
+    type(box(card, "Address"), "ftp://lab");
+    expect(card.querySelector(".field-error")?.textContent).toMatch(/^The address/);
+    type(box(card, "Address"), "http://lab:8000/v1");
+    press(card, "File");
+    expect(buttonIn(card, "Test connection")?.disabled).toBe(true);
+    press(card, "Browse…");
+    await page.saved();
+    expect(dialog.open).toHaveBeenLastCalledWith({ directory: false, multiple: false });
+    expect((await sys.settings()).providers).toEqual([{ id: "custom", name: "Lab", preset: "custom", baseUrl: "http://lab:8000/v1", auth: { kind: "file", path: "/run/secrets/jwt" } }, other]);
+    press(card, "Browse…");
+    press(card, "Browse…");
+    await page.saved();
+    expect(box(card, "Token file").value).toBe("/run/secrets/jwt");
+    expect(card.querySelector("h2")?.textContent).toBe("Lab");
+  });
+
+  it("reads the token from a variable, or from a file typed in (no picker outside the app)", async () => {
+    environment();
+    const sys = system();
+    const page = await load(sys, "providers");
+    press(page.page, "Add");
+    const card = page.card("OpenAI");
+    type(box(card, "Environment variable"), "1BAD");
+    expect(card.querySelector(".field-error")?.textContent).toMatch(/environment variable/);
+    type(box(card, "Environment variable"), "MY_KEY");
+    press(card, "None");
+    press(card, "None");
+    press(card, "Variable");
+    type(box(card, "Token file"), "/tmp/t");
+    press(card, "File");
+    press(card, "Browse…");
+    await page.saved();
+    expect(dialog.open).not.toHaveBeenCalled();
+    expect((await sys.settings()).providers[0]?.auth).toEqual({ kind: "file", path: "/tmp/t" });
+  });
+
+  it("tests the connection, then removes the provider", async () => {
+    environment();
+    const sys = system();
+    await sys.save((s) => ({ ...s, providers: [{ id: "lab", name: "Lab", preset: "custom", baseUrl: "http://lab/v1", auth: { kind: "none" } }] }));
+    const models = vi.spyOn(sys.services.providers, "models");
+    const page = await load(sys, "providers");
+    const result = () => page.card("Lab").querySelector("[role=status]")?.textContent;
+    press(page.card("Lab"), "Test connection");
+    expect(result()).toBe("Connecting…");
+    await advance(0);
+    expect(result()).toBe("Connected · 2 models: whisper-1, tts-1");
+    models.mockRejectedValueOnce(new Error("The provider refused the token (401)")).mockRejectedValueOnce("down");
+    press(page.card("Lab"), "Test connection");
+    await advance(0);
+    expect(result()).toBe("The provider refused the token (401)");
+    press(page.card("Lab"), "Test connection");
+    await advance(0);
+    expect(result()).toBe("down");
+    press(page.card("Lab"), "Remove");
+    await page.saved();
+    expect((await sys.settings()).providers).toEqual([]);
+    expect(page.card("Lab")).toBeUndefined();
+  });
+
+  it("says how many models a provider lists", async () => {
+    const { testResult } = await import("./providers");
+    expect(testResult([])).toBe("Connected, but it lists no models");
+    expect(testResult(["a"])).toBe("Connected · 1 model: a");
+    expect(testResult(["a", "b", "c", "d", "e", "f", "g"])).toBe("Connected · 7 models: a, b, c, d, e, f…");
+  });
+
+  it("lets Dictation run on a provider's model instead of its own", async () => {
+    environment();
+    const sys = system();
+    await sys.save((s) => ({ ...s, providers: [{ id: "lab", name: "Lab", preset: "custom", baseUrl: "http://lab/v1", auth: { kind: "none" } }] }));
+    const page = await load(sys, "widgets", { inApp: true });
+    const engine = page.card("Dictation").querySelector<HTMLElement>(".engine")!;
+    pick(engine, "Lab");
+    type(engine.querySelector<HTMLInputElement>('input[aria-label="Provider model"]')!, "whisper-1");
+    await page.saved();
+    expect((await sys.settings()).options.dictation).toMatchObject({ engine: "lab", remoteModel: "whisper-1" });
+    expect(page.field("Speech model").hidden).toBe(true);
+  });
+});

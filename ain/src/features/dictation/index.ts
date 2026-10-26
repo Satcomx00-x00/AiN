@@ -5,6 +5,8 @@ import { type Glance, definePlugin } from "../../sdk/plugin";
 import { type SelectOption, select } from "../../sdk/select";
 import type { ClipboardPort } from "../clipboard/service";
 import { keepLoaded, fieldRow as row, modelCard, modelFiles, modelLine as line } from "../model-files";
+import { engineOptions, enginePanel, remoteName } from "../engine";
+import type { AiProvider, ProvidersPort } from "../../shell/providers";
 import type { DictationPort, Microphone, ModelInfo, Phase } from "./service";
 import { DEFAULT_MODEL, MODELS, modelById } from "./models";
 
@@ -74,11 +76,11 @@ export function statusText(phase: Phase): string {
   }
 }
 
-/** Speech to text, on this machine, typed into whatever app has the cursor. */
+/** Speech to text, on this machine or by an AI provider, typed into whatever app has the cursor. */
 export const dictation = definePlugin({
   id: "dictation",
   label: "Dictation",
-  description: "Speech to text, on this computer.",
+  description: "Speech to text, on this computer or by an AI provider.",
   icon: MIC,
   slots: ["glance", "tab"],
   options: {
@@ -86,7 +88,8 @@ export const dictation = definePlugin({
       ["toggle", "Press to start and stop"],
       ["hold", "Hold to talk"],
     ]),
-    // These two are drawn by the settings panel, which knows the microphones and the downloads.
+    // These are drawn by the settings panel, which knows the providers, the microphones and the downloads.
+    ...engineOptions(),
     microphone: { ...text("Microphone"), inPanel: true },
     model: { ...choice("Speech model", DEFAULT_MODEL, MODELS.map((m) => [m.id, m.name] as const)), inPanel: true },
     modelDir: folder("Model folder", "Default folder"),
@@ -103,12 +106,16 @@ export const dictation = definePlugin({
     },
   ],
   // Choosing the microphone and the model, and downloading the model, happen here in Settings.
-  settingsPanel(root, { dictation: port }: { dictation: DictationPort }, host) {
+  settingsPanel(root, { dictation: port, providers }: { dictation: DictationPort; providers: ProvidersPort }, host) {
     let mics: Microphone[] = [];
     const mic = select(micOptions([], host.options().microphone), host.options().microphone, (id) => host.setOptions({ microphone: id }), "Microphone");
     const picker = select(modelOptions([]), host.options().model, (id) => host.setOptions({ model: id }), "Speech model");
     const files = modelFiles(port);
-    root.append(row("Microphone", mic.el), row("Speech model", picker.el), files.el);
+    const modelRow = row("Speech model", picker.el);
+    const engine = enginePanel(providers, host, "stt", (local) => {
+      for (const el of [modelRow, files.el]) el.hidden = !local;
+    });
+    root.append(row("Microphone", mic.el), engine.el, modelRow, files.el);
     // Microphones come and go: look again whenever the window comes back to the front.
     const listMics = () =>
       port.microphones().then((next) => {
@@ -126,13 +133,15 @@ export const dictation = definePlugin({
     });
     return () => {
       window.removeEventListener("focus", listMics);
+      engine.stop();
       void watching.then((stop) => stop(), () => {});
     };
   },
-  setup({ dictation: port, clipboard }: { dictation: DictationPort; clipboard: ClipboardPort }, host) {
+  setup({ dictation: port, clipboard, providers: aiProviders }: { dictation: DictationPort; clipboard: ClipboardPort; providers: ProvidersPort }, host) {
     let phase: Phase = { phase: "idle" };
     let since = 0;
     let model: ModelInfo | null = null;
+    let providers: readonly AiProvider[] = [];
     let lastText = "";
 
     let mainIcon = MIC;
@@ -151,14 +160,15 @@ export const dictation = definePlugin({
       const markup = listening ? STOP : MIC;
       if (markup !== mainIcon) main.replaceChildren(icon(markup));
       mainIcon = markup;
-      main.disabled = phase.phase === "transcribing" || model?.state !== "ready";
+      const remote = remoteName(providers, host.options());
+      main.disabled = phase.phase === "transcribing" || (!remote && model?.state !== "ready");
       status.textContent = statusText(phase);
       status.classList.toggle("dict-quote", phase.phase === "done" && !!phase.text);
       copy.hidden = !(phase.phase === "done" && phase.text);
       level.hidden = !listening;
       level.style.setProperty("--p", String(phase.phase === "listening" ? phase.level : 0));
 
-      if (model) card.draw(modelById(model.model).name, model);
+      if (model) card.draw(remote ?? modelById(model.model).name, remote ? { ...model, state: "ready" } : model);
     };
 
     void port.watch((next) => {
@@ -170,6 +180,11 @@ export const dictation = definePlugin({
     });
     void port.watchModel((next) => {
       model = next;
+      draw();
+    });
+    // Follows the settings too: switching engines there redraws the card.
+    void aiProviders.watch((next) => {
+      providers = next;
       draw();
     });
 

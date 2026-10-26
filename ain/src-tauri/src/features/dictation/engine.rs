@@ -18,7 +18,10 @@ use serde_json::Value;
 use tauri::AppHandle;
 
 use super::{Command, FEATURE, KEEP_WARM, MAX_SECONDS, Phase, Shared, chunk, deliver, lock, model};
-use crate::shell::settings;
+use crate::shell::{
+    providers::{self, Engine, Remote},
+    settings,
+};
 
 /// One dictation in progress.
 struct Session {
@@ -135,10 +138,33 @@ fn decode(recognizer: &sherpa_onnx::OfflineRecognizer, samples: &[f32]) -> Strin
     stream.get_result().map(|r| r.text.trim().to_string()).unwrap_or_default()
 }
 
+/// What turns speech into text: the model on this machine, or a provider's.
+enum Recognizer {
+    Local(Arc<sherpa_onnx::OfflineRecognizer>),
+    Remote(Remote),
+}
+
+impl Recognizer {
+    fn open(shared: &Shared, engine: Engine) -> Result<Self, String> {
+        match engine {
+            Engine::Local => shared.models.engine().map(Self::Local),
+            Engine::Remote(remote) => Ok(Self::Remote(remote)),
+        }
+    }
+
+    fn transcribe(&self, samples: &[f32]) -> Result<String, String> {
+        match self {
+            Self::Local(recognizer) => Ok(decode(recognizer, samples)),
+            Self::Remote(remote) => remote.transcribe(samples, chunk::RATE),
+        }
+    }
+}
+
 /// Decodes chunks as they come; once the session finishes, delivers the text (unless cancelled meanwhile).
-fn decoder(app: AppHandle, shared: Arc<Shared>, id: u64, chunks: Receiver<Vec<f32>>, finished: Receiver<()>) {
+fn decoder(app: AppHandle, shared: Arc<Shared>, id: u64, engine: Engine, chunks: Receiver<Vec<f32>>, finished: Receiver<()>) {
     let current = || shared.session.load(Ordering::SeqCst) == id;
-    let recognizer = match shared.models.engine() {
+    let local = engine == Engine::Local;
+    let recognizer = match Recognizer::open(&shared, engine) {
         Ok(r) => r,
         Err(message) => {
             return if current() {
@@ -147,16 +173,28 @@ fn decoder(app: AppHandle, shared: Arc<Shared>, id: u64, chunks: Receiver<Vec<f3
         }
     };
     let mut parts = Vec::new();
+    // A failure is told once the session ends: while listening, the level keeps the pill busy.
+    let mut failed = None;
     for samples in chunks {
         if !current() {
             return;
         }
-        parts.push(decode(&recognizer, &samples));
+        if failed.is_none() {
+            match recognizer.transcribe(&samples) {
+                Ok(text) => parts.push(text),
+                Err(message) => failed = Some(message),
+            }
+        }
     }
-    shared.models.touch();
+    if local {
+        shared.models.touch();
+    }
     // The chunk channel also closes on cancel; only a finished session gets delivered.
     if finished.try_recv().is_err() || !current() {
         return;
+    }
+    if let Some(message) = failed {
+        return shared.publish(&app, Phase::Error { message });
     }
     let text = chunk::join(&parts);
     let delivery = (!text.is_empty()).then(|| {
@@ -179,14 +217,19 @@ impl Mic {
     }
 
     fn start(&mut self, app: &AppHandle, shared: &Arc<Shared>) {
-        if !shared.models.ready() {
+        let settings = settings::current(app);
+        let engine = match providers::chosen(&settings, FEATURE) {
+            Ok(engine) => engine,
+            Err(message) => return shared.publish(app, Phase::Error { message }),
+        };
+        if engine == Engine::Local && !shared.models.ready() {
             return shared.publish(app, Phase::NeedsModel);
         }
         if matches!(shared.phase.get(), Phase::Transcribing) {
             return;
         }
         let captured = Arc::new(Mutex::new(Vec::new()));
-        let chosen = super::chosen_microphone(&settings::current(app));
+        let chosen = super::chosen_microphone(&settings);
         let (stream, rate) = match open_mic(chosen.as_deref(), Arc::clone(&captured)) {
             Ok(s) => s,
             Err(message) => return shared.publish(app, Phase::Error { message }),
@@ -196,8 +239,9 @@ impl Mic {
         let (finished, finished_rx) = mpsc::channel();
         let (app2, shared2) = (app.clone(), Arc::clone(shared));
         // The decoder loads the model while the user speaks.
-        let spawned =
-            std::thread::Builder::new().name("dictation-decode".into()).spawn(move || decoder(app2, shared2, id, chunks_rx, finished_rx));
+        let spawned = std::thread::Builder::new()
+            .name("dictation-decode".into())
+            .spawn(move || decoder(app2, shared2, id, engine, chunks_rx, finished_rx));
         if let Err(e) = spawned {
             return shared.publish(app, Phase::Error { message: e.to_string() });
         }
