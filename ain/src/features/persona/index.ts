@@ -24,7 +24,7 @@ export function localSetup(info: LocalInfo): { detail: string; action: "install"
   switch (info.state) {
     case "missing":
       return {
-        detail: "Not installed. Installing takes about 5 GB (Python and PyTorch, with uv); the first conversation then downloads the model, about 17 GB.",
+        detail: "Not installed. Installing takes about 5 GB (Python and PyTorch, with uv); then download the model, about 17 GB.",
         action: "install",
         label: "Install",
       };
@@ -41,23 +41,46 @@ export function localSetup(info: LocalInfo): { detail: string; action: "install"
   }
 }
 
-/** Settings' row for PersonaPlex on this computer: its state, and the buttons to show its folder, install it or remove it. */
+/** Once installed, what Settings says about the model's weights while they are not all there, and what its button does; null once downloaded. */
+export function modelSetup(info: LocalInfo): { detail: string; action: "download" | "cancel"; label: string } | null {
+  if (info.state !== "ready") return null;
+  switch (info.model.state) {
+    case "missing":
+      return { detail: "Installed, but its model isn't downloaded yet: about 17 GB, with your Hugging Face token.", action: "download", label: "Download model" };
+    case "downloading":
+      return { detail: `Downloading the model… ${info.model.line}`.trim(), action: "cancel", label: "Cancel download" };
+    case "ready":
+      return null;
+    case "error":
+      return { detail: `Download failed: ${info.model.message}`, action: "download", label: "Retry download" };
+  }
+}
+
+/** Settings' row for PersonaPlex on this computer: its state, and the buttons to show its folder, install it or remove it, and download its model. */
 function localRow(port: PersonaPort): { readonly el: HTMLElement; draw(info: LocalInfo): void } {
   let current: LocalInfo | null = null;
   const detail = h("div", { class: "field-hint" });
+  const failed = (e: unknown) => void (detail.textContent = String(e));
   const action = button("", () => {
     const run = current && localSetup(current).action === "install" ? port.install() : port.remove();
-    run.catch((e: unknown) => (detail.textContent = String(e)));
+    run.catch(failed);
+  }, { class: "secondary" });
+  const model = button("", () => {
+    const run = current && modelSetup(current)?.action === "cancel" ? port.cancelDownload() : port.download();
+    run.catch(failed);
   }, { class: "secondary" });
   const folder = button("Show folder", () => void port.openFolder().catch(() => {}), { class: "secondary" });
-  const el = h("div", { class: "field" }, h("div", {}, h("div", { class: "field-label" }, "PersonaPlex"), detail), h("div", { class: "recorder" }, folder, action));
+  const el = h("div", { class: "field" }, h("div", {}, h("div", { class: "field-label" }, "PersonaPlex"), detail), h("div", { class: "recorder" }, folder, action, model));
   const draw = (info: LocalInfo) => {
     current = info;
     const setup = localSetup(info);
-    detail.textContent = setup.detail;
+    const weights = modelSetup(info);
+    detail.textContent = weights?.detail ?? setup.detail;
     detail.title = info.dir;
     action.textContent = setup.label;
     action.classList.toggle("danger", setup.label === "Remove");
+    model.hidden = !weights;
+    model.textContent = weights?.label ?? "";
   };
   return { el, draw };
 }

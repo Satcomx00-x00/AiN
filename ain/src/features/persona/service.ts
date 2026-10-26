@@ -18,7 +18,11 @@ export interface PersonaPort {
   watchLocal(onChange: (info: LocalInfo) => void): Promise<() => void>;
   /** Installs PersonaPlex on this computer, in the background. */
   install(): Promise<void>;
-  /** Stops its install or its server, and deletes it with its weights. */
+  /** Downloads its model's weights, in the background, with the user's Hugging Face token. */
+  download(): Promise<void>;
+  /** Stops that download; the next one resumes it. */
+  cancelDownload(): Promise<void>;
+  /** Stops its install, its download or its server, and deletes it with its weights. */
   remove(): Promise<void>;
   openFolder(): Promise<void>;
 }
@@ -28,6 +32,8 @@ export const tauriPersona: PersonaPort = {
   control: async (command) => void (await commands.control(command)),
   watchLocal: (onChange) => follow(events.localChanged, commands.localStatus, onChange),
   install: async () => void (await commands.installLocal()),
+  download: async () => void (await commands.downloadModel()),
+  cancelDownload: async () => void (await commands.cancelDownload()),
   remove: async () => void (await commands.removeLocal()),
   openFolder: async () => void (await commands.openLocalDir()),
 };

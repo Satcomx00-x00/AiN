@@ -8,7 +8,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 
-const { persona, personaGlance, statusText, talking, voiceName, localSetup } = await import(".");
+const { persona, personaGlance, statusText, talking, voiceName, localSetup, modelSetup } = await import(".");
 const { VOICES } = await import("./voices");
 const { bindings } = await import("../../shell/commands");
 const { catalogue } = await import("..");
@@ -19,7 +19,7 @@ import type { LocalInfo, Phase, PersonaPort } from "./service";
 const live = (said = "", speaking = false): Phase => ({ phase: "live", level: 0.5, speaking, said });
 
 /** A conversation backend whose phase the test pushes. */
-function fakePort(installed: LocalInfo = { dir: "/m/personaplex", running: false, state: "missing" }) {
+function fakePort(installed: LocalInfo = { dir: "/m/personaplex", running: false, model: { state: "missing" }, state: "missing" }) {
   let push: (phase: Phase) => void = () => {};
   let pushLocal: (info: LocalInfo) => void = () => {};
   const stopLocal = vi.fn();
@@ -28,6 +28,8 @@ function fakePort(installed: LocalInfo = { dir: "/m/personaplex", running: false
     control: vi.fn(async () => {}),
     watchLocal: vi.fn(async (onChange: (info: LocalInfo) => void) => ((pushLocal = onChange), onChange(installed), stopLocal)),
     install: vi.fn(async () => {}),
+    download: vi.fn(async () => {}),
+    cancelDownload: vi.fn(async () => {}),
     remove: vi.fn(async () => {}),
     openFolder: vi.fn(async () => {}),
   } satisfies PersonaPort;
@@ -130,7 +132,7 @@ describe("its settings", () => {
   });
 
   it("says where PersonaPlex stands on this computer", () => {
-    const at = { dir: "/m", running: false };
+    const at = { dir: "/m", running: false, model: { state: "missing" } } as const;
     expect(localSetup({ ...at, state: "missing" })).toMatchObject({ action: "install", label: "Install" });
     expect(localSetup({ ...at, state: "missing" }).detail).toContain("17 GB");
     expect(localSetup({ ...at, state: "installing", line: "" })).toEqual({ detail: "Installing…", action: "remove", label: "Cancel" });
@@ -139,6 +141,20 @@ describe("its settings", () => {
     expect(localSetup({ ...at, state: "ready" }).detail).toContain("10 minutes");
     expect(localSetup({ ...at, running: true, state: "ready" }).detail).toBe("Installed, running now");
     expect(localSetup({ ...at, state: "error", message: "uv failed" })).toEqual({ detail: "Install failed: uv failed", action: "install", label: "Retry" });
+  });
+
+  it("offers to download the model once installed, until it is there", () => {
+    const at = { dir: "/m", running: false };
+    expect(modelSetup({ ...at, model: { state: "missing" }, state: "missing" })).toBeNull();
+    expect(modelSetup({ ...at, model: { state: "missing" }, state: "ready" })).toMatchObject({ action: "download", label: "Download model" });
+    expect(modelSetup({ ...at, model: { state: "missing" }, state: "ready" })?.detail).toContain("Hugging Face token");
+    expect(modelSetup({ ...at, model: { state: "downloading", line: "model.safetensors: 12%" }, state: "ready" })).toEqual({
+      detail: "Downloading the model… model.safetensors: 12%",
+      action: "cancel",
+      label: "Cancel download",
+    });
+    expect(modelSetup({ ...at, model: { state: "error", message: "403 gated" }, state: "ready" })).toEqual({ detail: "Download failed: 403 gated", action: "download", label: "Retry download" });
+    expect(modelSetup({ ...at, model: { state: "ready" }, state: "ready" })).toBeNull();
   });
 });
 
@@ -157,20 +173,22 @@ describe("in Settings", () => {
     const localRow = [...root.querySelectorAll<HTMLElement>(".field")].find((f) => f.textContent?.startsWith("PersonaPlex"))!;
     const buttons = () => [...localRow.querySelectorAll("button")];
     const action = () => buttons()[1]!;
-    return { ...fake, root, host, models, cleanup, localRow, action, folder: buttons()[0]! };
+    return { ...fake, root, host, models, cleanup, localRow, action, folder: buttons()[0]!, model: () => buttons()[2]! };
   };
 
   it("installs PersonaPlex on this computer, then removes it", async () => {
-    const { port, local, localRow, action, folder, root, cleanup, stopLocal } = mount();
+    const { port, local, localRow, action, folder, model, root, cleanup, stopLocal } = mount();
     await tick();
     expect(localRow.hidden).toBe(false);
     expect(root.querySelector(".ui-select-trigger")?.textContent).toContain("On this computer");
     expect(localRow.textContent).toContain("Not installed");
     action().click();
     expect(port.install).toHaveBeenCalledOnce();
-    local({ dir: "/m/personaplex", running: false, state: "installing", line: "Downloading torch" });
+    expect(model().hidden).toBe(true);
+    local({ dir: "/m/personaplex", running: false, model: { state: "missing" }, state: "installing", line: "Downloading torch" });
     expect([localRow.textContent?.includes("Installing… Downloading torch"), action().textContent]).toEqual([true, "Cancel"]);
-    local({ dir: "/m/personaplex", running: true, state: "ready" });
+    local({ dir: "/m/personaplex", running: true, model: { state: "ready" }, state: "ready" });
+    expect(model().hidden).toBe(true);
     expect([action().textContent, action().classList.contains("danger")]).toEqual(["Remove", true]);
     action().click();
     expect(port.remove).toHaveBeenCalledOnce();
@@ -179,6 +197,24 @@ describe("in Settings", () => {
     cleanup();
     await tick();
     expect(stopLocal).toHaveBeenCalledOnce();
+  });
+
+  it("downloads the model once installed, and cancels the download", async () => {
+    const { port, local, localRow, model } = mount("", { dir: "/m/personaplex", running: false, model: { state: "missing" }, state: "ready" });
+    await tick();
+    expect([model().hidden, model().textContent]).toEqual([false, "Download model"]);
+    expect(localRow.textContent).toContain("isn't downloaded yet");
+    model().click();
+    expect(port.download).toHaveBeenCalledOnce();
+    local({ dir: "/m/personaplex", running: false, model: { state: "downloading", line: "model.safetensors: 40%" }, state: "ready" });
+    expect([localRow.textContent?.includes("Downloading the model… model.safetensors: 40%"), model().textContent]).toEqual([true, "Cancel download"]);
+    model().click();
+    expect(port.cancelDownload).toHaveBeenCalledOnce();
+    port.download.mockRejectedValueOnce("worker gone");
+    local({ dir: "/m/personaplex", running: false, model: { state: "error", message: "403 gated" }, state: "ready" });
+    model().click();
+    await tick();
+    expect(localRow.textContent).toContain("worker gone");
   });
 
   it("says why an install couldn't start", async () => {
@@ -202,7 +238,7 @@ describe("in Settings", () => {
   });
 
   it("or talks to an AI provider's server, with no model to pick", async () => {
-    const { host, localRow, root, models, cleanup } = mount("", { dir: "/m", running: false, state: "ready" });
+    const { host, localRow, root, models, cleanup } = mount("", { dir: "/m", running: false, model: { state: "ready" }, state: "ready" });
     await tick();
     root.querySelector<HTMLButtonElement>(".ui-select-trigger")!.click();
     [...root.querySelectorAll<HTMLElement>("[role=option]")].find((o) => o.textContent?.startsWith("GPU box"))!.click();

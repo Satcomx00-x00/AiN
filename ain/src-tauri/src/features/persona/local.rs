@@ -1,11 +1,11 @@
 //! PersonaPlex on this computer, run by the app: installed on request into its folder (a Python
-//! environment that uv makes, with NVIDIA's `moshi` package), its server started on localhost when
-//! a conversation needs it (the first start downloads the model's weights, about 17 GB, with the
-//! user's Hugging Face token), and stopped once unused for a while.
+//! environment that uv makes, with NVIDIA's `moshi` package), its model's weights (about 17 GB,
+//! with the user's Hugging Face token) downloaded on request or else by the first start, its server
+//! started on localhost when a conversation needs it, and stopped once unused for a while.
 
 use std::{
     fs,
-    io::{self, BufRead, BufReader, Read, Seek, SeekFrom},
+    io::{self, BufReader, Read, Seek, SeekFrom},
     net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream},
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
@@ -31,6 +31,14 @@ const EXTRAS: &[&str] = &["accelerate"];
 /// The Python its pinned torch supports; uv fetches it when the computer has none.
 const PYTHON: &str = "3.12";
 const UV_HELP: &str = "https://docs.astral.sh/uv/getting-started/installation/";
+/// The model's repository on Hugging Face, and the files its server fetches from it (all but the
+/// web page, which the app doesn't serve).
+const REPO: &str = "nvidia/personaplex-7b-v1";
+const FILES: &[&str] =
+    &["config.json", "tokenizer-e351c8d8-checkpoint125.safetensors", "tokenizer_spm_32k_3.model", "model.safetensors", "voices.tgz"];
+/// Fetches the files named after the repository into Hugging Face's cache, as the server would.
+const FETCH: &str =
+    "import sys\nfrom huggingface_hub import hf_hub_download\nfor name in sys.argv[2:]:\n    hf_hub_download(sys.argv[1], name)";
 /// Long enough for the first start, which downloads the weights.
 const READY_WITHIN: Duration = Duration::from_secs(2 * 60 * 60);
 const POLL: Duration = Duration::from_millis(250);
@@ -53,11 +61,28 @@ pub enum Setup {
     },
 }
 
-/// What Settings shows: the folder, the setup, and whether the server runs now.
+/// Whether the model's weights are in its folder.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Type)]
+#[serde(tag = "state", rename_all = "camelCase")]
+pub enum Weights {
+    #[default]
+    Missing,
+    /// Hugging Face's download at work: its last line of output.
+    Downloading {
+        line: String,
+    },
+    Ready,
+    Error {
+        message: String,
+    },
+}
+
+/// What Settings shows: the folder, the setup, the model, and whether the server runs now.
 #[derive(Debug, Clone, PartialEq, Serialize, Type)]
 pub struct LocalInfo {
     pub dir: String,
     pub running: bool,
+    pub model: Weights,
     #[serde(flatten)]
     pub setup: Setup,
 }
@@ -93,6 +118,13 @@ impl Place {
     pub fn installed(&self) -> bool {
         fs::read_to_string(self.marker()).is_ok_and(|m| m.trim() == PACKAGE) && self.python().is_file()
     }
+
+    /// Every file the server needs is in a snapshot of the cache (wherever it was downloaded from).
+    pub fn downloaded(&self) -> bool {
+        let snapshots = self.hf().join("hub").join(format!("models--{}", REPO.replace('/', "--"))).join("snapshots");
+        let snapshots = fs::read_dir(snapshots).into_iter().flatten().flatten();
+        snapshots.map(|s| s.path()).any(|s| FILES.iter().all(|f| s.join(f).is_file()))
+    }
 }
 
 /// uv: on the PATH, or where its installer puts it (an app started from the desktop may not have
@@ -123,21 +155,27 @@ fn tail(path: &Path) -> String {
     read().unwrap_or_default()
 }
 
-/// Runs a step of the install, reporting its last line of output, until it ends or is cancelled.
-fn run(mut command: Command, cancel: &AtomicBool, report: &mut dyn FnMut(&str)) -> Result<(), String> {
+/// Runs `what` (uv, or Python), reporting its last line of output, until it ends or is cancelled.
+fn run(mut command: Command, what: &str, cancel: &AtomicBool, report: &mut dyn FnMut(&str)) -> Result<(), String> {
     command.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::piped());
     platform::tie_to_app(&mut command);
-    let mut child = command.spawn().map_err(|e| format!("couldn't start uv: {e}"))?;
+    let mut child = command.spawn().map_err(|e| format!("couldn't start {what}: {e}"))?;
     let line = Arc::new(Mutex::new(String::new()));
     let reader = child.stderr.take().map(|stderr| {
         let line = Arc::clone(&line);
         thread::spawn(move || {
-            for chunk in BufReader::new(stderr).split(b'\n').map_while(Result::ok) {
-                let text = String::from_utf8_lossy(&chunk);
-                let last = last_line(&text);
-                if !last.is_empty() {
-                    *lock(&line) = last.to_string();
+            // Lines end with `\n`, or `\r` where a progress bar redraws its own.
+            let mut piece = Vec::new();
+            for byte in BufReader::new(stderr).bytes().map_while(Result::ok) {
+                if byte != b'\n' && byte != b'\r' {
+                    piece.push(byte);
+                    continue;
                 }
+                let text = String::from_utf8_lossy(&piece);
+                if !text.trim().is_empty() {
+                    *lock(&line) = text.trim().to_string();
+                }
+                piece.clear();
             }
         })
     });
@@ -166,7 +204,7 @@ fn run(mut command: Command, cancel: &AtomicBool, report: &mut dyn FnMut(&str)) 
         let _ = reader.join();
     }
     show(&mut shown);
-    if status.success() { Ok(()) } else { Err(format!("uv failed ({status}): {shown}")) }
+    if status.success() { Ok(()) } else { Err(format!("{what} failed ({status}): {shown}")) }
 }
 
 /// Installs PersonaPlex into `place`, from scratch.
@@ -178,11 +216,26 @@ fn install(place: &Place, cancel: &AtomicBool, report: &mut dyn FnMut(&str)) -> 
     fs::create_dir_all(&place.0).map_err(|e| e.to_string())?;
     let mut venv = Command::new(&uv);
     venv.args(["venv", "--python", PYTHON]).arg(place.venv());
-    run(venv, cancel, report)?;
+    run(venv, "uv", cancel, report)?;
     let mut pip = Command::new(&uv);
     pip.args(["pip", "install", "--python"]).arg(place.python()).arg(PACKAGE).args(EXTRAS);
-    run(pip, cancel, report)?;
+    run(pip, "uv", cancel, report)?;
     fs::write(place.marker(), PACKAGE).map_err(|e| e.to_string())
+}
+
+/// Downloads the model's weights into `place`'s cache, with PersonaPlex's own Python; an
+/// interrupted download resumes where it stopped.
+fn fetch_weights(place: &Place, token: Option<&str>, cancel: &AtomicBool, report: &mut dyn FnMut(&str)) -> Result<(), String> {
+    if !place.installed() {
+        return Err("PersonaPlex isn't installed: install it first.".into());
+    }
+    let token = token.ok_or_else(|| {
+        format!("the model needs your Hugging Face token: accept its license on huggingface.co/{REPO}, then paste a token above.")
+    })?;
+    let mut fetch = Command::new(place.python());
+    fetch.args(["-c", FETCH, REPO]).args(FILES).env("HF_HOME", place.hf()).env("HF_TOKEN", token).env("PYTHONUNBUFFERED", "1");
+    run(fetch, "the download", cancel, report)?;
+    if place.downloaded() { Ok(()) } else { Err("the download ended without every file.".into()) }
 }
 
 /// A port on localhost that nothing listens on now.
@@ -268,6 +321,10 @@ pub struct Local {
     used: Mutex<Instant>,
     installing: AtomicBool,
     cancel: AtomicBool,
+    weights: Live<Weights>,
+    downloading: AtomicBool,
+    /// Apart from `cancel`: stopping a download keeps the install.
+    stop_download: AtomicBool,
     /// Tells the windows what changed.
     changed: Box<dyn Fn(LocalInfo) + Send + Sync>,
 }
@@ -281,6 +338,9 @@ impl Local {
             used: Mutex::new(Instant::now()),
             installing: AtomicBool::new(false),
             cancel: AtomicBool::new(false),
+            weights: Live::new(if place.downloaded() { Weights::Ready } else { Weights::Missing }),
+            downloading: AtomicBool::new(false),
+            stop_download: AtomicBool::new(false),
             changed: Box::new(changed),
         }
     }
@@ -298,7 +358,18 @@ impl Local {
             }
             setup => setup,
         };
-        LocalInfo { dir: place.0.to_string_lossy().into_owned(), running, setup }
+        let model = match self.weights.get() {
+            // Downloaded by the server's first start, removed by hand, or another folder chosen.
+            Weights::Missing | Weights::Ready if !self.downloading.load(Ordering::SeqCst) => {
+                if place.downloaded() {
+                    Weights::Ready
+                } else {
+                    Weights::Missing
+                }
+            }
+            model => model,
+        };
+        LocalInfo { dir: place.0.to_string_lossy().into_owned(), running, model, setup }
     }
 
     fn announce(&self, place: &Place) {
@@ -338,15 +409,57 @@ impl Local {
             .inspect_err(|_| self.installing.store(false, Ordering::SeqCst))
     }
 
-    /// Stops an install or the server, and deletes the folder with its weights.
+    fn set_weights(&self, place: &Place, weights: Weights) {
+        if self.weights.set(weights) {
+            self.announce(place);
+        }
+    }
+
+    /// Downloads the model's weights in the background, with the user's Hugging Face token; does
+    /// nothing while a download runs.
+    pub fn download(self: &Arc<Self>, place: Place, token: Option<String>) -> io::Result<()> {
+        if self.downloading.swap(true, Ordering::SeqCst) {
+            return Ok(());
+        }
+        self.stop_download.store(false, Ordering::SeqCst);
+        let this = Arc::clone(self);
+        let work = move || {
+            this.set_weights(&place, Weights::Downloading { line: "Getting ready…".into() });
+            let mut report = |line: &str| this.set_weights(&place, Weights::Downloading { line: line.into() });
+            let result = fetch_weights(&place, token.as_deref(), &this.stop_download, &mut report);
+            this.downloading.store(false, Ordering::SeqCst);
+            this.set_weights(
+                &place,
+                match result {
+                    Ok(()) => Weights::Ready,
+                    Err(_) if this.stop_download.load(Ordering::SeqCst) => Weights::Missing,
+                    Err(message) => Weights::Error { message },
+                },
+            );
+        };
+        thread::Builder::new()
+            .name("persona-download".into())
+            .spawn(work)
+            .map(drop)
+            .inspect_err(|_| self.downloading.store(false, Ordering::SeqCst))
+    }
+
+    /// Stops a download; what it fetched stays, for the next one to resume.
+    pub fn cancel_download(&self) {
+        self.stop_download.store(true, Ordering::SeqCst);
+    }
+
+    /// Stops an install, a download or the server, and deletes the folder with its weights.
     pub fn remove(&self, place: &Place) -> io::Result<()> {
         self.cancel.store(true, Ordering::SeqCst);
-        // Let the install see it and end its uv before the folder goes.
-        while self.installing.load(Ordering::SeqCst) {
+        self.stop_download.store(true, Ordering::SeqCst);
+        // Let them see it and end their uv or Python before the folder goes.
+        while self.installing.load(Ordering::SeqCst) || self.downloading.load(Ordering::SeqCst) {
             thread::sleep(POLL);
         }
         lock(&self.server).take();
         let removed = download::remove(&place.0);
+        self.weights.set(Weights::Missing);
         self.set(place, Setup::Missing);
         self.announce(place);
         removed
@@ -543,14 +656,71 @@ mod tests {
         let mut lines = Vec::new();
         let mut ok = Command::new("sh");
         ok.args(["-c", "echo 'Resolved 40 packages' >&2"]);
-        run(ok, &cancel, &mut |l| lines.push(l.to_string())).unwrap();
+        run(ok, "uv", &cancel, &mut |l| lines.push(l.to_string())).unwrap();
+        let mut bar = Command::new("sh");
+        bar.args(["-c", "printf 'model.safetensors:  10%%\\rmodel.safetensors:  55%%\\r' >&2"]);
+        run(bar, "the download", &cancel, &mut |l| lines.push(l.to_string())).unwrap();
+        assert_eq!(lines.last().map(String::as_str), Some("model.safetensors:  55%"), "a redrawn progress bar reads as its last state");
         let mut bad = Command::new("sh");
         bad.args(["-c", "echo 'no torch for this Python' >&2; sleep 0.5; exit 2"]);
-        assert!(run(bad, &cancel, &mut |_| {}).unwrap_err().contains("no torch for this Python"));
+        let error = run(bad, "uv", &cancel, &mut |_| {}).unwrap_err();
+        assert!(error.starts_with("uv failed") && error.contains("no torch for this Python"), "{error}");
         cancel.store(true, Ordering::SeqCst);
         let mut long = Command::new("sh");
         long.args(["-c", "sleep 30"]);
-        assert_eq!(run(long, &cancel, &mut |_| {}).unwrap_err(), "cancelled");
-        assert_eq!(lines.last().map(String::as_str), Some("Resolved 40 packages"));
+        assert_eq!(run(long, "uv", &cancel, &mut |_| {}).unwrap_err(), "cancelled");
+        assert!(lines.contains(&"Resolved 40 packages".to_string()));
+    }
+
+    fn fake_weights(place: &Place) {
+        let snapshot = place.hf().join("hub").join("models--nvidia--personaplex-7b-v1").join("snapshots").join("abc123");
+        fs::create_dir_all(&snapshot).unwrap();
+        for file in FILES {
+            fs::write(snapshot.join(file), "").unwrap();
+        }
+    }
+
+    #[test]
+    fn has_the_model_only_with_every_file_the_server_needs() {
+        let place = temp("weights");
+        let local = Local::new(&place, |_| {});
+        assert_eq!(local.info(&place).model, Weights::Missing);
+        fake_weights(&place);
+        assert!(place.downloaded());
+        assert_eq!(local.info(&place).model, Weights::Ready, "downloaded elsewhere, by the server's first start");
+        let snapshots = place.hf().join("hub").join("models--nvidia--personaplex-7b-v1").join("snapshots");
+        fs::remove_file(snapshots.join("abc123").join("model.safetensors")).unwrap();
+        assert!(!place.downloaded(), "a download cut short isn't the model");
+        let info = serde_json::to_value(local.info(&place)).unwrap();
+        assert_eq!(info["model"], serde_json::json!({ "state": "missing" }));
+        assert_eq!(info["state"], "missing");
+    }
+
+    #[test]
+    fn says_what_the_download_lacks_before_starting() {
+        let place = temp("fetch");
+        let cancel = AtomicBool::new(false);
+        let error = fetch_weights(&place, Some("hf_abc"), &cancel, &mut |_| {}).unwrap_err();
+        assert!(error.contains("install it first"), "{error}");
+        fake_install(&place);
+        let error = fetch_weights(&place, None, &cancel, &mut |_| {}).unwrap_err();
+        assert!(error.contains("Hugging Face token") && error.contains(REPO), "{error}");
+    }
+
+    #[test]
+    fn reports_a_download_that_fails_then_forgets_it_with_the_folder() {
+        let place = temp("download");
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let log = Arc::clone(&seen);
+        let local = Arc::new(Local::new(&place, move |info| lock(&log).push(info.model)));
+        local.download(place.clone(), None).unwrap();
+        let start = Instant::now();
+        while !matches!(local.info(&place).model, Weights::Error { .. }) {
+            assert!(start.elapsed() < Duration::from_secs(5), "the download never ended");
+            thread::sleep(Duration::from_millis(10));
+        }
+        assert!(matches!(lock(&seen).first(), Some(Weights::Downloading { .. })));
+        local.remove(&place).unwrap();
+        assert_eq!(local.info(&place).model, Weights::Missing);
     }
 }

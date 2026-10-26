@@ -38,7 +38,7 @@ macro_rules! manifest {
                     events: [PhaseChanged, ModelChanged]
                 }
                 media: features::media { typed: [state, artwork, control], raw: [], events: [TrackChanged] }
-                persona: features::persona { typed: [state, control, local_status, install_local, remove_local, open_local_dir], raw: [], events: [PhaseChanged, LocalChanged] }
+                persona: features::persona { typed: [state, control, local_status, install_local, download_model, cancel_download, remove_local, open_local_dir], raw: [], events: [PhaseChanged, LocalChanged] }
                 privacy: features::privacy { typed: [state], raw: [], events: [UsageChanged] }
                 stats: features::stats { typed: [latest], raw: [], events: [] }
                 tts: features::tts {

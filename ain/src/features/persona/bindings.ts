@@ -13,7 +13,14 @@ export const commands = {
 	localStatus: () => __TAURI_INVOKE<LocalInfo>("plugin:persona|local_status"),
 	/**  Installs PersonaPlex on this computer, in the background. */
 	installLocal: () => __TAURI_INVOKE<null>("plugin:persona|install_local"),
-	/**  Stops an install or the server, and deletes PersonaPlex and its weights from this computer. */
+	/**
+	 *  Downloads PersonaPlex's weights on this computer, in the background, with the user's Hugging Face
+	 *  token (they are gated).
+	 */
+	downloadModel: () => __TAURI_INVOKE<null>("plugin:persona|download_model"),
+	/**  Stops a download of the weights; the next one resumes it. */
+	cancelDownload: () => __TAURI_INVOKE<void>("plugin:persona|cancel_download"),
+	/**  Stops an install, a download or the server, and deletes PersonaPlex and its weights from this computer. */
 	removeLocal: () => __TAURI_INVOKE<null>("plugin:persona|remove_local"),
 	/**  Shows PersonaPlex's folder. */
 	openLocalDir: () => __TAURI_INVOKE<null>("plugin:persona|open_local_dir"),
@@ -29,13 +36,17 @@ export const events = {
 /**  `toggle` starts a conversation, or ends the one going on. */
 export type Command = "toggle" | "stop";
 
-/**  PersonaPlex on this computer was installed or removed, or its server started or stopped. */
+/**
+ *  PersonaPlex on this computer was installed or removed, its weights downloaded, or its server
+ *  started or stopped.
+ */
 export type LocalChanged = LocalInfo;
 
-/**  What Settings shows: the folder, the setup, and whether the server runs now. */
+/**  What Settings shows: the folder, the setup, the model, and whether the server runs now. */
 export type LocalInfo = {
 	dir: string,
 	running: boolean,
+	model: Weights,
 } & Setup;
 
 export type Phase = { phase: "idle" } | 
@@ -56,6 +67,11 @@ export type PhaseChanged = Phase;
 export type Setup = { state: "missing" } | 
 /**  uv at work: its last line of output. */
 { state: "installing"; line: string } | { state: "ready" } | { state: "error"; message: string };
+
+/**  Whether the model's weights are in its folder. */
+export type Weights = { state: "missing" } | 
+/**  Hugging Face's download at work: its last line of output. */
+{ state: "downloading"; line: string } | { state: "ready" } | { state: "error"; message: string };
 
 /* Tauri Specta runtime */
 type EventEmit<T> = [T] extends [null] ? () => Promise<void> : (payload: T) => Promise<void>;

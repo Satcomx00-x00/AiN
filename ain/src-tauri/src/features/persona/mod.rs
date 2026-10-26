@@ -80,7 +80,8 @@ pub enum Phase {
 #[derive(Debug, Clone, Serialize, Type, Event)]
 pub struct PhaseChanged(pub Phase);
 
-/// PersonaPlex on this computer was installed or removed, or its server started or stopped.
+/// PersonaPlex on this computer was installed or removed, its weights downloaded, or its server
+/// started or stopped.
 #[derive(Debug, Clone, Serialize, Type, Event)]
 pub struct LocalChanged(pub LocalInfo);
 
@@ -287,7 +288,23 @@ fn install_local(app: AppHandle, persona: State<'_, Persona>) -> Res<()> {
     Ok(persona.shared.local.install(persona.place(&app))?)
 }
 
-/// Stops an install or the server, and deletes PersonaPlex and its weights from this computer.
+/// Downloads PersonaPlex's weights on this computer, in the background, with the user's Hugging Face
+/// token (they are gated).
+#[tauri::command]
+#[specta::specta]
+fn download_model(app: AppHandle, persona: State<'_, Persona>) -> Res<()> {
+    let token = secrets::secret(FEATURE, "hfToken").ok().flatten();
+    Ok(persona.shared.local.download(persona.place(&app), token)?)
+}
+
+/// Stops a download of the weights; the next one resumes it.
+#[tauri::command]
+#[specta::specta]
+fn cancel_download(persona: State<'_, Persona>) {
+    persona.shared.local.cancel_download();
+}
+
+/// Stops an install, a download or the server, and deletes PersonaPlex and its weights from this computer.
 #[tauri::command]
 #[specta::specta]
 async fn remove_local(app: AppHandle, persona: State<'_, Persona>) -> Res<()> {

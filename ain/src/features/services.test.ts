@@ -175,6 +175,10 @@ describe("conversation", () => {
     expect(invoke).toHaveBeenLastCalledWith("plugin:persona|control", { command: "toggle" });
     await tauriPersona.install();
     expect(invoke).toHaveBeenLastCalledWith("plugin:persona|install_local");
+    await tauriPersona.download();
+    expect(invoke).toHaveBeenLastCalledWith("plugin:persona|download_model");
+    await tauriPersona.cancelDownload();
+    expect(invoke).toHaveBeenLastCalledWith("plugin:persona|cancel_download");
     await tauriPersona.remove();
     expect(invoke).toHaveBeenLastCalledWith("plugin:persona|remove_local");
     await tauriPersona.openFolder();
