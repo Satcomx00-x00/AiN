@@ -4,6 +4,7 @@
  */
 import { button, h } from "../sdk/dom";
 import { toggle } from "../sdk/options";
+import { reportProblem } from "../sdk/report";
 
 /** The "keepLoaded" option: the chosen model stays in memory, ready at once, alongside the other features' models. */
 export const keepLoaded = () => toggle("Keep the model loaded", false, "Ready at once, at the cost of its memory; otherwise it is let go after 10 minutes unused.");
@@ -99,9 +100,9 @@ export function modelFiles(port: ModelFilesPort): { readonly el: HTMLElement; dr
   const action = button("", () => {
     const setup = model && modelSetup(model);
     const run = setup?.action === "download" ? port.download() : setup ? port.remove() : null;
-    run?.catch((e: unknown) => (detail.textContent = String(e)));
+    run?.catch((e: unknown) => reportProblem(setup?.action === "download" ? "Couldn't download the model" : "Couldn't stop or remove the model", e, "MODEL_FILES"));
   }, { class: "secondary" });
-  const folder = button("Show folder", () => void port.openFolder().catch(() => {}), { class: "secondary" });
+  const folder = button("Show folder", () => void port.openFolder().catch((e: unknown) => reportProblem("Couldn't open the model folder", e, "FOLDER_OPEN")), { class: "secondary" });
   const el = h("div", { class: "field" }, h("div", {}, h("div", { class: "field-label" }, "Model files"), detail, bar), h("div", { class: "recorder" }, folder, action));
   const speed = speedometer();
   const draw = (info: ModelInfo) => {

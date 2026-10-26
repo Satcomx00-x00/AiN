@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 /** The model rows shared by dictation and read aloud: Settings' "Model files" row and the island's card. */
 import { describe, expect, it, vi } from "vitest";
+import { type Problem, onProblem } from "../sdk/report";
 import { type ModelInfo, downloading, modelCard, modelFiles, modelLine, progressOf, rate, size, speedometer } from "./model-files";
 
 const at = { model: "m", dir: "D:/Models/m", installed: [] };
@@ -25,20 +26,26 @@ describe("the model files row", () => {
     expect([port.download.mock.calls.length, port.remove.mock.calls.length]).toEqual([0, 0]);
   });
 
-  it("shows why downloading or removing failed", async () => {
+  it("reports why downloading or removing failed", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const seen: Problem[] = [];
+    const stop = onProblem((p) => seen.push(p));
     const { port, files, el, action } = mount();
     port.download.mockRejectedValueOnce("disk full");
     files.draw({ ...at, state: "error", message: "offline" } as ModelInfo);
     expect(action.textContent).toBe("Retry");
     action.click();
     await tick();
-    expect(el.querySelector(".field-hint")?.textContent).toBe("disk full");
+    expect(seen.at(-1)).toEqual({ title: "Couldn't download the model", message: "disk full", code: "MODEL_FILES" });
+    expect(el.querySelector(".field-hint")?.textContent).toBe("Download failed: offline");
     port.remove.mockRejectedValueOnce(new Error("in use"));
     files.draw({ ...at, state: "ready" } as ModelInfo);
     expect(action.classList.contains("danger")).toBe(true);
     action.click();
     await tick();
-    expect(el.querySelector(".field-hint")?.textContent).toBe("Error: in use");
+    expect(seen.at(-1)).toEqual({ title: "Couldn't stop or remove the model", message: "in use", code: "MODEL_FILES" });
+    stop();
+    vi.restoreAllMocks();
   });
 
   it("stays put when the folder can't be shown", async () => {

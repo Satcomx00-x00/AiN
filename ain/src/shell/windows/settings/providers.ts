@@ -5,6 +5,7 @@
 import { button, h, icon } from "../../../sdk/dom";
 import { select } from "../../../sdk/select";
 import { type AiProvider, type Auth, PRESETS, type ProvidersPort, newProvider, presetById, providerProblem } from "../../providers";
+import { messageOf, reportProblem } from "../../../sdk/report";
 import { field, flag, segmented } from "./controls";
 
 export const PROVIDERS_ICON = `<path d="M8 1.75 13.5 4.9v6.2L8 14.25 2.5 11.1V4.9z"/><path d="M2.5 4.9 8 8l5.5-3.1M8 8v6.25"/>`;
@@ -57,16 +58,24 @@ function providerCard(at: number, s: ProvidersSection): HTMLElement {
   const env = textBox(p.auth.kind === "env" ? p.auth.name : "", "Environment variable", "OPENAI_API_KEY", (v) => update({ auth: { kind: "env", name: v } }));
   const path = textBox(p.auth.kind === "file" ? p.auth.path : "", "Token file", "/run/secrets/ai-token", (v) => update({ auth: { kind: "file", path: v } }));
   const browse = button("Browse…", () => {
-    s.pickFile(path.value).then((chosen) => chosen && update({ auth: { kind: "file", path: (path.value = chosen) } }), () => {});
+    s.pickFile(path.value).then(
+      (chosen) => chosen && update({ auth: { kind: "file", path: (path.value = chosen) } }),
+      (e: unknown) => reportProblem("Couldn't open the file picker", e, "FILE_PICKER"),
+    );
   }, { class: "secondary" });
   const envField = field("Variable", "Its value is sent as a bearer token (an API key or a JWT), read again on every request", env, true);
   const fileField = field("File", "Its content is sent as a bearer token (an API key or a JWT), read again on every request", h("div", { class: "path" }, path, browse), true);
   const auth = segmented(p.auth.kind, AUTH_CHOICES, (kind) => update({ auth: authOf(kind as Auth["kind"], p.auth) }), "Authentication");
 
-  const result = h("div", { class: "field-hint", role: "status" });
+  // The test's outcome stays by its button: it's what was asked for, not a failure of the page.
+  const result = h("div", { class: "field-hint test-result", role: "status" });
+  const show = (text: string, state: "busy" | "ok" | "error") => {
+    result.textContent = text;
+    result.dataset.state = state;
+  };
   const test = button("Test connection", () => {
-    result.textContent = "Connecting…";
-    s.port.models(p).then((models) => (result.textContent = testResult(models)), (e: unknown) => (result.textContent = e instanceof Error ? e.message : String(e)));
+    show("Connecting…", "busy");
+    s.port.models(p).then((models) => show(testResult(models), "ok"), (e: unknown) => show(messageOf(e), "error"));
   }, { class: "secondary" });
   const remove = button("Remove", () => s.save(s.providers().filter((_, i) => i !== at), true), { class: "secondary danger" });
 
@@ -108,15 +117,14 @@ export function providersSection(s: ProvidersSection): Node[] {
     (id) => (preset = id),
     "Provider",
   );
-  const add = button("Add", () => s.save([...s.providers(), newProvider(presetById(preset), s.providers().map((p) => p.id))], true));
+  const add = button("Add", () => s.save([...s.providers(), newProvider(presetById(preset), s.providers().map((p) => p.id))], true), { class: "primary" });
   return [
-    h("h1", {}, "AI providers"),
-    h(
-      "p",
-      { class: "lead" },
-      "Online services, or your own OpenAI-compatible server, that every AI feature can use instead of its model on this computer: pick one in Dictation's or Read aloud's card under Widgets.",
-    ),
-    ...s.providers().map((_, at) => providerCard(at, s)),
     h("section", { class: "card", id: "card-provider-add" }, field("Add a provider", "A known service, or any server speaking the OpenAI API", h("div", { class: "path" }, picker.el, add), true)),
+    ...(s.providers().length ? [h("h2", { class: "subhead" }, "Your providers")] : []),
+    ...s.providers().map((_, at) => providerCard(at, s)),
   ];
 }
+
+/** What the AI providers page is for, under its title. */
+export const PROVIDERS_LEAD =
+  "Online services, or your own OpenAI-compatible server, that the AI features can use instead of a model on this computer: pick one on the Dictation, Read aloud or Conversation page.";

@@ -1,6 +1,7 @@
 import { button, h, icon } from "../../sdk/dom";
 import { choice, folder, secret, text, toggle } from "../../sdk/options";
 import { type Glance, definePlugin } from "../../sdk/plugin";
+import { reportProblem } from "../../sdk/report";
 import type { ProvidersPort } from "../../shell/providers";
 import { type OwnEngine, engineOptions, enginePanel } from "../engine";
 import { type CardLine, downloading, modelCard, progressOf, speedometer } from "../model-files";
@@ -86,22 +87,26 @@ export function localLine(info: LocalInfo): CardLine | null {
 function localRow(port: PersonaPort): { readonly el: HTMLElement; draw(info: LocalInfo): void; fail(e: unknown): void } {
   let current: LocalInfo | null = null;
   const detail = h("div", { class: "field-hint" });
-  const failed = (e: unknown) => void (detail.textContent = String(e));
   const action = button("", () => {
-    const run = current && localSetup(current).action === "install" ? port.install() : port.remove();
-    run.catch(failed);
+    const installing = current && localSetup(current).action === "install";
+    const run = installing ? port.install() : port.remove();
+    run.catch((e: unknown) => reportProblem(installing ? "Couldn't install PersonaPlex" : "Couldn't remove PersonaPlex", e, "PERSONA_SETUP"));
   }, { class: "secondary" });
   const model = button("", () => {
-    const run = current && modelSetup(current)?.action === "stop" ? port.cancelDownload() : port.download();
-    run.catch(failed);
+    const stopping = current && modelSetup(current)?.action === "stop";
+    const run = stopping ? port.cancelDownload() : port.download();
+    run.catch((e: unknown) => reportProblem(stopping ? "Couldn't stop the download" : "Couldn't download PersonaPlex's model", e, "PERSONA_MODEL"));
   }, { class: "secondary" });
-  const folder = button("Show folder", () => void port.openFolder().catch(() => {}), { class: "secondary" });
+  const folder = button("Show folder", () => void port.openFolder().catch((e: unknown) => reportProblem("Couldn't open PersonaPlex's folder", e, "FOLDER_OPEN")), { class: "secondary" });
   // Until the backend says where PersonaPlex stands, there is nothing to install, remove or download.
   action.hidden = model.hidden = true;
   const bar = h("div", { class: "progress" }, h("i"));
   bar.hidden = true;
   const el = h("div", { class: "field" }, h("div", {}, h("div", { class: "field-label" }, "PersonaPlex"), detail, bar), h("div", { class: "recorder" }, folder, action, model));
-  const fail = (e: unknown) => void (detail.textContent = `Couldn't check PersonaPlex on this computer: ${e instanceof Error ? e.message : String(e)}`);
+  const fail = (e: unknown) => {
+    detail.textContent = "Its state can't be read right now.";
+    reportProblem("Couldn't check PersonaPlex on this computer", e, "PERSONA_STATE");
+  };
   const speed = speedometer();
   const draw = (info: LocalInfo) => {
     current = info;

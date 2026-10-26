@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { type Problem, onProblem } from "../../../sdk/report";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 
@@ -7,6 +8,12 @@ const { MAX_SEGMENTS, aroundPanel, colorPicker, optionControl, rangeControl, sta
 const { choice, color, folder, list, number, secret, text, toggle } = await import("../../../sdk/options");
 const { THEMES } = await import("../../themes");
 const { dictation } = await import("../../../features/dictation");
+
+/** Collects the problems reported until `stop`. */
+const problems = () => {
+  const list: Problem[] = [];
+  return { list, stop: onProblem((p) => list.push(p)) };
+};
 
 describe("choice options in Settings", () => {
   it("show many choices as the island's drop-down list, the chosen one shown", () => {
@@ -355,14 +362,15 @@ describe("a folder option", () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
-  it("logs a dialog that fails, and keeps the folder", async () => {
-    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+  it("reports a dialog that fails, and keeps the folder", async () => {
+    const error = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const seen = problems();
     const onChange = vi.fn();
-    const failure = new Error("no dialog");
-    const row = optionControl(folder("Models"), "/kept", onChange, async () => Promise.reject(failure));
+    const row = optionControl(folder("Models"), "/kept", onChange, async () => Promise.reject(new Error("no dialog")));
     buttonOf(row, "Browse…").click();
     await settle();
-    expect(error).toHaveBeenCalledWith("[settings] folder picker", failure);
+    expect(seen.list).toEqual([{ title: "Couldn't open the folder picker", message: "no dialog", code: "FOLDER_PICKER" }]);
+    seen.stop();
     expect(pathOf(row).value).toBe("/kept");
     expect(onChange).not.toHaveBeenCalled();
     error.mockRestore();
@@ -370,6 +378,9 @@ describe("a folder option", () => {
 });
 
 describe("a secret option, when the credential store fails", () => {
+  beforeEach(() => void vi.spyOn(console, "warn").mockImplementation(() => {}));
+  afterEach(() => vi.restoreAllMocks());
+
   const typeIn = (row: HTMLElement, value: string) => {
     const input = row.querySelector<HTMLInputElement>("input[type=password]")!;
     input.value = value;
@@ -379,6 +390,7 @@ describe("a secret option, when the credential store fails", () => {
 
   it("saves on Enter, and says why it couldn't", async () => {
     const save = vi.fn(async () => Promise.reject(new Error("locked")));
+    const seen = problems();
     const row = optionControl(secret("Token"), "", vi.fn(), undefined, { saved: async () => false, save });
     await settle();
     const input = typeIn(row, "abc");
@@ -389,21 +401,25 @@ describe("a secret option, when the credential store fails", () => {
     input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter" }));
     await settle();
     expect(save).toHaveBeenCalledWith("abc");
-    expect(errorOf(row)).toBe("Couldn't save it: locked");
+    expect(errorOf(row)).toBeNull();
+    expect(seen.list).toEqual([{ title: "Couldn't save Token", message: "locked", code: "SECRET_SAVE" }]);
   });
 
   it("says what went wrong when the failure isn't an error", async () => {
+    const seen = problems();
     const row = optionControl(secret("Token"), "", vi.fn(), undefined, { saved: async () => false, save: async () => Promise.reject("busy") });
     typeIn(row, "abc");
     buttonOf(row, "Save").click();
     await settle();
-    expect(errorOf(row)).toBe("Couldn't save it: busy");
+    expect(seen.list.map((p) => p.message)).toEqual(["busy"]);
   });
 
   it("says when it can't tell whether one is saved", async () => {
+    const seen = problems();
     const row = optionControl(secret("Token"), "", vi.fn(), undefined, { saved: async () => Promise.reject(new Error("no keyring")), save: vi.fn() });
     await settle();
-    expect(errorOf(row)).toBe("Couldn't read the credential store: no keyring");
+    expect(seen.list).toEqual([{ title: "Couldn't read the credential store", message: "no keyring", code: "SECRET_READ" }]);
+    expect(row.querySelector<HTMLInputElement>("input[type=password]")?.placeholder).toBe("Unknown: the credential store can't be read");
   });
 
   it("says a required one is needed once removed", async () => {

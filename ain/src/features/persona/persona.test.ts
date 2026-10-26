@@ -15,6 +15,15 @@ const { catalogue } = await import("..");
 const { memoryProviders } = await import("../../shell/providers");
 import type { AiProvider } from "../../shell/providers";
 import type { LocalInfo, Phase, PersonaPort } from "./service";
+import { type Problem, onProblem } from "../../sdk/report";
+
+/** Collects the problems reported until `stop`, keeping them off the console. */
+const problems = () => {
+  vi.spyOn(console, "warn").mockImplementation(() => {});
+  const list: Problem[] = [];
+  const stop = onProblem((p) => list.push(p));
+  return { list, stop: () => (stop(), vi.mocked(console.warn).mockRestore()) };
+};
 
 const live = (said = "", speaking = false): Phase => ({ phase: "live", level: 0.5, speaking, said });
 
@@ -256,9 +265,11 @@ describe("in Settings", () => {
     port.download.mockRejectedValueOnce("worker gone");
     local({ dir: "/m/personaplex", running: false, model: { state: "error", message: "403 gated" }, state: "ready" });
     expect([model().textContent, action().hidden, bar.hidden]).toEqual(["Retry", false, true]);
+    const seen = problems();
     model().click();
     await tick();
-    expect(localRow.textContent).toContain("worker gone");
+    expect(seen.list).toEqual([{ title: "Couldn't download PersonaPlex's model", message: "worker gone", code: "PERSONA_MODEL" }]);
+    seen.stop();
   });
 
   it("says why an install couldn't start", async () => {
@@ -266,10 +277,16 @@ describe("in Settings", () => {
     await tick();
     port.install.mockRejectedValueOnce("uv isn't installed");
     port.openFolder.mockRejectedValueOnce(new Error("no folder"));
+    const seen = problems();
     action().click();
     folder.click();
     await tick();
-    expect(localRow.textContent).toContain("uv isn't installed");
+    expect(seen.list.map((p) => `[${p.code}] ${p.title}: ${p.message}`)).toEqual([
+      "[PERSONA_SETUP] Couldn't install PersonaPlex: uv isn't installed",
+      "[FOLDER_OPEN] Couldn't open PersonaPlex's folder: no folder",
+    ]);
+    expect(localRow.textContent).toContain("Not installed");
+    seen.stop();
   });
 
   it("closes cleanly when the backend can't be followed", async () => {
@@ -277,10 +294,13 @@ describe("in Settings", () => {
     fake.port.watchLocal.mockRejectedValueOnce(new Error("gone"));
     const host = { options: () => ({ engine: "", remoteModel: "" }), setOptions: vi.fn(), openPage: vi.fn() };
     const root = document.createElement("div");
+    const seen = problems();
     const cleanup = persona.settingsPanel?.(root, { persona: fake.port, providers: memoryProviders([]) } as never, host as never) as () => void;
     await tick();
     const row = [...root.querySelectorAll<HTMLElement>(".field")].find((f) => f.textContent?.startsWith("PersonaPlex"))!;
-    expect(row.textContent).toContain("Couldn't check PersonaPlex on this computer: gone");
+    expect(row.textContent).toContain("Its state can't be read right now.");
+    expect(seen.list).toEqual([{ title: "Couldn't check PersonaPlex on this computer", message: "gone", code: "PERSONA_STATE" }]);
+    seen.stop();
     expect([...row.querySelectorAll("button")].filter((b) => !b.hidden).map((b) => b.textContent)).toEqual(["Show folder"]);
     expect(() => cleanup()).not.toThrow();
   });
