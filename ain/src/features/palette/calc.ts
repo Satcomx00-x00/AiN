@@ -232,9 +232,8 @@ export function calculate(input: string): number | null {
     const parser = new Parser(tokenize(plain));
     const value = parser.parse();
     return parser.computed && Number.isFinite(value) ? value : null;
-  } catch (e) {
-    if (e instanceof Invalid) return null;
-    throw e;
+  } catch {
+    return null;
   }
 }
 

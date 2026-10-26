@@ -64,7 +64,7 @@ export function fuzzy(query: string, text: string): Match | null {
   const loose = subsequence(lower, compact);
   if (!loose) return null;
   // Letters close together count more than letters spread out.
-  const spread = (loose.at(-1) ?? 0) - (loose[0] ?? 0) - compact.length;
+  const spread = loose[loose.length - 1]! - loose[0]! - compact.length;
   return { score: 300 - Math.min(spread * 4, 200) + short, hits: loose };
 }
 

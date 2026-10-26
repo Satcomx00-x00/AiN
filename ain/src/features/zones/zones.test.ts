@@ -60,6 +60,7 @@ describe("the zones overlay", () => {
     o.push({});
     o.key("Digit1");
     o.boxes()[1]?.click();
+    o.root.click();
     window.dispatchEvent(new Event("blur"));
     expect(o.asked).toEqual([]);
   });
@@ -87,6 +88,26 @@ describe("the zones overlay", () => {
     o.stop();
     o.key("Escape");
     expect(o.asked).toHaveLength(5);
+  });
+
+  it("as the picker, moves between screens on Tab and Shift+Tab, and leaves other keys alone", async () => {
+    const o = await overlay();
+    o.push({ picking: true, screens: 2 });
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", code: "Tab", bubbles: true, cancelable: true }));
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", code: "Tab", shiftKey: true, bubbles: true, cancelable: true }));
+    const other = new KeyboardEvent("keydown", { key: "a", code: "KeyA", bubbles: true, cancelable: true });
+    document.dispatchEvent(other);
+    expect(o.asked).toEqual(["screen 1", "screen -1"]);
+    expect(other.defaultPrevented).toBe(false);
+  });
+
+  it("stays up, empty, when the backend can't be followed", async () => {
+    const root = document.createElement("div");
+    document.body.append(root);
+    const stop = mountOverlay(root, { ...idleZones, watchOverlay: () => Promise.reject(new Error("gone")) });
+    await new Promise((r) => setTimeout(r));
+    expect(root.querySelectorAll(".zo-zone")).toHaveLength(0);
+    stop();
   });
 
   it("says how to pick, with the screens when there are several", () => {
@@ -160,7 +181,56 @@ describe("the GNOME helper", () => {
   });
 });
 
+describe("the settings panel, when things go wrong", () => {
+  const host = { options: () => ({ template: "columns", count: 2, spacing: 8 }) as never, setOptions: () => {}, openPage: () => {} };
+
+  it("says why the helper couldn't be installed, and offers it again", async () => {
+    const p: ZonesPort = {
+      ...idleZones,
+      support: async () => ({ moves: false, drags: false, note: "Needs GNOME's helper.", install: true }),
+      installHelper: async () => Promise.reject("no gsettings"),
+    };
+    const root = document.createElement("div");
+    document.body.append(root);
+    zones.settingsPanel!(root, { zones: p }, host);
+    const install = await vi.waitFor(() => {
+      const b = root.querySelector<HTMLButtonElement>(".zn-install");
+      expect(b?.hidden).toBe(false);
+      return b!;
+    });
+    install.click();
+    await vi.waitFor(() => expect(root.querySelector(".zn-note")?.textContent).toBe("Couldn't install it: no gsettings"));
+    expect([install.disabled, install.textContent, install.hidden]).toEqual([false, "Install the GNOME Shell helper", false]);
+  });
+
+  it("draws nothing, and says nothing, when the backend can't answer", async () => {
+    const p: ZonesPort = { ...idleZones, layout: () => Promise.reject(new Error("gone")), support: () => Promise.reject(new Error("gone")) };
+    const root = document.createElement("div");
+    document.body.append(root);
+    zones.settingsPanel!(root, { zones: p }, host);
+    await new Promise((r) => setTimeout(r));
+    expect(root.querySelectorAll(".zn-cell")).toHaveLength(0);
+    expect(root.querySelector(".zn-note")?.textContent).toBe("");
+  });
+
+  it("hides the note when there is nothing to say, and drops a layout that comes after it closed", async () => {
+    let answer: (zones: { x: number; y: number; w: number; h: number }[]) => void = () => {};
+    const p: ZonesPort = { ...idleZones, layout: () => new Promise((resolve) => (answer = resolve)), support: async () => ({ moves: true, drags: true, note: null, install: false }) };
+    const root = document.createElement("div");
+    document.body.append(root);
+    const stop = zones.settingsPanel!(root, { zones: p }, host) as () => void;
+    await vi.waitFor(() => expect(root.querySelector(".zn-note")?.textContent).toBe(""));
+    expect(root.querySelector<HTMLElement>(".zn-note")?.hidden).toBe(true);
+    stop();
+    answer([{ x: 0, y: 0, w: 1, h: 1 }]);
+    await new Promise((r) => setTimeout(r));
+    expect(root.querySelectorAll(".zn-cell")).toHaveLength(0);
+  });
+});
+
 describe("the plugin", () => {
+  it("needs nothing set up", () => expect(zones.setup({ zones: idleZones }, {} as never)).toEqual({}));
+
   it("is a tool on shortcuts the backend acts on, with no tab or glance", () => {
     expect(zones.slots).toEqual([]);
     expect(zones.commands?.map((c) => [c.id, c.surface])).toEqual([

@@ -5,12 +5,12 @@ import type { ClipboardPort } from "../clipboard/service";
 import { calculate, plain, pretty } from "./calc";
 import { best, fuzzy, startsWord } from "./fuzzy";
 import { type Item, parseQuery, rank } from "./items";
-import { asLink, filesProvider, systemProvider } from "./providers";
-import { type Recent, recentIn } from "./recent";
+import { appsProvider, asLink, commandsProvider, filesProvider, revealLabel, systemProvider, trashTitle, webProvider } from "./providers";
+import { type Recent, localRecent, recentIn } from "./recent";
 import { type App, type Hit, type PalettePort, idlePalette } from "./service";
 import { SELF, highlight, paletteView } from "./view";
 
-const { palette } = await import(".");
+const { palette, shortcutFor } = await import(".");
 
 beforeEach(() => {
   vi.spyOn(window, "matchMedia").mockReturnValue({ matches: true } as MediaQueryList);
@@ -81,9 +81,14 @@ describe("the calculator", () => {
     ["1e3 / 4", 250],
     ["6 × 7 ÷ 2", 21],
     ["0.1 + 0.2", 0.30000000000000004],
+    ["deg(pi)", 180],
+    ["rad(180)", Math.PI],
+    ["5 - 2", 3],
+    ["+2 * 3", 6],
+    ["10 % (4)", 2],
   ])("works out %s", (input, value) => expect(calculate(input)).toBeCloseTo(value, 10));
 
-  it.each(["", "42", "-5", "pi", "e", "firefox", "1 +", "(1 + 2", "max(", "2 / 0", "171!", "1.5!", "sqrt(1, 2)", "x".repeat(300), "alert(1)"])(
+  it.each(["", "42", "-5", "pi", "e", "firefox", "1 +", "(1 + 2", "max(", "2 / 0", "171!", "1.5!", "sqrt(1, 2)", "x".repeat(300), "alert(1)", "2 $ 3", "(2))", "2 * )", "max()", "max(1, 2"])(
     "leaves %j alone",
     (input) => expect(calculate(input)).toBeNull(),
   );
@@ -96,7 +101,9 @@ describe("the calculator", () => {
   it("copies plain digits and shows them in the user's language", () => {
     expect(plain(0.1 + 0.2)).toBe("0.3");
     expect(pretty(1234.5, "en-US")).toBe("1,234.5");
-    expect(pretty(1234.5, "fr-FR")).toMatch(/^1\s234,5$/u);
+    expect(pretty(0.1 + 0.2, "en-US")).toBe("0.3");
+    // In the language asked for, as this runtime writes it (some ship English only).
+    expect(pretty(1234.5, "fr-FR")).toBe(new Intl.NumberFormat("fr-FR").format(1234.5));
   });
 });
 
@@ -198,23 +205,26 @@ describe("the palette popup", () => {
     { id: SELF, label: "Command palette", description: "", icon: "", shortcut: null },
   ];
 
-  async function open(options: { confirm?: boolean; failLaunch?: boolean } = {}) {
+  async function open(options: { confirm?: boolean; failLaunch?: unknown; files?: boolean; engine?: string; port?: Partial<PalettePort> } = {}) {
     const did: string[] = [];
     const port: PalettePort = {
       ...idlePalette,
       apps: async () => apps,
       launch: async (id) => {
-        if (options.failLaunch) throw "This app is no longer installed.";
+        if (options.failLaunch !== undefined) throw options.failLaunch;
         did.push(`launch ${id}`);
       },
       system: async (action) => void did.push(`system ${action}`),
       run: async (command) => void did.push(`run ${command}`),
       openUrl: async (url) => void did.push(`url ${url}`),
+      open: async (path) => void did.push(`open ${path}`),
+      reveal: async (path) => void did.push(`reveal ${path}`),
+      ...options.port,
     };
     const clipboard: ClipboardPort = { history: async () => [], copy: async (t) => void did.push(`copy ${t}`), copyImage: async () => {}, clear: async () => {} };
     const ctx = {
       services: { palette: port, clipboard },
-      options: () => ({ files: false, engine: "qwant", confirm: options.confirm ?? true }),
+      options: () => ({ files: options.files ?? false, engine: options.engine ?? "qwant", confirm: options.confirm ?? true }),
       close: vi.fn(),
       paste: async () => {},
       commands: () => commands,
@@ -296,7 +306,7 @@ describe("the palette popup", () => {
   });
 
   it("says what went wrong and stays open", async () => {
-    const p = await open({ failLaunch: true });
+    const p = await open({ failLaunch: "This app is no longer installed." });
     await p.type("firefox");
     p.key({ key: "Enter" });
     await vi.waitFor(() => expect(p.root.querySelector(".pl-problem")?.textContent).toBe("This app is no longer installed."));
@@ -311,10 +321,219 @@ describe("the palette popup", () => {
     const selected = p.root.querySelector("[aria-selected=true] .pl-title")?.textContent;
     expect(selected).toBe("Firefox");
     expect(p.search.getAttribute("aria-activedescendant")).toBe("pl-1");
+    p.key({ key: "ArrowUp" });
+    expect(p.search.getAttribute("aria-activedescendant")).toBe("pl-0");
+    const tab = new KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true });
+    p.search.dispatchEvent(tab);
+    expect([tab.defaultPrevented, p.search.value]).toEqual([true, "fi"]);
+  });
+
+  it("says what an error says", async () => {
+    const p = await open({ failLaunch: new Error("Permission denied") });
+    await p.type("firefox");
+    p.key({ key: "Enter" });
+    await vi.waitFor(() => expect(p.root.querySelector(".pl-problem")?.textContent).toBe("Permission denied"));
+  });
+
+  it("searches DuckDuckGo when the chosen engine is unknown", async () => {
+    const p = await open({ engine: "altavista" });
+    await p.type("?tea");
+    p.key({ key: "Enter" });
+    await vi.waitFor(() => expect(p.did).toEqual(["url https://duckduckgo.com/?q=tea"]));
+  });
+
+  const folder: Hit = { path: "/home/me/Documents", name: "Documents", folder: "~", dir: true };
+  const report: Hit = { path: "/home/me/report.pdf", name: "report.pdf", folder: "~", dir: false };
+
+  it("opens a file, shows it in its folder on Ctrl+Enter, and opens a folder on Tab", async () => {
+    const browsed: string[] = [];
+    const p = await open({ files: true, port: { files: async () => [folder, report], browse: async (path) => (browsed.push(path), []) } });
+    await p.type("docu");
+    await vi.waitFor(() => expect(p.titles()).toContain("report.pdf"));
+    const pick = (title: string) => {
+      const row = [...p.root.querySelectorAll("li")].find((li) => li.querySelector(".pl-title")?.textContent === title);
+      row!.dispatchEvent(new MouseEvent("mousemove"));
+    };
+    pick("report.pdf");
+    expect(p.footer()).toContain("Ctrl↵ Show in folder");
+    expect(p.footer()).not.toContain("Open folder");
+    p.key({ key: "Enter", ctrlKey: true });
+    await vi.waitFor(() => expect(p.did).toEqual(["reveal /home/me/report.pdf"]));
+    pick("Documents");
+    expect(p.footer()).toContain("Tab Open folder");
+    p.key({ key: "Tab" });
+    expect(p.search.value).toBe("/home/me/Documents/");
+    await vi.waitFor(() => expect(browsed).toEqual(["/home/me/Documents/"]));
+  });
+
+  it("takes ⌘ for Ctrl on macOS", async () => {
+    vi.spyOn(navigator, "userAgent", "get").mockReturnValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5)");
+    const p = await open({ files: true, port: { files: async () => [report] } });
+    await p.type("report");
+    await vi.waitFor(() => expect(p.titles()[0]).toBe("report.pdf"));
+    expect(p.footer()).toContain("⌘↵ Show in Finder");
+    p.key({ key: "Enter", ctrlKey: true });
+    await vi.waitFor(() => expect(p.did).toEqual(["open /home/me/report.pdf"]));
+    p.key({ key: "Enter", metaKey: true });
+    await vi.waitFor(() => expect(p.did).toEqual(["open /home/me/report.pdf", "reveal /home/me/report.pdf"]));
+  });
+
+  it("follows the pointer, and runs what is clicked, its second action with Ctrl", async () => {
+    const p = await open({ files: true, port: { files: async () => [report] } });
+    await p.type("report");
+    await vi.waitFor(() => expect(p.titles()[0]).toBe("report.pdf"));
+    const rows = [...p.root.querySelectorAll("li")];
+    rows[1]!.dispatchEvent(new MouseEvent("mousemove"));
+    rows[1]!.dispatchEvent(new MouseEvent("mousemove"));
+    expect(rows[1]!.getAttribute("aria-selected")).toBe("true");
+    rows[0]!.dispatchEvent(new MouseEvent("click", { ctrlKey: true }));
+    await vi.waitFor(() => expect(p.did).toEqual(["reveal /home/me/report.pdf"]));
+    rows[0]!.dispatchEvent(new MouseEvent("click"));
+    await vi.waitFor(() => expect(p.did).toEqual(["reveal /home/me/report.pdf", "open /home/me/report.pdf"]));
+  });
+
+  it("keeps the selection when late results arrive, and drops those of an older query", async () => {
+    const answers: ((hits: Hit[]) => void)[] = [];
+    const p = await open({ files: true, port: { files: () => new Promise<Hit[]>((resolve) => answers.push(resolve)) } });
+    await p.type("fi");
+    p.key({ key: "ArrowDown" });
+    const chosen = p.root.querySelector("[aria-selected=true] .pl-title")?.textContent;
+    answers[0]!([{ ...report, name: "final.pdf" }]);
+    await vi.waitFor(() => expect(p.titles()).toContain("final.pdf"));
+    expect(p.root.querySelector("[aria-selected=true] .pl-title")?.textContent).toBe(chosen);
+    await p.type("fir");
+    await p.type("fire");
+    answers[1]!([{ ...report, name: "old.pdf" }]);
+    answers[2]!([]);
+    await new Promise((r) => setTimeout(r));
+    expect(p.titles()).not.toContain("old.pdf");
+  });
+
+  it("does nothing on Enter with nothing to run, or no second action", async () => {
+    const p = await open();
+    await p.type(">");
+    expect(p.titles()).toEqual([]);
+    p.key({ key: "Enter" });
+    await p.type("firefox");
+    p.key({ key: "Enter", ctrlKey: true });
+    await new Promise((r) => setTimeout(r));
+    expect(p.did).toEqual([]);
+  });
+
+  it("leaves other keys, and Esc with nothing to take back, to the window", async () => {
+    const p = await open();
+    await p.type("fi");
+    for (const key of ["Escape", "a"]) {
+      const event = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true });
+      p.search.dispatchEvent(event);
+      expect(event.defaultPrevented).toBe(false);
+    }
+  });
+
+  it("gives an app with no name a question mark for a tile", async () => {
+    const p = await open({ port: { apps: async () => [{ id: "x", name: " ", keywords: "mystery", detail: "" }] } });
+    await p.type("mystery");
+    expect(p.root.querySelector(".pl-initial")?.textContent).toBe("?");
   });
 
   it("is a tool on a shortcut, with no tab or glance", () => {
     expect(palette.slots).toEqual([]);
     expect(palette.commands?.map((c) => `${palette.id}.${c.id}`)).toEqual([SELF]);
+  });
+});
+
+describe("the palette's providers, further", () => {
+  it("shows remembered apps before anything is typed, and keeps the last list when listing fails", async () => {
+    const remember: Recent = { ...forgetful, boost: (key) => (key === "app:firefox" ? 10 : 0) };
+    let fail = false;
+    const port: PalettePort = { ...idlePalette, apps: async () => (fail ? Promise.reject(new Error("gone")) : [{ id: "firefox", name: "Firefox", keywords: "", detail: "" }, { id: "files", name: "Files", keywords: "", detail: "" }]) };
+    const apps = appsProvider(port, remember);
+    await apps.refresh();
+    fail = true;
+    await apps.refresh();
+    expect((apps.search({ mode: "all", text: "" }) as Item[]).map((i) => i.title)).toEqual(["Firefox"]);
+    expect(apps.search({ mode: "web", text: "fi" })).toEqual([]);
+  });
+
+  it("lists the app's commands, its settings and quitting", async () => {
+    const did: string[] = [];
+    const host = {
+      commands: (): CommandInfo[] => [{ id: "a.b", label: "Do it", description: "", icon: "", shortcut: null }],
+      run: async (id: string) => void did.push(id),
+      openSettings: async () => void did.push("settings"),
+      quit: async () => void did.push("quit"),
+    };
+    const search = (text: string) => commandsProvider(host, SELF, forgetful).search({ mode: "all", text }) as Item[];
+    const [command] = search("do it");
+    expect(command).not.toHaveProperty("shortcut");
+    await command!.primary.run();
+    await search("settings")[0]!.primary.run();
+    await search("quit")[0]!.primary.run();
+    expect(did).toEqual(["a.b", "settings", "quit"]);
+    expect(commandsProvider(host, SELF, forgetful).search({ mode: "web", text: "quit" })).toEqual([]);
+  });
+
+  it("opens a link as typed above a bare address, and only links when searching everything", async () => {
+    const opened: string[] = [];
+    const web = webProvider({ ...idlePalette, openUrl: async (url) => void opened.push(url) }, () => ({ label: "Qwant", url: "https://www.qwant.com/?q=" }));
+    const [typed] = web.search({ mode: "all", text: "https://example.com/a" }) as Item[];
+    const [bare] = web.search({ mode: "all", text: "example.com/a" }) as Item[];
+    expect([typed?.title, typed?.score, bare?.score]).toEqual(["example.com/a", 9_000, 450]);
+    await bare!.primary.run();
+    expect(opened).toEqual(["https://example.com/a"]);
+    expect((web.search({ mode: "web", text: "example.com" }) as Item[]).map((i) => i.kind)).toEqual(["web"]);
+  });
+
+  it("completes Windows paths with a backslash, and finds nothing when the system can't look", async () => {
+    const win: Hit = { path: "C:\\Users\\me", name: "me", folder: "C:\\Users", dir: true };
+    const port: PalettePort = { ...idlePalette, browse: async () => [win] };
+    const [found] = await filesProvider(port, () => true).search({ mode: "path", text: "C:\\Users\\m" });
+    expect(found).toMatchObject({ complete: "C:\\Users\\me\\", hits: [0] });
+    const broken: PalettePort = { ...idlePalette, files: async () => Promise.reject(new Error("no index")), browse: async () => Promise.reject(new Error("gone")) };
+    expect(await filesProvider(broken, () => true).search({ mode: "all", text: "notes" })).toEqual([]);
+    expect(await filesProvider(broken, () => true).search({ mode: "path", text: "~/" })).toEqual([]);
+  });
+
+  it("marks no letters of a file found by a part of its path", async () => {
+    const port: PalettePort = { ...idlePalette, files: async () => [{ path: "/a/b.txt", name: "b.txt", folder: "/a", dir: false }] };
+    const [found] = await filesProvider(port, () => true).search({ mode: "all", text: "zz" });
+    expect(found).toMatchObject({ kind: "file", hits: [] });
+    expect(found).not.toHaveProperty("complete");
+  });
+
+  it("names things as each system does", () => {
+    expect([trashTitle(true), trashTitle(false)]).toEqual(["Empty the Recycle Bin", "Empty the Trash"]);
+    expect([revealLabel(true), revealLabel(false)]).toEqual(["Show in Finder", "Show in folder"]);
+    expect([shortcutFor(true), shortcutFor(false)]).toEqual(["Alt+Space", "Super+Alt+Space"]);
+  });
+
+  it("needs nothing set up", () => {
+    expect(palette.setup({ palette: idlePalette, clipboard: {} as ClipboardPort }, {} as never)).toEqual({});
+  });
+});
+
+describe("what the palette remembers", () => {
+  it("keeps the last two hundred", () => {
+    let now = 0;
+    const recent = recentIn(null, () => ++now);
+    for (let i = 0; i < 205; i++) recent.note(`k${i}`);
+    expect(recent.keys()).toHaveLength(200);
+    expect(recent.keys()[0]).toBe("k204");
+  });
+
+  it("lives in the window's storage, when there is one to read", () => {
+    localStorage.clear();
+    localRecent().note("app:x");
+    expect(localRecent().keys()).toEqual(["app:x"]);
+    vi.stubGlobal("localStorage", undefined);
+    expect(localRecent().keys()).toEqual([]);
+    vi.unstubAllGlobals();
+    const descriptor = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
+    Object.defineProperty(globalThis, "localStorage", { configurable: true, get: () => { throw new Error("denied"); } });
+    try {
+      expect(localRecent().keys()).toEqual([]);
+    } finally {
+      if (descriptor) Object.defineProperty(globalThis, "localStorage", descriptor);
+    }
   });
 });

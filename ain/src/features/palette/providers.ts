@@ -98,7 +98,8 @@ interface SystemEntry {
   readonly final?: string;
 }
 
-const TRASH = isWindows() ? "Empty the Recycle Bin" : "Empty the Trash";
+/** What the trash is called on this system. */
+export const trashTitle = (windows = isWindows()): string => (windows ? "Empty the Recycle Bin" : "Empty the Trash");
 
 export const SYSTEM: readonly SystemEntry[] = [
   { action: "lock", title: "Lock", words: "lock screen", icon: ICONS.lock },
@@ -106,7 +107,7 @@ export const SYSTEM: readonly SystemEntry[] = [
   { action: "signOut", title: "Sign out", words: "log out logout log off logoff", icon: ICONS.signOut, final: "sign out" },
   { action: "restart", title: "Restart", words: "reboot", icon: ICONS.restart, final: "restart" },
   { action: "shutDown", title: "Shut down", words: "power off poweroff turn off halt", icon: ICONS.power, final: "shut down" },
-  { action: "emptyTrash", title: TRASH, words: "trash recycle bin delete", icon: ICONS.trash, final: "empty it" },
+  { action: "emptyTrash", title: trashTitle(), words: "trash recycle bin delete", icon: ICONS.trash, final: "empty it" },
 ];
 
 /** Lock, sleep, sign out, restart, shut down, empty the trash; `confirm` says whether the final ones ask first. */
@@ -211,8 +212,11 @@ export function shellProvider(port: PalettePort): Provider {
 /** The separator a path uses: a backslash for Windows paths. */
 const separator = (path: string) => (/^[a-z]:\\|^\\\\/i.test(path) ? "\\" : "/");
 
+/** What showing a file in its folder is called on this system. */
+export const revealLabel = (mac = isMac()): string => (mac ? "Show in Finder" : "Show in folder");
+
 function fileItem(port: PalettePort, hit: Hit, text: string, score: number): Item {
-  const reveal: Action = { label: isMac() ? "Show in Finder" : "Show in folder", run: () => port.reveal(hit.path) };
+  const reveal: Action = { label: revealLabel(), run: () => port.reveal(hit.path) };
   return {
     key: `file:${hit.path}`,
     kind: hit.dir ? "folder" : "file",
@@ -239,7 +243,7 @@ export function filesProvider(port: PalettePort, enabled: () => boolean): Provid
     async search({ mode, text }: Query) {
       if (mode === "path") {
         const hits = await port.browse(text, BROWSED).catch(() => []);
-        return hits.map((hit, i) => fileItem(port, hit, text.split(/[\\/]/).at(-1) ?? "", 5_000 - i));
+        return hits.map((hit, i) => fileItem(port, hit, text.split(/[\\/]/).at(-1)!, 5_000 - i));
       }
       if (mode !== "all" || text.length < 2 || !enabled()) return [];
       const hits = await port.files(text, FILES_SHOWN).catch(() => []);

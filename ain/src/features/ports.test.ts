@@ -16,6 +16,8 @@ const { tauriDictation } = await import("./dictation/service");
 const { tauriTts } = await import("./tts/service");
 const { tauriMedia } = await import("./media/service");
 const { tauriPrivacy } = await import("./privacy/service");
+const { tauriPalette, idlePalette } = await import("./palette/service");
+const { tauriZones, idleZones } = await import("./zones/service");
 
 beforeEach(() => {
   vi.mocked(invoke).mockReset();
@@ -144,5 +146,77 @@ describe("privacy", () => {
     const { seen } = await follow(tauriPrivacy.watch, log);
     expect(seen).toEqual([null, { mic: ["Discord"], camera: [] }]);
     expect(log).toEqual(["listen plugin:privacy:usage-changed", "invoke plugin:privacy|state", "unlisten plugin:privacy:usage-changed"]);
+  });
+});
+
+describe("palette", () => {
+  it("calls each command by its Rust name, with its arguments", async () => {
+    const hit = { path: "/home/me/a.md", name: "a.md", folder: "~", dir: false };
+    const log = backend({ "plugin:palette|apps": [{ id: "x", name: "X", keywords: "", detail: "" }], "plugin:palette|files": [hit], "plugin:palette|browse": [hit] });
+    expect(await tauriPalette.apps()).toHaveLength(1);
+    expect(await tauriPalette.files("a", 5)).toEqual([hit]);
+    expect(await tauriPalette.browse("~/", 9)).toEqual([hit]);
+    await tauriPalette.launch("x");
+    await tauriPalette.open("/home/me/a.md");
+    await tauriPalette.reveal("/home/me/a.md");
+    await tauriPalette.run("ls");
+    await tauriPalette.system("lock");
+    await tauriPalette.openUrl("https://example.com");
+    expect(log.map((l) => l.replace("invoke plugin:palette|", ""))).toEqual(["apps", "files", "browse", "launch", "open", "reveal", "run", "system", "open_url"]);
+    expect(vi.mocked(invoke).mock.calls.slice(1).map(([, args]) => args)).toEqual([
+      { query: "a", limit: 5 },
+      { path: "~/", limit: 9 },
+      { id: "x" },
+      { path: "/home/me/a.md" },
+      { path: "/home/me/a.md" },
+      { command: "ls" },
+      { action: "lock" },
+      { url: "https://example.com" },
+    ]);
+  });
+
+  it("finds nothing and does nothing in the browser previews", async () => {
+    expect([await idlePalette.apps(), await idlePalette.files("a", 1), await idlePalette.browse("~", 1)]).toEqual([[], [], []]);
+    for (const done of [idlePalette.launch("x"), idlePalette.open("p"), idlePalette.reveal("p"), idlePalette.run("ls"), idlePalette.system("lock"), idlePalette.openUrl("u")]) {
+      await expect(done).resolves.toBeUndefined();
+    }
+    expect(invoke).not.toHaveBeenCalled();
+  });
+});
+
+describe("zones", () => {
+  it("calls each command by its Rust name, reading the floats JSON may have turned to null", async () => {
+    const support = { moves: true, drags: true, note: null, install: false };
+    const log = backend({ "plugin:zones|support": support, "plugin:zones|layout": [{ x: 0, y: null, w: 0.5, h: 1 }] });
+    expect(await tauriZones.support()).toEqual(support);
+    expect(await tauriZones.layout("columns", 2, true)).toEqual([{ x: 0, y: 0, w: 0.5, h: 1 }]);
+    await tauriZones.snap(1);
+    await tauriZones.screen(-1);
+    await tauriZones.cancel(true);
+    await tauriZones.installHelper();
+    expect(log.map((l) => l.replace("invoke plugin:zones|", ""))).toEqual(["support", "layout", "snap", "screen", "cancel", "install_helper"]);
+    expect(vi.mocked(invoke).mock.calls.map(([, args]) => args)).toEqual([undefined, { template: "columns", count: 2, portrait: true }, { zone: 1 }, { by: -1 }, { refocus: true }, undefined]);
+  });
+
+  it("follows the overlay, starting from the backend's state", async () => {
+    const wire = { zones: [{ x: 1, y: 2, w: 3, h: null }], lit: [0], picking: true, screen: 0, screens: 1 };
+    const log = backend({ "plugin:zones|overlay_state": { ...wire, picking: false } }, { "plugin:zones:overlay-changed": [wire] });
+    const { seen } = await follow(tauriZones.watchOverlay, log);
+    expect(seen.map((o) => [o.picking, o.zones[0]?.h])).toEqual([
+      [true, 0],
+      [false, 0],
+    ]);
+    expect(log).toEqual(["listen plugin:zones:overlay-changed", "invoke plugin:zones|overlay_state", "unlisten plugin:zones:overlay-changed"]);
+  });
+
+  it("splits the screen in even columns and moves nothing in the browser previews", async () => {
+    expect(await idleZones.support()).toMatchObject({ moves: false, drags: false, install: false });
+    expect(await idleZones.layout("columns", 0, false)).toEqual([{ x: 0, y: 0, w: 1, h: 1 }]);
+    const seen: unknown[] = [];
+    const stop = await idleZones.watchOverlay((o) => seen.push(o.zones));
+    stop();
+    expect(seen).toEqual([[]]);
+    for (const done of [idleZones.snap(0), idleZones.screen(1), idleZones.cancel(false), idleZones.installHelper()]) await expect(done).resolves.toBeUndefined();
+    expect(invoke).not.toHaveBeenCalled();
   });
 });

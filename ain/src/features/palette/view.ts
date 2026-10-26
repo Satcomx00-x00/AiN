@@ -66,12 +66,12 @@ export function highlight(title: string, hits: readonly number[]): Node[] {
 /** An app's tile: its initial, on a color of its own. */
 function initial(name: string): HTMLElement {
   const tile = h("span", { class: "pl-tile pl-initial", "aria-hidden": "true" }, [...name.trim()][0]?.toUpperCase() ?? "?");
-  const hue = [...name].reduce((sum, c) => (sum * 31 + (c.codePointAt(0) ?? 0)) % 360, 7);
+  const hue = [...name].reduce((sum, c) => (sum * 31 + c.codePointAt(0)!) % 360, 7);
   tile.style.setProperty("--hue", String(hue));
   return tile;
 }
 
-const tile = (item: Item) => (item.kind === "app" ? initial(item.title) : h("span", { class: "pl-tile", "aria-hidden": "true" }, icon(item.icon ?? ICONS.file)));
+const tile = (item: Item) => (item.icon ? h("span", { class: "pl-tile", "aria-hidden": "true" }, icon(item.icon)) : initial(item.title));
 
 const kbd = (text: string) => h("kbd", {}, text);
 
@@ -182,14 +182,11 @@ export function paletteView(root: HTMLElement, ctx: PaletteContext, recent: Rece
     }
     draw(found, query);
     for (const result of late) {
-      void result.then(
-        (items) => {
-          if (v !== version || !items.length) return;
-          found.push(...items);
-          draw(found, query);
-        },
-        () => {},
-      );
+      void result.then((items) => {
+        if (v !== version || !items.length) return;
+        found.push(...items);
+        draw(found, query);
+      });
     }
   };
 

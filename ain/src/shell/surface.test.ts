@@ -123,6 +123,18 @@ describe("the popup and overlay windows", () => {
     expect(opened).toEqual(["b.go screen after 1 hide"]);
   });
 
+  it("let a view open Settings or quit the app", async () => {
+    const a = withCommand("a");
+    const { popup, store } = await host(a.plugin);
+    const open = vi.spyOn(store, "open");
+    const quit = vi.spyOn(store, "quit");
+    popup.show("a.go");
+    const ctx = a.built[0] as { openSettings: (target?: string) => Promise<void>; quit: () => Promise<void> };
+    await ctx.openSettings("zones");
+    await ctx.quit();
+    expect([open.mock.calls, quit.mock.calls.length]).toEqual([[["zones"]], 1]);
+  });
+
   it("hide for a command they don't know, or one without a view", async () => {
     const quiet = withCommand("q", { popup: undefined });
     const { popup } = await host(quiet.plugin);

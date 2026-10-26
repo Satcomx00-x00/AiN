@@ -28,7 +28,7 @@ export interface Item {
   readonly secondary?: Action;
   /** Asked before `primary` runs, for what can't be undone: Enter must be pressed again. */
   readonly confirm?: string;
-  /** Inner SVG markup of its 16×16 icon; apps show their initial instead. */
+  /** Inner SVG markup of its 16×16 icon; without one (apps), it shows its initial. */
   readonly icon?: string;
   /** A shortcut to show as keycaps. */
   readonly shortcut?: string;
