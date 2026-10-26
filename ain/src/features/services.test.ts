@@ -14,6 +14,7 @@ const { tauriClipboard } = await import("./clipboard/service");
 const { tauriVolume, output } = await import("./volume/service");
 const { tauriDictation, phase } = await import("./dictation/service");
 const { tauriTts } = await import("./tts/service");
+const { tauriPersona } = await import("./persona/service");
 const { tauriMedia } = await import("./media/service");
 const { tauriCapture, decode } = await import("./screenshot/service");
 
@@ -164,5 +165,13 @@ describe("capture", () => {
     vi.mocked(invoke).mockResolvedValueOnce("C:/Pictures/AiN/a.png");
     expect(await tauriCapture.save(new Uint8Array([1]), "a.png")).toBe("C:/Pictures/AiN/a.png");
     expect(invoke).toHaveBeenLastCalledWith("plugin:capture|save_png", new Uint8Array([1]), { headers: { "x-name": "a.png" } });
+  });
+});
+
+describe("conversation", () => {
+  it("calls each command by its Rust name", async () => {
+    vi.mocked(invoke).mockResolvedValue(null);
+    await tauriPersona.control("toggle");
+    expect(invoke).toHaveBeenLastCalledWith("plugin:persona|control", { command: "toggle" });
   });
 });

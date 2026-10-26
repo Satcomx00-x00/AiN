@@ -38,6 +38,7 @@ macro_rules! manifest {
                     events: [PhaseChanged, ModelChanged]
                 }
                 media: features::media { typed: [state, artwork, control], raw: [], events: [TrackChanged] }
+                persona: features::persona { typed: [state, control], raw: [], events: [PhaseChanged] }
                 privacy: features::privacy { typed: [state], raw: [], events: [UsageChanged] }
                 stats: features::stats { typed: [latest], raw: [], events: [] }
                 tts: features::tts {

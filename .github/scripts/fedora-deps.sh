@@ -12,6 +12,7 @@ $SUDO dnf install -y --setopt=install_weak_deps=False \
   gcc \
   gcc-c++ \
   make \
+  cmake \
   pkgconf-pkg-config \
   clang \
   clang-devel \

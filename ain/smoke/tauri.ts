@@ -79,6 +79,8 @@ function install(backend: Backend): void {
     "plugin:tts|download_model": () => null,
     "plugin:tts|delete_model": () => null,
     "plugin:tts|open_model_dir": () => null,
+    "plugin:persona|state": () => ({ phase: "idle" }),
+    "plugin:persona|control": () => null,
     "plugin:capture|latest": () => new ArrayBuffer(0),
     "plugin:capture|save_png": () => "/Pictures/AiN/capture.png",
     "plugin:extensions|list": () => ({ dir: "/plugins", plugins: [] }),

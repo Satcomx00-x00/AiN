@@ -10,23 +10,22 @@ use std::{
     time::Instant,
 };
 
-use cpal::{
-    FromSample, SampleFormat, SizedSample,
-    traits::{DeviceTrait, HostTrait, StreamTrait},
-};
 use serde_json::Value;
 use tauri::AppHandle;
 
 use super::{Command, FEATURE, KEEP_WARM, MAX_SECONDS, Phase, Shared, chunk, deliver, lock, model};
-use crate::shell::{
-    providers::{self, Engine, Remote},
-    settings,
+use crate::{
+    features::microphone,
+    shell::{
+        providers::{self, Engine, Remote},
+        settings,
+    },
 };
 
 /// One dictation in progress.
 struct Session {
     stream: cpal::Stream,
-    captured: Arc<Mutex<Vec<f32>>>,
+    captured: microphone::Captured,
     rate: u32,
     chunker: chunk::Chunker,
     chunks: Sender<Vec<f32>>,
@@ -38,56 +37,6 @@ struct Session {
 #[derive(Default)]
 pub struct Mic {
     session: Option<Session>,
-}
-
-fn open_stream<T>(device: &cpal::Device, config: cpal::StreamConfig, captured: Arc<Mutex<Vec<f32>>>) -> Result<cpal::Stream, String>
-where
-    T: SizedSample + Send + 'static,
-    f32: FromSample<T>,
-{
-    let channels = usize::from(config.channels);
-    device
-        .build_input_stream::<T, _, _>(
-            config,
-            move |data: &[T], _: &cpal::InputCallbackInfo| lock(&captured).extend(chunk::mono(data, channels, f32::from_sample_)),
-            |e| eprintln!("island: microphone: {e}"),
-            None,
-        )
-        .map_err(|e| e.to_string())
-}
-
-/// The microphones the system offers, by stable id and name.
-pub fn microphones() -> Vec<super::Microphone> {
-    let Ok(devices) = cpal::default_host().input_devices() else { return Vec::new() };
-    devices.filter_map(|d| Some(super::Microphone { id: d.id().ok()?.to_string(), name: d.to_string() })).collect()
-}
-
-/// The chosen microphone when it is connected, else the system's default one.
-fn input_device(chosen: Option<&str>) -> Option<cpal::Device> {
-    let host = cpal::default_host();
-    let wanted = chosen.and_then(|id| id.parse::<cpal::DeviceId>().ok()).and_then(|id| host.device_by_id(&id));
-    if chosen.is_some() && wanted.is_none() {
-        eprintln!("island: dictation: the chosen microphone isn't connected; using the default one");
-    }
-    wanted.or_else(|| host.default_input_device())
-}
-
-fn open_mic(chosen: Option<&str>, captured: Arc<Mutex<Vec<f32>>>) -> Result<(cpal::Stream, u32), String> {
-    let device = input_device(chosen).ok_or("No microphone found")?;
-    let supported = device.default_input_config().map_err(|e| e.to_string())?;
-    let (format, config) = (supported.sample_format(), supported.config());
-    let rate = config.sample_rate;
-    let stream = match format {
-        SampleFormat::F32 => open_stream::<f32>(&device, config, captured),
-        SampleFormat::I16 => open_stream::<i16>(&device, config, captured),
-        SampleFormat::I32 => open_stream::<i32>(&device, config, captured),
-        SampleFormat::U16 => open_stream::<u16>(&device, config, captured),
-        SampleFormat::U8 => open_stream::<u8>(&device, config, captured),
-        SampleFormat::I8 => open_stream::<i8>(&device, config, captured),
-        other => Err(format!("Unsupported microphone format {other}")),
-    }?;
-    stream.play().map_err(|e| e.to_string())?;
-    Ok((stream, rate))
 }
 
 /// Loads the recognizer of `model`, stored in `dir`.
@@ -230,7 +179,7 @@ impl Mic {
         }
         let captured = Arc::new(Mutex::new(Vec::new()));
         let chosen = super::chosen_microphone(&settings);
-        let (stream, rate) = match open_mic(chosen.as_deref(), Arc::clone(&captured)) {
+        let (stream, rate) = match microphone::open(chosen.as_deref(), Arc::clone(&captured)) {
             Ok(s) => s,
             Err(message) => return shared.publish(app, Phase::Error { message }),
         };
@@ -287,19 +236,5 @@ impl Mic {
         shared.session.fetch_add(1, Ordering::SeqCst);
         self.session = None;
         shared.publish(app, Phase::Idle);
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    #[ignore = "lists this machine's microphones"]
-    fn smoke_lists_microphones() {
-        let mics = super::microphones();
-        for mic in &mics {
-            println!("{} | {}", mic.name, mic.id);
-            assert!(mic.id.parse::<cpal::DeviceId>().is_ok(), "ids round-trip: {}", mic.id);
-        }
-        assert!(!mics.is_empty(), "no microphone found");
     }
 }

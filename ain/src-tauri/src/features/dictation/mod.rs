@@ -17,7 +17,7 @@ mod model;
 mod windows;
 
 use std::{
-    sync::{Arc, Mutex, atomic::AtomicU64},
+    sync::{Arc, atomic::AtomicU64},
     time::Duration,
 };
 
@@ -29,6 +29,8 @@ use tauri_specta::Event;
 
 use super::{
     live::Live,
+    lock,
+    microphone::{self, Microphone},
     models::{ModelInfo, ModelStore},
     worker::Worker,
 };
@@ -48,14 +50,6 @@ const TICK: Duration = Duration::from_millis(50);
 const MAX_SECONDS: f32 = 300.0;
 /// The model takes about 1 GB of memory; it is let go after this long unused.
 const KEEP_WARM: Duration = Duration::from_secs(10 * 60);
-
-/// A microphone dictation can listen to.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
-pub struct Microphone {
-    /// Stable across runs and reboots: what the "microphone" option stores.
-    pub id: String,
-    pub name: String,
-}
 
 /// The microphone the settings pick, or `None` for the system's default one.
 pub fn chosen_microphone(settings: &Value) -> Option<String> {
@@ -133,10 +127,6 @@ struct Dictation {
     worker: Worker<Command>,
 }
 
-fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
-    m.lock().unwrap_or_else(|e| e.into_inner())
-}
-
 /// Types `text` where the cursor is; false where the system doesn't let us.
 fn type_text(text: &str) -> bool {
     #[cfg(windows)]
@@ -197,7 +187,7 @@ fn state(dictation: State<'_, Dictation>) -> Phase {
 #[tauri::command]
 #[specta::specta]
 async fn microphones() -> Vec<Microphone> {
-    engine::microphones()
+    microphone::list()
 }
 
 #[tauri::command]

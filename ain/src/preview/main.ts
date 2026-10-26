@@ -168,6 +168,11 @@ const fake: Services = {
     download: async () => {},
     remove: async () => {},
   },
+  persona: {
+    watch: async (onChange) =>
+      (onChange(params.has("talk") ? { phase: "live", level: 0.4, speaking: true, said: "Sure! What would you like to talk about today?" } : { phase: "idle" }), () => {}),
+    control: async () => {},
+  },
   privacy: {
     watch: async (onChange) => (onChange({ mic: params.has("mic") ? ["Discord"] : [], camera: [] }), () => {}),
   },

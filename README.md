@@ -128,6 +128,7 @@ Each widget can show on the pill, in its own tab, or both.
 | **Clipboard** | Your recently copied text, one click to copy it again; kept in memory only, never written to disk | ✅ | ✅ | ✅ |
 | **Dictation** | Speak, and the words are typed where your cursor is. Recognized on your computer by one of 7 models you download once (Parakeet, Whisper, SenseVoice, Moonshine) | ✅ | ⚠️ typing needs Accessibility access | ⚠️ typing needs `xdotool` (X11), `wtype` or `ydotool` (Wayland) |
 | **Read aloud** | Select text in any app, press the shortcut, and it is read out loud. Spoken on your computer by one of 6 voice models you download once (Kokoro, Kitten, Piper in English, French, German and Spanish), with a choice of voice and speed | ✅ | ⚠️ reading the selection needs Accessibility access | ✅ |
+| **Conversation** | Talk with NVIDIA [PersonaPlex](https://github.com/NVIDIA/personaplex), a full-duplex speech-to-speech model: it listens while it speaks, so you can interrupt it. Pick one of its 18 voices and the persona it plays. The model runs on a PersonaPlex server you run (`python -m moshi.server`, a 24 GB GPU), on this computer or another one | ✅ | ✅ | ✅ |
 
 Where typing isn't allowed, dictated text is copied for you to paste (see [permissions](#permissions-and-helper-tools)).
 
@@ -141,6 +142,7 @@ Global shortcuts open these even while the island is folded. You can rebind them
 | **Screenshot editor** | Freezes the screen; select an area, draw on it (pen, marker, rectangle, ellipse, colors, sizes, undo), then copy or save it as a PNG | ✅ | ✅ | ⚠️ shortcut on X11 only |
 | **Dictation** | Starts and stops dictating | ✅ | ✅ | ⚠️ shortcut on X11 only |
 | **Read aloud** | Reads the selected text, or stops reading | ✅ | ✅ | ⚠️ shortcut on X11 only |
+| **Conversation** | Starts or ends a conversation with PersonaPlex | ✅ | ✅ | ⚠️ shortcut on X11 only |
 
 On Wayland, Linux gives apps no global shortcuts: the island and its tabs work, the shortcuts don't.
 
@@ -166,6 +168,7 @@ the `store` branch to list it.
 | Annotate a screenshot | <kbd>Win</kbd>+<kbd>Alt</kbd>+<kbd>S</kbd> |
 | Start or stop dictation | <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>D</kbd> |
 | Read the selected text aloud, or stop | <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>R</kbd> |
+| Start or end a conversation with PersonaPlex | <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>T</kbd> |
 
 You can rebind them all in **Settings → Shortcuts**. On Windows, <kbd>Win</kbd> + a single letter is reserved by the
 OS, so add <kbd>Shift</kbd> or <kbd>Alt</kbd>. On macOS, <kbd>Win</kbd> is <kbd>Cmd</kbd>; on Linux, the Super key.
