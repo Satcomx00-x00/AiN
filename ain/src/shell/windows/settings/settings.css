@@ -615,19 +615,13 @@ h1 {
 }
 
 .toast {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
   box-sizing: border-box;
   width: 100%;
-  padding: 12px 10px 12px 14px;
+  padding: 11px 10px 11px 14px;
   border: 1px solid var(--line-strong);
-  border-left: 3px solid var(--tone, var(--accent));
-  border-radius: var(--radius);
-  background: #26262c;
-  box-shadow:
-    0 12px 32px -8px rgba(0, 0, 0, 0.6),
-    0 2px 6px rgba(0, 0, 0, 0.3);
+  border-radius: 10px;
+  background: var(--card-hover);
+  box-shadow: 0 10px 28px -10px rgba(0, 0, 0, 0.7);
   pointer-events: auto;
   animation: toast-in 0.22s var(--spring);
 }
@@ -658,87 +652,109 @@ h1 {
   }
 }
 
-.toast-ico {
-  display: grid;
-  margin-top: 1px;
-  color: var(--tone);
+.toast-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 18px;
 }
 
-.toast-body {
-  flex: 1;
-  min-width: 0;
+.toast-dot {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--tone);
 }
 
 .toast-title {
+  flex: 1;
+  min-width: 0;
   font-weight: 600;
+}
+
+/* Everything under the title lines up with it, past the dot. */
+.toast-message,
+.toast-log,
+.toast-foot {
+  margin-left: 16px;
+  margin-right: 4px;
 }
 
 /* The system's words: selectable, so they can be copied by hand too. */
 .toast-message {
-  margin-top: 3px;
-  max-height: 120px;
-  overflow-y: auto;
-  font-size: 12px;
-  color: color-mix(in srgb, var(--fg) 80%, transparent);
+  margin-top: 2px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: color-mix(in srgb, var(--fg) 78%, transparent);
   overflow-wrap: anywhere;
-  white-space: pre-wrap;
   user-select: text;
   cursor: text;
+}
+
+.toast-log {
+  max-height: 180px;
+  margin-top: 8px;
+  margin-bottom: 0;
+  padding: 8px 10px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.28);
+  font: 11px/1.5 ui-monospace, "Cascadia Mono", Consolas, monospace;
+  color: var(--muted);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+  cursor: text;
+}
+
+.toast-log[hidden] {
+  display: none;
 }
 
 .toast-foot {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 14px;
   margin-top: 8px;
 }
 
 .toast-code {
-  padding: 1px 6px;
-  border-radius: 4px;
-  font: 11px ui-monospace, "Cascadia Mono", Consolas, monospace;
-  color: var(--muted);
-  background: var(--soft);
+  margin-left: auto;
+  font: 10.5px ui-monospace, "Cascadia Mono", Consolas, monospace;
+  letter-spacing: 0.02em;
+  color: var(--faint);
   user-select: all;
   cursor: text;
 }
 
-.toast-btn {
-  height: 24px;
-  padding: 0 8px;
-  border: 1px solid var(--line-strong);
-  border-radius: 5px;
-  background: var(--soft);
+.toast-action {
+  padding: 0;
+  border: 0;
+  background: none;
   font-size: 12px;
-}
-
-.toast-btn:hover {
-  background: var(--hover);
-}
-
-.toast-btn-in {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.toast-btn .icon {
-  width: 13px;
-  height: 13px;
-}
-
-.toast-copied {
-  font-size: 12px;
+  font-weight: 500;
   color: var(--muted);
+}
+
+.toast-action:hover {
+  color: var(--fg);
+}
+
+.toast-action:focus-visible {
+  border-radius: 3px;
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .toast-close {
   display: grid;
   place-items: center;
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   flex: none;
-  margin: -4px 0 0;
+  margin: -3px 0 -3px 4px;
   padding: 0;
   border: 0;
   border-radius: 5px;

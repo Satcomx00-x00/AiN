@@ -1,19 +1,25 @@
 /**
- * Toasts in the window's bottom-right corner: what went wrong (kept until closed, its words
- * selectable, with a code and a button to copy it all) or a short note that fades by itself.
+ * Toasts in the window's bottom-right corner: what went wrong (kept until closed, its first line
+ * up front, the rest — a traceback, say — folded away, with a code and a way to copy it all) or a
+ * short note that fades by itself.
  */
 import { button, h, icon } from "../../../sdk/dom";
 import type { Problem } from "../../../sdk/report";
 
-const ERROR = `<circle cx="8" cy="8" r="6"/><path d="M8 5v3.5M8 10.9v.01"/>`;
-const DONE = `<circle cx="8" cy="8" r="6"/><path d="M5.6 8.1l1.7 1.7 3.2-3.5"/>`;
 const CLOSE = `<path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/>`;
-const COPY = `<rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5V3.75c0-.7-.55-1.25-1.25-1.25h-5.5c-.7 0-1.25.55-1.25 1.25v5.5c0 .7.55 1.25 1.25 1.25H5.5"/>`;
 
 /** More than this many at once, the oldest goes. */
 export const MAX_TOASTS = 4;
 /** How long a note stays. */
 export const NOTE_MS = 4000;
+/** How long Copy says it copied before it reads Copy again. */
+export const COPIED_MS = 2000;
+
+/** The line worth reading at a glance, and whatever follows it. */
+export const splitMessage = (message: string): { summary: string; detail: string } => {
+  const [first = "", ...rest] = message.trim().split("\n");
+  return { summary: first.trim().replace(/:$/, ""), detail: rest.join("\n").replace(/^\n+|\s+$/g, "") };
+};
 
 /** What Copy puts on the clipboard: enough to paste into a bug report. */
 export const problemText = (p: Problem, at: Date): string => `[${p.code}] ${p.title}\n${p.message}\n${at.toISOString()}`;
@@ -54,30 +60,48 @@ export function toaster(copy: (text: string) => Promise<void> = (text) => naviga
     problem(p) {
       const at = new Date();
       const key = `${p.code}\n${p.title}\n${p.message}`;
-      const copied = h("span", { class: "toast-copied", "aria-live": "polite" });
+      const { summary, detail } = splitMessage(p.message);
+
+      const said = h("span", { "aria-live": "polite" }, "Copy");
+      let back: ReturnType<typeof setTimeout> | undefined;
+      const say = (text: string) => {
+        said.textContent = text;
+        clearTimeout(back);
+        back = setTimeout(() => (said.textContent = "Copy"), COPIED_MS);
+      };
+      const copyBtn = button(said, () => {
+        copy(problemText(p, at)).then(() => say("Copied"), () => say("Select the text to copy it"));
+      }, { class: "toast-action toast-copy" });
+
+      // The traceback, folded: opened, it shows its end, where the actual error is.
+      const log = h("pre", { class: "toast-log", hidden: "" }, detail);
+      const toggle = button("Details", () => {
+        const open = log.hidden;
+        log.hidden = !open;
+        toggle.setAttribute("aria-expanded", String(open));
+        toggle.textContent = open ? "Hide details" : "Details";
+        if (open) log.scrollTop = log.scrollHeight;
+      }, { class: "toast-action", "aria-expanded": "false" });
+
       const toast = h(
         "div",
         { class: "toast", "data-tone": "error", role: "alert" },
-        h("span", { class: "toast-ico", "aria-hidden": "true" }, icon(ERROR)),
         h(
           "div",
-          { class: "toast-body" },
+          { class: "toast-head" },
+          h("span", { class: "toast-dot", "aria-hidden": "true" }),
           h("div", { class: "toast-title" }, p.title),
-          h("div", { class: "toast-message" }, p.message),
-          h(
-            "div",
-            { class: "toast-foot" },
-            h("code", { class: "toast-code", title: "Error code" }, p.code),
-            button(h("span", { class: "toast-btn-in" }, icon(COPY), "Copy"), () => {
-              copy(problemText(p, at)).then(
-                () => (copied.textContent = "Copied"),
-                () => (copied.textContent = "Select the text to copy it"),
-              );
-            }, { class: "toast-btn" }),
-            copied,
-          ),
+          button(icon(CLOSE), () => close(toast, key), { class: "toast-close", "aria-label": "Close", title: "Close" }),
         ),
-        button(icon(CLOSE), () => close(toast, key), { class: "toast-close", "aria-label": "Close", title: "Close" }),
+        h("div", { class: "toast-message" }, summary),
+        ...(detail ? [log] : []),
+        h(
+          "div",
+          { class: "toast-foot" },
+          ...(detail ? [toggle] : []),
+          h("code", { class: "toast-code", title: "Error code" }, p.code),
+          copyBtn,
+        ),
       );
       add(toast, key);
     },
@@ -86,8 +110,7 @@ export function toaster(copy: (text: string) => Promise<void> = (text) => naviga
       const toast = h(
         "div",
         { class: "toast", "data-tone": "ok", role: "status" },
-        h("span", { class: "toast-ico", "aria-hidden": "true" }, icon(DONE)),
-        h("div", { class: "toast-body" }, h("div", { class: "toast-title" }, text)),
+        h("div", { class: "toast-head" }, h("span", { class: "toast-dot", "aria-hidden": "true" }), h("div", { class: "toast-title" }, text)),
       );
       add(toast, key);
       setTimeout(() => close(toast, key), NOTE_MS);

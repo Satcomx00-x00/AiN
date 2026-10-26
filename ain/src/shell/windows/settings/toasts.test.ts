@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 /** Toasts: what went wrong stays until closed, can be copied whole, and never piles up past a few. */
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { MAX_TOASTS, NOTE_MS, problemText, toaster } from "./toasts";
+import { COPIED_MS, MAX_TOASTS, NOTE_MS, problemText, splitMessage, toaster } from "./toasts";
 
 const problem = (n = 1) => ({ title: `Couldn't save ${n}`, message: "disk full (os error 112)", code: "SETTINGS_SAVE" });
 const press = (root: ParentNode, label: string) => [...root.querySelectorAll<HTMLButtonElement>("button")].find((b) => (b.getAttribute("aria-label") ?? b.textContent?.trim()) === label)!.click();
@@ -31,7 +31,18 @@ describe("a problem's toast", () => {
     press(t.el, "Copy");
     await tick();
     expect(copy.mock.calls[0]![0]).toMatch(/^\[SETTINGS_SAVE\] Couldn't save 1\ndisk full \(os error 112\)\n\d{4}-\d\d-\d\dT/);
-    expect(t.el.querySelector(".toast-copied")?.textContent).toBe("Copied");
+    expect(t.el.querySelector(".toast-copy")?.textContent).toBe("Copied");
+  });
+
+  it("reads Copy again a moment after copying", async () => {
+    vi.useFakeTimers();
+    const t = toaster(async () => {});
+    t.problem(problem());
+    press(t.el, "Copy");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(t.el.querySelector(".toast-copy")?.textContent).toBe("Copied");
+    await vi.advanceTimersByTimeAsync(COPIED_MS);
+    expect(t.el.querySelector(".toast-copy")?.textContent).toBe("Copy");
   });
 
   it("says to select the text when the clipboard refuses", async () => {
@@ -39,7 +50,26 @@ describe("a problem's toast", () => {
     t.problem(problem());
     press(t.el, "Copy");
     await tick();
-    expect(t.el.querySelector(".toast-copied")?.textContent).toBe("Select the text to copy it");
+    expect(t.el.querySelector(".toast-copy")?.textContent).toBe("Select the text to copy it");
+  });
+
+  it("puts a traceback's first line up front and folds the rest away", () => {
+    const t = toaster(async () => {});
+    t.problem({ title: "PersonaPlex didn't start", message: "PersonaPlex stopped (exit code: 1):\n  File \"x.py\", line 1\nRuntimeError: boom\n", code: "PERSONA_TEST" });
+    const log = t.el.querySelector<HTMLElement>(".toast-log")!;
+    expect(t.el.querySelector(".toast-message")?.textContent).toBe("PersonaPlex stopped (exit code: 1)");
+    expect([log.textContent, log.hidden]).toEqual(['  File "x.py", line 1\nRuntimeError: boom', true]);
+    press(t.el, "Details");
+    expect(log.hidden).toBe(false);
+    press(t.el, "Hide details");
+    expect(log.hidden).toBe(true);
+  });
+
+  it("has nothing to fold when the words fit on a line", () => {
+    const t = toaster(async () => {});
+    t.problem(problem());
+    expect([t.el.querySelector(".toast-log"), [...t.el.querySelectorAll("button")].some((b) => b.textContent === "Details")]).toEqual([null, false]);
+    expect(splitMessage("disk full")).toEqual({ summary: "disk full", detail: "" });
   });
 
   it("shows the same problem once, and keeps only the latest few", () => {
