@@ -59,6 +59,7 @@ let failures: Record<string, string> = {};
 const GRID = `<rect x="2.5" y="2.5" width="4.5" height="4.5" rx="1"/><rect x="9" y="2.5" width="4.5" height="4.5" rx="1"/><rect x="2.5" y="9" width="4.5" height="4.5" rx="1"/><rect x="9" y="9" width="4.5" height="4.5" rx="1"/>`;
 const SEARCH = `<circle cx="7" cy="7" r="4.25"/><path d="M10.25 10.25 13.5 13.5"/>`;
 const CHEVRON = `<path d="M6.5 4 10.5 8l-4 4"/>`;
+const MENU = `<path d="M2.75 4.5h10.5M2.75 8h10.5M2.75 11.5h10.5"/>`;
 
 const SECTIONS = {
   general: { label: "General", icon: `<path d="M3 4.5h10M3 11.5h10"/><circle cx="6" cy="4.5" r="1.75"/><circle cx="10.5" cy="11.5" r="1.75"/>` },
@@ -109,15 +110,47 @@ const status = h("div", { class: "status", "data-state": "saved", role: "status"
 const searchBox = h("input", { class: "search-input", type: "search", placeholder: "Search settings", spellcheck: "false", "aria-label": "Search settings" });
 const navList = h("div", { class: "nav-list" });
 const navFoot = h("div", { class: "nav-foot" });
-const nav = h(
-  "nav",
-  { class: "nav", "aria-label": "Settings sections" },
-  h("div", { class: "brand" }, h("span", { class: "brand-pill", "aria-hidden": "true" }), "AiN", h("span", { class: "brand-sub" }, "Settings")),
-  h("label", { class: "search" }, icon(SEARCH), searchBox, h("kbd", { class: "search-key", "aria-hidden": "true" }, "Ctrl F")),
-  navList,
-  navFoot,
-);
-const app = h("div", { class: "app" }, nav, content);
+const searchField = h("label", { class: "search" }, icon(SEARCH), searchBox, h("kbd", { class: "search-key", "aria-hidden": "true" }, "Ctrl F"));
+const brand = () => h("div", { class: "brand" }, h("span", { class: "brand-pill", "aria-hidden": "true" }), "AiN", h("span", { class: "brand-sub" }, "Settings"));
+const nav = h("nav", { class: "nav", id: "settings-nav", "aria-label": "Settings sections" }, brand(), searchField, navList, navFoot);
+// In a narrow window the menu is a drawer, opened from a bar at the top that holds the search box.
+const menuButton = button(icon(MENU), () => setMenu(app.dataset.menu !== "open"), {
+  class: "menu-button",
+  "aria-label": "Menu",
+  "aria-controls": "settings-nav",
+  "aria-expanded": "false",
+});
+const topbar = h("header", { class: "topbar" }, menuButton, brand());
+const backdrop = h("div", { class: "nav-backdrop", "aria-hidden": "true" });
+const app = h("div", { class: "app", "data-menu": "closed" }, topbar, nav, content, backdrop);
+
+/** Opens or closes the menu's drawer (narrow windows only; wide, the menu is always there). */
+function setMenu(open: boolean) {
+  app.dataset.menu = open ? "open" : "closed";
+  menuButton.setAttribute("aria-expanded", String(open));
+  if (open) nav.querySelector<HTMLElement>("[aria-current=page]")?.focus();
+}
+backdrop.addEventListener("click", () => setMenu(false));
+nav.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && app.dataset.menu === "open") {
+    setMenu(false);
+    menuButton.focus();
+  }
+});
+// Picking a place closes the drawer.
+nav.addEventListener("click", (e) => {
+  if ((e.target as HTMLElement).closest("button")) setMenu(false);
+});
+
+/** Narrow, the search box sits in the top bar, always in reach; wide, at the top of the menu. */
+const narrow = window.matchMedia?.("(max-width: 760px)");
+const placeSearch = () => {
+  if (narrow?.matches) topbar.append(searchField);
+  else nav.insertBefore(searchField, navList);
+  if (!narrow?.matches) setMenu(false);
+};
+narrow?.addEventListener?.("change", placeSearch);
+placeSearch();
 const toasts = toaster();
 
 // ---------- state ----------

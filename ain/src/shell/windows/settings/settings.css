@@ -1808,3 +1808,269 @@ kbd {
   max-width: none;
   height: 100%;
 }
+
+/* ---------- Narrow windows ---------- */
+
+/* The top bar and the drawer's backdrop exist only in a narrow window. */
+.topbar,
+.nav-backdrop {
+  display: none;
+}
+
+.menu-button {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--control);
+  background: none;
+  color: var(--fg);
+}
+
+.menu-button:hover {
+  background: var(--soft);
+}
+
+.menu-button .icon {
+  width: 18px;
+  height: 18px;
+}
+
+.app[data-page="true"] > .topbar {
+  display: none;
+}
+
+/* Under 760 px the menu leaves room for the page: a bar at the top opens it as a drawer. */
+@media (max-width: 760px) {
+  .app {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+
+  .topbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    background: var(--side);
+    border-bottom: 1px solid var(--line);
+  }
+
+  .topbar .brand {
+    padding: 0 4px 0 0;
+    font-size: 13.5px;
+    white-space: nowrap;
+  }
+
+  .topbar .search {
+    flex: 1;
+    min-width: 0;
+    max-width: 380px;
+    margin: 0 0 0 auto;
+  }
+
+  .topbar .search-key {
+    display: none;
+  }
+
+  .content {
+    min-height: 0;
+  }
+
+  .nav {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 50;
+    width: min(280px, 86vw);
+    box-sizing: border-box;
+    transform: translateX(-100%);
+    visibility: hidden;
+    transition:
+      transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1),
+      visibility 0s 0.22s;
+    box-shadow: 0 0 40px rgba(0, 0, 0, 0.5);
+  }
+
+  .app[data-menu="open"] .nav {
+    transform: none;
+    visibility: visible;
+    transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  .app[data-menu="open"] .nav-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    background: rgba(0, 0, 0, 0.45);
+  }
+
+  .page-head {
+    padding: 14px 20px 12px;
+    scroll-margin-top: 0;
+  }
+
+  .page-body {
+    padding: 16px 20px 40px;
+  }
+
+  .page-missing {
+    padding: 16px 20px;
+  }
+
+  .content {
+    scroll-padding-top: 100px;
+  }
+}
+
+/* Under 560 px a setting's control goes under its label, and rows of buttons wrap. */
+@media (max-width: 560px) {
+  .topbar .brand {
+    display: none;
+  }
+
+  .topbar .search {
+    max-width: none;
+  }
+
+  h1 {
+    font-size: 18px;
+  }
+
+  .page-head {
+    padding: 12px 16px 10px;
+  }
+
+  .page-body {
+    padding: 14px 16px 32px;
+  }
+
+  .page-title {
+    flex-wrap: wrap;
+    gap: 10px 12px;
+  }
+
+  .page-ico {
+    width: 34px;
+    height: 34px;
+  }
+
+  .page-actions {
+    flex-basis: 100%;
+    flex-wrap: wrap;
+  }
+
+  .field {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  /* A switch still sits beside its label: that's where it's looked for. */
+  .field:has(> .switch) {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .field > :last-child {
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .range-wrap {
+    width: 100%;
+  }
+
+  .range {
+    flex: 1;
+    width: auto;
+    min-width: 0;
+  }
+
+  .field > .seg {
+    display: flex;
+  }
+
+  .seg button {
+    flex: 1;
+  }
+
+  .recorder,
+  .path,
+  .greeting-picker {
+    flex-wrap: wrap;
+  }
+
+  .recorder .keys {
+    min-width: 0;
+    justify-content: flex-start;
+    flex-basis: 100%;
+  }
+
+  .path .path-input {
+    flex-basis: 100%;
+  }
+
+  .greeting-picker .ui-select {
+    flex: 1;
+  }
+
+  .cp {
+    align-items: stretch;
+  }
+
+  .cp-panel {
+    width: 100%;
+  }
+
+  .card-head {
+    flex-wrap: wrap;
+  }
+
+  .card-actions {
+    flex-basis: 100%;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+
+  .list-in {
+    padding: 10px 12px;
+    gap: 10px;
+  }
+
+  /* Where a widget shows is on its page; the row keeps its name and whether it needs setting up. */
+  .list-in .badge[data-placed] {
+    display: none;
+  }
+
+  .list-where {
+    max-width: 34%;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .card-foot {
+    flex-wrap: wrap;
+  }
+
+  .toasts {
+    right: 8px;
+    bottom: 8px;
+    width: calc(100vw - 16px);
+  }
+}
+
+/* Short of room, the page's title scrolls away with it rather than taking a third of the window. */
+@media (max-width: 560px), (max-height: 520px) {
+  .page-head {
+    position: static;
+    backdrop-filter: none;
+    background: none;
+  }
+
+  .content {
+    scroll-padding-top: 0;
+  }
+}

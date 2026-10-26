@@ -1060,3 +1060,26 @@ describe("Finding your way", () => {
     expect(page.toasts()).toEqual(["[UNEXPECTED] Something went wrong: socket closed"]);
   });
 });
+
+describe("In a narrow window", () => {
+  it("opens the menu as a drawer, and closes it on a choice, on the backdrop, or on Escape", async () => {
+    environment();
+    const page = await load(system());
+    const app = page.page;
+    const menu = document.querySelector<HTMLButtonElement>(".menu-button")!;
+    expect([app.dataset.menu, menu.getAttribute("aria-expanded")]).toEqual(["closed", "false"]);
+    menu.click();
+    expect([app.dataset.menu, menu.getAttribute("aria-expanded")]).toEqual(["open", "true"]);
+    await page.open("Shortcuts");
+    expect([app.dataset.menu, page.heading()]).toEqual(["closed", "Shortcuts"]);
+
+    menu.click();
+    document.querySelector<HTMLElement>(".nav-backdrop")!.click();
+    expect(app.dataset.menu).toBe("closed");
+
+    menu.click();
+    document.querySelector("nav")!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    expect(app.dataset.menu).toBe("closed");
+    expect(document.activeElement).toBe(menu);
+  });
+});

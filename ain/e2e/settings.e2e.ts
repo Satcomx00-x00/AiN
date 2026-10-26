@@ -68,3 +68,28 @@ test("General points to the Hidden style", async ({ page }) => {
   await expect(page.locator("main h1")).toHaveText("Appearance");
   await expect(page).toHaveURL(/#appearance$/);
 });
+
+test.describe("in a narrow window", () => {
+  test.use({ viewport: { width: 360, height: 700 } });
+
+  test("no section scrolls sideways", async ({ page }) => {
+    for (const at of ["general", "appearance", "layout", "shortcuts", "widgets", "widgets:dictation", "providers", "plugins", "about"]) {
+      await page.goto(`/settings.html#${at}`);
+      await page.reload();
+      await expect(page.locator("main h1")).toBeVisible();
+      const widest = await page.evaluate(() => Math.max(...[...document.querySelectorAll("main *")].map((el) => el.getBoundingClientRect().right)));
+      expect(widest, at).toBeLessThanOrEqual(360);
+    }
+  });
+
+  test("the menu is a drawer, and search stays in the top bar", async ({ page }) => {
+    await page.goto("/settings.html");
+    await expect(page.locator(".topbar .search-input")).toBeVisible();
+    await expect(page.locator("nav")).toBeHidden();
+    await page.locator(".menu-button").click();
+    await expect(page.locator("nav")).toBeVisible();
+    await page.locator("nav button", { hasText: /^Dictation$/ }).click();
+    await expect(page.locator("nav")).toBeHidden();
+    await expect(page.locator("main h1")).toHaveText("Dictation");
+  });
+});
