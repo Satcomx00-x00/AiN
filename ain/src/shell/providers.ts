@@ -20,7 +20,7 @@ export interface Preset {
 
 const OPENAI_VOICES = ["alloy", "ash", "ballad", "coral", "echo", "fable", "nova", "onyx", "sage", "shimmer"];
 
-/** Known providers, then a custom OpenAI-compatible server (a gateway, vLLM, LocalAI, Speaches…). */
+/** Known providers, then a custom OpenAI-compatible server (a gateway, vLLM, LocalAI…). */
 export const PRESETS = [
   {
     id: "openai",

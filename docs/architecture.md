@@ -65,7 +65,7 @@ property API and synthetic keys on macOS. macOS permission prompts are explained
 ## AI providers
 
 Settings → AI providers lists online services (OpenAI, Groq, Mistral) and the user's own
-OpenAI-compatible servers (a gateway, vLLM, LocalAI, Speaches…), kept in the settings' `providers`.
+OpenAI-compatible servers (a gateway, vLLM, LocalAI…), kept in the settings' `providers`.
 Each has a base URL and an authentication: none, or a bearer token (an API key or a JWT) read from
 an environment variable or a file, read again on every request so a rotated token is picked up; an
 expired JWT is refused before it is sent. Tokens never enter `settings.json`, only where to find them.
