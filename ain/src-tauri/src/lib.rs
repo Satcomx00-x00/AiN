@@ -11,6 +11,10 @@ pub(crate) use error::{Error, Res};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // `ain --cleanup`: undo what the app registered outside its files, and stop there.
+    if let Some(request) = shell::cleanup::Request::parse(std::env::args()) {
+        std::process::exit(shell::cleanup::run(&request));
+    }
     #[cfg(target_os = "linux")]
     platform::linux::prefer_xwayland();
     // Before anything reads its folders: the app's data from when it had its old name.

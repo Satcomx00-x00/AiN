@@ -264,14 +264,18 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  # `@satcomx00/ain-fedora44`: the app built on Fedora 44 against its own libraries, for npm only
-  # (see npm/README.md). npm can't tell distros apart, so users pick this package by name.
+  # `@satcomx00/ain-fedora<release>`: the app built on each Fedora against its own libraries, for npm
+  # only (see npm/README.md). npm can't tell distros apart, so users pick these packages by name.
   fedora:
-    name: Build (Fedora 44 x64, npm)
+    name: Build (Fedora ${{ matrix.release }} x64, npm)
     needs: [plan, prepare]
     if: ${{ !cancelled() && needs.prepare.result == 'success' && vars.NPM_PUBLISH == 'true' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        release: [43, 44]
     runs-on: ubuntu-24.04
-    container: fedora:44
+    container: fedora:${{ matrix.release }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -290,11 +294,11 @@ jobs:
           bun install --frozen-lockfile
           bun run tauri build --ci --no-bundle
           mkdir -p npm && cp src-tauri/target/release/ain npm/
-          tar -czf npm-fedora44.tgz -C npm .
+          tar -czf npm-fedora.tgz -C npm .
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
-          name: npm-fedora44
-          path: ain/npm-fedora44.tgz
+          name: npm-fedora${{ matrix.release }}
+          path: ain/npm-fedora.tgz
           if-no-files-found: error
           retention-days: 7
 
@@ -350,8 +354,9 @@ jobs:
 
   # `bun i -g @satcomx00/ain`: one package per platform, and the main one, whose optional
   # dependencies make npm/bun fetch only the one for the machine (see npm/README.md). Off until the
-  # `NPM_PUBLISH` variable is `true`. Publishes with npm's trusted publishing (OIDC, with
-  # provenance), or with the `NPM_TOKEN` secret when set (needed for each package's first version).
+  # `NPM_PUBLISH` variable is `true`. Publishes with npm's trusted publishing (OIDC), or with the
+  # `NPM_TOKEN` secret when set (needed for each package's first version). No provenance: npm only
+  # attests packages built from public repositories.
   npm:
     name: Publish to npm
     needs: [plan, fedora, publish]
@@ -361,7 +366,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write # trusted publishing and provenance
+      id-token: write # trusted publishing
     defaults:
       run:
         working-directory: npm
@@ -384,10 +389,11 @@ jobs:
           VERSION: ${{ needs.plan.outputs.version }}
         run: |
           binaries="$RUNNER_TEMP/binaries"
-          for tarball in "$RUNNER_TEMP"/downloads/npm-*/npm-*.tgz; do
-            platform="$(basename "$tarball" .tgz)"
+          # Each artifact in its own folder, named after it: npm-<platform>/<tarball>.
+          for dir in "$RUNNER_TEMP"/downloads/npm-*/; do
+            platform="$(basename "$dir")"
             mkdir -p "$binaries/${platform#npm-}"
-            tar -xzf "$tarball" -C "$binaries/${platform#npm-}"
+            tar -xzf "$dir"/*.tgz -C "$binaries/${platform#npm-}"
           done
           bun build.ts "$VERSION" "$binaries" "$RUNNER_TEMP/packages" > "$RUNNER_TEMP/packages.txt"
       - name: Publish
@@ -404,5 +410,5 @@ jobs:
               echo "$name@$VERSION is already out"
               continue
             fi
-            npm publish "$dir" --access public --provenance
+            npm publish "$dir" --access public
           done < "$RUNNER_TEMP/packages.txt"

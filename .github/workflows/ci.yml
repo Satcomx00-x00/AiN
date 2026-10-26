@@ -173,9 +173,9 @@ jobs:
       - name: Build, install and launch
         run: | # zizmor: ignore[adhoc-packages]
           bin="$RUNNER_TEMP/bin" out="$RUNNER_TEMP/out" ran="$RUNNER_TEMP/ran"
-          mkdir -p "$bin/linux-x64" "$bin/fedora44" "$bin/win32-x64" "$bin/darwin-x64/AiN.app/Contents/MacOS"
+          mkdir -p "$bin/linux-x64" "$bin/fedora43" "$bin/fedora44" "$bin/win32-x64" "$bin/darwin-x64/AiN.app/Contents/MacOS"
           # Stand-ins that write their name and arguments where the checks below look.
-          for app in linux-x64/AiN.AppImage fedora44/ain; do
+          for app in linux-x64/AiN.AppImage fedora43/ain fedora44/ain; do
             printf '#!/bin/sh\necho %s "$@" > %s\n' "${app%%/*}" "$ran" > "$bin/$app"
             chmod +x "$bin/$app"
           done
@@ -183,22 +183,40 @@ jobs:
           echo '<plist><dict><key>CFBundleExecutable</key><string>AiN</string></dict></plist>' \
             > "$bin/darwin-x64/AiN.app/Contents/Info.plist"
           bun build.ts 1.2.3 "$bin" "$out"
-          # Fedora 44's package is only ever installed by name.
+          # The Fedora packages are only ever installed by name.
           jq -e '.optionalDependencies | keys == ["@satcomx00/ain-darwin-x64", "@satcomx00/ain-linux-x64", "@satcomx00/ain-win32-x64"]' \
             "$out/ain/package.json"
           jq -e '.executable == "AiN.app/Contents/MacOS/AiN"' "$out/ain-darwin-x64/package.json"
           (cd "$out" && npm pack ./ain-linux-x64 ./ain-fedora44 ./ain)
 
-          launch() { # <prefix> <expected output> <tarballs…>
-            local prefix="$1" expected="$2"; shift 2
-            rm -f "$ran"
-            npm install --global --prefix "$prefix" "$@"
-            "$prefix/bin/ain" --from-npm
+          ran_with() { # <expected output>: what the stand-in app last ran with
             for _ in $(seq 20); do [[ -s "$ran" ]] && break; sleep 0.5; done
-            grep -qx -- "$expected" "$ran"
+            grep -qx -- "$1" "$ran" || { echo "expected '$1', got '$(cat "$ran")'"; exit 1; }
+            rm -f "$ran"
           }
-          launch "$RUNNER_TEMP/main" "linux-x64 --from-npm" "$out"/satcomx00-ain-{linux-x64-,}1.2.3.tgz
-          launch "$RUNNER_TEMP/fedora" "fedora44 --from-npm" "$out"/satcomx00-ain-fedora44-1.2.3.tgz
+          npm_install() { # <prefix> <tarballs…>
+            local prefix="$1"; shift
+            npm install --global --prefix "$prefix" "$@"
+          }
+
+          npm_install "$RUNNER_TEMP/main" "$out"/satcomx00-ain-{linux-x64-,}1.2.3.tgz
+          "$RUNNER_TEMP/main/bin/ain" --from-npm
+          ran_with "linux-x64 --from-npm"
+
+          npm_install "$RUNNER_TEMP/fedora" "$out"/satcomx00-ain-fedora44-1.2.3.tgz
+          "$RUNNER_TEMP/fedora/bin/ain" --from-npm
+          ran_with "fedora44 --from-npm"
+
+          # Uninstalling cleans up through the app, then removes the package.
+          "$RUNNER_TEMP/fedora/bin/ain" uninstall --purge
+          ran_with "fedora44 --cleanup --purge"
+          [[ ! -e "$RUNNER_TEMP/fedora/lib/node_modules/@satcomx00/ain-fedora44" ]]
+
+          # Next to a copy from an installer, it refuses to start.
+          sudo touch /usr/bin/ain
+          if "$RUNNER_TEMP/main/bin/ain" 2> "$RUNNER_TEMP/err"; then echo "started next to /usr/bin/ain"; exit 1; fi
+          grep -q "already installed at /usr/bin/ain" "$RUNNER_TEMP/err"
+          sudo rm /usr/bin/ain
 
   rust-fmt:
     name: Rust format
@@ -288,12 +306,17 @@ jobs:
           path: ain/src-tauri/lcov.info
           retention-days: 7
 
-  # Fedora 44 in a container: its own libraries (GTK, WebKitGTK, PipeWire) and toolchain, the
+  # Fedora 43 and 44 in containers: their own libraries (GTK, WebKitGTK, PipeWire) and toolchain, the
   # tests against them, then the .rpm installed with dnf and the installed app launched.
   fedora:
-    name: Fedora 44 x64
+    name: Fedora ${{ matrix.release }} x64
+    strategy:
+      fail-fast: false
+      matrix:
+        # The releases the npm packages `@satcomx00/ain-fedora<release>` are built for (release.yml).
+        release: [43, 44]
     runs-on: ubuntu-24.04
-    container: fedora:44
+    container: fedora:${{ matrix.release }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -308,7 +331,7 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           workspaces: ain/src-tauri -> target
-          key: fedora-44
+          key: fedora-${{ matrix.release }}
       # rust-cache keeps sherpa-onnx-sys's build output but prunes the native libraries it extracted
       # under target/, which it then never fetches again: make it start over.
       - name: Refetch sherpa-onnx's native libraries
@@ -339,7 +362,7 @@ jobs:
       - if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
-          name: launch-check-fedora-44
+          name: launch-check-fedora-${{ matrix.release }}
           path: ain/launch-check
           if-no-files-found: ignore
           retention-days: 7

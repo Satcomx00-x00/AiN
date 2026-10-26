@@ -34,6 +34,14 @@ const macApp = async (staged: string): Promise<string> => {
   return `${app}/Contents/MacOS/${name}`;
 };
 
+const fedora = (release: number): Platform => ({
+  os: "linux",
+  cpu: "x64",
+  executable: async () => "ain",
+  automatic: false,
+  description: `AiN for Fedora ${release} x64, using the system's WebKitGTK (see the README for the dnf line).`,
+});
+
 const PLATFORMS = {
   "win32-x64": {
     os: "win32",
@@ -57,14 +65,9 @@ const PLATFORMS = {
     automatic: true,
     description: "AiN for Linux x64, as an AppImage (any distro).",
   },
-  // Built on Fedora 44 against its own libraries. npm can't tell distros apart, so never automatic.
-  fedora44: {
-    os: "linux",
-    cpu: "x64",
-    executable: async () => "ain",
-    automatic: false,
-    description: "AiN for Fedora 44 x64, using the system's WebKitGTK (see the README for the dnf line).",
-  },
+  // Built on each Fedora against its own libraries. npm can't tell distros apart, so never automatic.
+  fedora43: fedora(43),
+  fedora44: fedora(44),
 } as const satisfies Record<string, Platform>;
 
 type PlatformId = keyof typeof PLATFORMS;
