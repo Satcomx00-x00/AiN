@@ -21,6 +21,9 @@ export const THIS_COMPUTER: OwnEngine = { label: "On this computer", detail: "Pe
 /** Starting, connecting or talking: the main button ends it. */
 export const talking = (phase: Phase): boolean => phase.phase === "starting" || phase.phase === "connecting" || phase.phase === "live";
 
+/** The steps the install names itself, as the backend words them. */
+const STEP = /^(Getting ready|Making its Python environment|Installing PyTorch|Installing PersonaPlex|No uv here)/;
+
 /** What Settings says about PersonaPlex on this computer, and what its button does there. */
 export function localSetup(info: LocalInfo): { detail: string; action: "install" | "remove"; label: string } {
   switch (info.state) {
@@ -31,7 +34,8 @@ export function localSetup(info: LocalInfo): { detail: string; action: "install"
         label: "Install",
       };
     case "installing":
-      return { detail: `Installing… ${info.line}`.trim(), action: "remove", label: "Cancel" };
+      // The install's own words ("Installing PyTorch… 3:07") stand alone; uv's and pip's follow "Installing…".
+      return { detail: STEP.test(info.line) ? info.line : `Installing… ${info.line}`.trim(), action: "remove", label: "Cancel" };
     case "ready":
       return {
         detail: info.running ? "Installed, running now" : "Installed. It starts with a conversation, and stops after 10 minutes unused.",

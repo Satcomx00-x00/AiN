@@ -169,6 +169,9 @@ describe("its settings", () => {
     expect(localSetup({ ...at, state: "missing" }).detail).toContain("17 GB");
     expect(localSetup({ ...at, state: "installing", line: "" })).toEqual({ detail: "Installing…", action: "remove", label: "Cancel" });
     expect(localSetup({ ...at, state: "installing", line: "Resolved 40 packages" }).detail).toBe("Installing… Resolved 40 packages");
+    expect(localSetup({ ...at, state: "installing", line: "Installing PyTorch for NVIDIA GPUs (about 2.5 GB)… 3:07" }).detail).toBe(
+      "Installing PyTorch for NVIDIA GPUs (about 2.5 GB)… 3:07",
+    );
     expect(localSetup({ ...at, state: "ready" })).toMatchObject({ action: "remove", label: "Remove" });
     expect(localSetup({ ...at, state: "ready" }).detail).toContain("10 minutes");
     expect(localSetup({ ...at, running: true, state: "ready" }).detail).toBe("Installed, running now");

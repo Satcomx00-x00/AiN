@@ -303,20 +303,44 @@ fn follow(stream: impl Read + Send + 'static, line: &Arc<Mutex<String>>) -> thre
     })
 }
 
-/// Runs `what` (uv, pip or Python), reporting its last line of output (pip writes its progress to
-/// stdout, the others to stderr), until it ends or is cancelled.
-fn run(mut command: Command, what: &str, cancel: &AtomicBool, report: &mut dyn FnMut(&str)) -> Result<(), String> {
+/// After this long without a word from a helper, say it's still at work, and for how long.
+const QUIET: Duration = Duration::from_secs(3);
+
+/// "3:07": how long a step has taken.
+fn clock(took: Duration) -> String {
+    let secs = took.as_secs();
+    format!("{}:{:02}", secs / 60, secs % 60)
+}
+
+/// What to show of a step: its helper's last line, or, once it has said nothing new for a while,
+/// what the step is doing and for how long, so a long quiet download (uv says nothing while it
+/// fetches PyTorch) doesn't look stuck.
+fn step_line(doing: &str, last: &str, quiet: Duration, took: Duration) -> String {
+    if quiet >= QUIET { format!("{doing} {}", clock(took)) } else { last.to_string() }
+}
+
+/// Runs `what` (uv, pip or Python) for a step `doing` something, reporting its last line of output
+/// (pip writes its progress to stdout, the others to stderr), until it ends or is cancelled. It ends
+/// with the app too, should the app end first.
+fn run(mut command: Command, what: &str, doing: &str, cancel: &AtomicBool, report: &mut dyn FnMut(&str)) -> Result<(), String> {
     command.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
     platform::tie_to_app(&mut command);
     let mut child = command.spawn().map_err(|e| format!("couldn't start {what}: {e}"))?;
+    platform::end_with_app(&child);
     let line = Arc::new(Mutex::new(String::new()));
     let readers = [child.stdout.take().map(|s| follow(s, &line)), child.stderr.take().map(|s| follow(s, &line))];
-    let mut shown = String::new();
-    let mut show = |shown: &mut String| {
+    let (started, mut since) = (Instant::now(), Instant::now());
+    let (mut last, mut said) = (String::new(), String::new());
+    let mut show = || {
         let now = lock(&line).clone();
-        if now != *shown {
-            report(&now);
-            *shown = now;
+        if now != last {
+            last = now;
+            since = Instant::now();
+        }
+        let text = step_line(doing, &last, since.elapsed(), started.elapsed());
+        if text != said {
+            report(&text);
+            said = text;
         }
     };
     let status = loop {
@@ -325,7 +349,7 @@ fn run(mut command: Command, what: &str, cancel: &AtomicBool, report: &mut dyn F
             let _ = child.wait();
             return Err("cancelled".into());
         }
-        show(&mut shown);
+        show();
         match child.try_wait().map_err(|e| e.to_string())? {
             Some(status) => break status,
             None => thread::sleep(POLL),
@@ -335,8 +359,8 @@ fn run(mut command: Command, what: &str, cancel: &AtomicBool, report: &mut dyn F
     for reader in readers.into_iter().flatten() {
         let _ = reader.join();
     }
-    show(&mut shown);
-    if status.success() { Ok(()) } else { Err(format!("{what} failed ({status}): {shown}")) }
+    show();
+    if status.success() { Ok(()) } else { Err(format!("{what} failed ({status}): {last}")) }
 }
 
 /// Installs PersonaPlex into `place`, from scratch, from the bundled `wheel`: with uv, or else with pip.
@@ -352,33 +376,33 @@ fn install(place: &Place, wheel: &Path, cancel: &AtomicBool, report: &mut dyn Fn
         Installer::Uv(uv) => {
             let mut venv = Command::new(&uv);
             venv.args(["venv", "--python", PYTHON]).arg(place.venv());
-            run(venv, "uv", cancel, report)?;
+            run(venv, "uv", "Making its Python environment…", cancel, report)?;
             if let Some(index) = TORCH_INDEX {
                 report("Installing PyTorch for NVIDIA GPUs (about 2.5 GB)…");
                 let mut torch = Command::new(&uv);
                 torch.args(["pip", "install", "--python"]).arg(place.python()).args([TORCH, "--index-url", index]);
-                run(torch, "uv", cancel, report)?;
+                run(torch, "uv", "Installing PyTorch for NVIDIA GPUs (about 2.5 GB)…", cancel, report)?;
             }
             let mut pip = Command::new(&uv);
             pip.args(["pip", "install", "--python"]).arg(place.python()).arg(wheel).args(EXTRAS);
-            run(pip, "uv", cancel, report)?;
+            run(pip, "uv", "Installing PersonaPlex and its libraries…", cancel, report)?;
         }
         Installer::Pip(python) => {
             report(&format!("No uv here: installing with pip, on Python {}.{}…", python.version.0, python.version.1));
             let mut venv = python.command();
             venv.args(["-m", "venv"]).arg(place.venv());
-            run(venv, "Python", cancel, report)?;
+            run(venv, "Python", "Making its Python environment…", cancel, report)?;
             if let Some(index) = TORCH_INDEX {
                 report("Installing PyTorch for NVIDIA GPUs (about 2.5 GB)…");
                 let mut torch = Command::new(place.python());
                 torch
                     .args(["-m", "pip", "install", "--disable-pip-version-check", TORCH, "--index-url", index])
                     .env("PYTHONUNBUFFERED", "1");
-                run(torch, "pip", cancel, report)?;
+                run(torch, "pip", "Installing PyTorch for NVIDIA GPUs (about 2.5 GB)…", cancel, report)?;
             }
             let mut pip = Command::new(place.python());
             pip.args(["-m", "pip", "install", "--disable-pip-version-check"]).arg(wheel).args(EXTRAS).env("PYTHONUNBUFFERED", "1");
-            run(pip, "pip", cancel, report)?;
+            run(pip, "pip", "Installing PersonaPlex and its libraries…", cancel, report)?;
         }
     }
     fs::write(place.marker(), build()).map_err(|e| e.to_string())
@@ -406,7 +430,7 @@ fn fetch_weights(place: &Place, token: Option<&str>, cancel: &AtomicBool, report
     fetch.args(["-c", FETCH, REPO]).args(FILES).env("HF_HOME", place.hf()).env("HF_TOKEN", token).env("PYTHONUNBUFFERED", "1");
     // Without links (Windows without developer mode), the cache only copies: nothing to warn about.
     fetch.env("HF_HUB_DISABLE_SYMLINKS_WARNING", "1");
-    run(fetch, "the download", cancel, report)?;
+    run(fetch, "the download", "Downloading the model…", cancel, report)?;
     if place.downloaded() { Ok(()) } else { Err("the download ended without every file.".into()) }
 }
 
@@ -472,6 +496,8 @@ impl Server {
         command.stdin(Stdio::null()).stdout(log.try_clone().map_err(|e| e.to_string())?).stderr(log);
         platform::tie_to_app(&mut command);
         let child = command.spawn().map_err(|e| format!("couldn't start PersonaPlex: {e}"))?;
+        // Holding the GPU, it ends with the app, however the app ends.
+        platform::end_with_app(&child);
         Ok(Self { child, port, place: place.clone() })
     }
 
@@ -898,19 +924,19 @@ mod tests {
         let mut lines = Vec::new();
         let mut ok = Command::new("sh");
         ok.args(["-c", "echo 'Resolved 40 packages' >&2"]);
-        run(ok, "uv", &cancel, &mut |l| lines.push(l.to_string())).unwrap();
+        run(ok, "uv", "Testing…", &cancel, &mut |l| lines.push(l.to_string())).unwrap();
         let mut bar = Command::new("sh");
         bar.args(["-c", "printf 'model.safetensors:  10%%\\rmodel.safetensors:  55%%\\r' >&2"]);
-        run(bar, "the download", &cancel, &mut |l| lines.push(l.to_string())).unwrap();
+        run(bar, "the download", "Testing…", &cancel, &mut |l| lines.push(l.to_string())).unwrap();
         assert_eq!(lines.last().map(String::as_str), Some("model.safetensors:  55%"), "a redrawn progress bar reads as its last state");
         let mut bad = Command::new("sh");
         bad.args(["-c", "echo 'no torch for this Python' >&2; sleep 0.5; exit 2"]);
-        let error = run(bad, "uv", &cancel, &mut |_| {}).unwrap_err();
+        let error = run(bad, "uv", "Testing…", &cancel, &mut |_| {}).unwrap_err();
         assert!(error.starts_with("uv failed") && error.contains("no torch for this Python"), "{error}");
         cancel.store(true, Ordering::SeqCst);
         let mut long = Command::new("sh");
         long.args(["-c", "sleep 30"]);
-        assert_eq!(run(long, "uv", &cancel, &mut |_| {}).unwrap_err(), "cancelled");
+        assert_eq!(run(long, "uv", "Testing…", &cancel, &mut |_| {}).unwrap_err(), "cancelled");
         assert!(lines.contains(&"Resolved 40 packages".to_string()));
     }
 
@@ -942,6 +968,14 @@ mod tests {
     }
 
     #[test]
+    fn says_a_quiet_step_is_still_at_work() {
+        let (now, soon) = (Duration::from_millis(500), Duration::from_secs(4));
+        assert_eq!(step_line("Installing PyTorch…", "Resolved 10 packages", now, soon), "Resolved 10 packages");
+        assert_eq!(step_line("Installing PyTorch…", "Resolved 10 packages", soon, Duration::from_secs(187)), "Installing PyTorch… 3:07");
+        assert_eq!(clock(Duration::from_secs(3600 + 5)), "60:05");
+    }
+
+    #[test]
     fn reads_the_version_python_prints() {
         assert_eq!(parse_version("3 12\r\n"), Some((3, 12)));
         assert_eq!(parse_version("3"), None);
@@ -968,7 +1002,7 @@ mod tests {
         let mut lines = Vec::new();
         let mut pip = Command::new("sh");
         pip.args(["-c", "echo 'Collecting torch<2.5'; sleep 0.3; echo 'Downloading torch-2.4.1.whl (797 MB)'"]);
-        run(pip, "pip", &cancel, &mut |l| lines.push(l.to_string())).unwrap();
+        run(pip, "pip", "Testing…", &cancel, &mut |l| lines.push(l.to_string())).unwrap();
         assert_eq!(lines.last().map(String::as_str), Some("Downloading torch-2.4.1.whl (797 MB)"));
     }
 
