@@ -143,13 +143,13 @@ nav.addEventListener("click", (e) => {
 });
 
 /** Narrow, the search box sits in the top bar, always in reach; wide, at the top of the menu. */
-const narrow = window.matchMedia?.("(max-width: 760px)");
+const narrow = window.matchMedia("(max-width: 760px)");
 const placeSearch = () => {
-  if (narrow?.matches) topbar.append(searchField);
-  else nav.insertBefore(searchField, navList);
-  if (!narrow?.matches) setMenu(false);
+  if (narrow.matches) return topbar.append(searchField);
+  nav.insertBefore(searchField, navList);
+  setMenu(false);
 };
-narrow?.addEventListener?.("change", placeSearch);
+narrow.addEventListener("change", placeSearch);
 placeSearch();
 const toasts = toaster();
 
@@ -241,8 +241,8 @@ function group(title: string | null, ...rows: Node[]): HTMLElement {
 const titled = (title: string, card: HTMLElement): HTMLElement => h("section", { class: "group" }, h("h2", { class: "group-title" }, title), card);
 
 /** A plugin page's title and why it shows nothing else. */
-function header(title: string, lead?: string) {
-  return [h("h1", {}, title), ...(lead ? [h("p", { class: "lead" }, lead)] : [])];
+function header(title: string, lead: string) {
+  return [h("h1", {}, title), h("p", { class: "lead" }, lead)];
 }
 
 // ---------- sections ----------
@@ -251,7 +251,7 @@ function general(): Page {
   const autostart = switchControl(false, (on) => {
     store.setAutostart(on).catch((e: unknown) => {
       autostart.setAttribute("aria-checked", String(!on));
-      reportProblem(on ? "Couldn't turn on Launch at login" : "Couldn't turn off Launch at login", e, "AUTOSTART");
+      reportProblem("Couldn't change Launch at login", e, "AUTOSTART");
     });
   }, "Launch at login");
   store.autostart().then((on) => autostart.setAttribute("aria-checked", String(on)), () => (autostart.disabled = true));
@@ -559,12 +559,9 @@ function optionRows(p: AnyPlugin | AnyStyle | { readonly id: string; readonly op
           commit({ ...settings, options: { ...settings.options, [p.id]: { ...settings.options[p.id], ...patch } } }),
         openPage: (params?: PageParams) => openPage(p.id, params),
       };
-      try {
-        const stop = setUp.call(p, panel, services as never, host);
-        if (stop) panelStops.push(stop);
-      } catch (e) {
-        reportProblem(`${"label" in p ? p.label : p.id}'s settings couldn't be shown`, e, "PLUGIN_PANEL");
-      }
+      // A plugin from a file can't break the window: its panel is guarded where it's loaded.
+      const stop = setUp.call(p, panel, services as never, host);
+      if (stop) panelStops.push(stop);
     }
   }
   return [...before.map(control), ...(panel ? [panel] : []), ...after.map(control), ...resetRow(p.id, p.options ?? {})];
@@ -1032,8 +1029,8 @@ const SEARCHABLE: Partial<Record<Section, readonly (readonly [label: string, hin
 
 /** Everything search can find: the sections' settings, the shortcuts, and every widget with its options. */
 function searchEntries(): SearchEntry[] {
-  const sections = (Object.keys(SEARCHABLE) as Section[]).flatMap((s) =>
-    (SEARCHABLE[s] ?? []).map(([label, hint, keywords]) => ({ label, hint, keywords, where: SECTIONS[s].label, target: s, field: label })),
+  const sections = (Object.entries(SEARCHABLE) as [Section, (typeof SEARCHABLE)[Section] & {}][]).flatMap(([s, rows]) =>
+    rows.map(([label, hint, keywords]) => ({ label, hint, keywords, where: SECTIONS[s].label, target: s, field: label })),
   );
   const keys = entries.map((e) => ({
     label: e.command.label,
@@ -1179,11 +1176,7 @@ function pageView(open: OpenPage): Node[] {
       setTitle: (text) => void (document.title = String(text)),
       close: () => void (page?.id === plugin.id && leavePage()),
     };
-    try {
-      stop = plugin.page.call(plugin, root, services as never, host) ?? undefined;
-    } catch (e) {
-      reportProblem(`${plugin.label}'s page couldn't be shown`, e, "PLUGIN_PAGE");
-    }
+    stop = plugin.page.call(plugin, root, services as never, host) ?? undefined;
   }
   drawnPage = { key, nodes: [root], stop };
   return drawnPage.nodes;

@@ -196,6 +196,7 @@ describe("its settings", () => {
     expect(localLine({ ...at, model: { state: "missing" }, state: "missing" })).toMatchObject({ title: "PersonaPlex", detail: "Not installed", state: "missing", progress: null });
     expect(localLine({ ...at, model: { state: "missing" }, state: "installing", line: "Resolved 40 packages" })).toMatchObject({ detail: "Installing…", state: "downloading" });
     expect(localLine({ ...at, model: { state: "missing" }, state: "ready" })).toMatchObject({ detail: "Model not downloaded yet", state: "missing" });
+    expect(localLine({ ...at, model: { state: "missing" }, state: "error", message: "uv failed" })).toMatchObject({ detail: "Install failed: uv failed", state: "error" });
     expect(localLine({ ...at, model: { state: "downloading", received: 4e9, total: 16e9 }, state: "ready" })).toEqual({
       title: "PersonaPlex",
       detail: "Downloading… 4.0 GB of 16.0 GB",
@@ -377,5 +378,53 @@ describe("in Settings", () => {
     expect(root.textContent).toContain("Sent to https://gpu.example.com");
     expect(models).not.toHaveBeenCalled();
     cleanup();
+  });
+});
+
+describe("when the backend refuses", () => {
+  const tick = () => new Promise((r) => setTimeout(r));
+  const installed: LocalInfo = { dir: "/m/personaplex", running: false, model: { state: "ready" }, state: "ready" };
+  const settings = (info: LocalInfo) => {
+    const fake = fakePort(info);
+    const root = document.createElement("div");
+    const host = { options: () => ({ engine: "", remoteModel: "" }), setOptions: vi.fn(), openPage: vi.fn() };
+    persona.settingsPanel?.(root, { persona: fake.port, providers: memoryProviders([]) } as never, host as never);
+    const row = [...root.querySelectorAll<HTMLElement>(".field")].find((f) => f.textContent?.startsWith("PersonaPlex"))!;
+    return { ...fake, row, button: (label: string) => [...row.querySelectorAll("button")].find((b) => b.textContent === label)! };
+  };
+
+  it("says why PersonaPlex couldn't be removed, a download stopped, or a test stopped", async () => {
+    const seen = problems();
+    const { port, local, button } = settings(installed);
+    await tick();
+    port.remove.mockRejectedValueOnce(new Error("in use"));
+    button("Remove").click();
+    local({ ...installed, model: { state: "downloading", received: 1, total: 2 } });
+    port.cancelDownload.mockRejectedValueOnce(new Error("gone"));
+    button("Stop").click();
+    local(installed);
+    port.test.mockImplementationOnce(() => new Promise(() => {}));
+    port.stopTest.mockRejectedValueOnce(new Error("no server"));
+    button("Test").click();
+    button("Stop test").click();
+    await tick();
+    expect(seen.list.map((p) => `[${p.code}] ${p.title}: ${p.message}`)).toEqual([
+      "[PERSONA_SETUP] Couldn't remove PersonaPlex: in use",
+      "[PERSONA_MODEL] Couldn't stop the download: gone",
+      "[PERSONA_TEST] Couldn't stop the test: no server",
+    ]);
+    seen.stop();
+  });
+
+  it("keeps the island's tab working when PersonaPlex's state can't be read", async () => {
+    const fake = fakePort();
+    fake.port.watchLocal.mockRejectedValueOnce(new Error("gone"));
+    const host = { refresh: vi.fn(), options: () => ({}) as never, setOptions: vi.fn(), secret: async () => "", openSettings: vi.fn(), openPage: vi.fn(), appearance: () => ({ style: "pill", size: "normal", theme: "island", tone: "dark", notch: false }) as const };
+    const widget = persona.setup({ persona: fake.port } as never, host);
+    const root = document.createElement("section");
+    widget.panel?.(root);
+    await tick();
+    expect(root.querySelector<HTMLElement>(".dict-model")?.hidden).toBe(true);
+    expect(root.querySelector(".dict-main")).not.toBeNull();
   });
 });

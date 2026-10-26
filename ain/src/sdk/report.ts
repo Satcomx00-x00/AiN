@@ -24,5 +24,6 @@ export function reportProblem(title: string, error: unknown, code = "UNEXPECTED"
   const problem: Problem = { title, message: messageOf(error), code };
   // A failure the page foresaw (the system refused) is a warning; one nothing caught is an error.
   (code === "UNEXPECTED" ? console.error : console.warn)(`[${code}] ${title}:`, error);
+  // Code shared with Node (tests, tools) reports to the console alone.
   if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent<Problem>(PROBLEM_EVENT, { detail: problem }));
 }

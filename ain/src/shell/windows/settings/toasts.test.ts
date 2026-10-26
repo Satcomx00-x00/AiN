@@ -97,3 +97,30 @@ describe("a note's toast", () => {
     expect(t.el.childElementCount).toBe(0);
   });
 });
+
+describe("copying a problem", () => {
+  it("goes to the system's clipboard by default", async () => {
+    const writeText = vi.fn(async (_: string) => {});
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+    const t = toaster();
+    t.problem(problem());
+    press(t.el, "Copy");
+    await tick();
+    expect(writeText.mock.calls[0]![0]).toMatch(/^\[SETTINGS_SAVE\] Couldn't save 1\n/);
+    vi.unstubAllGlobals();
+  });
+});
+
+describe("a note shown again", () => {
+  it("stays its full time: the first one's timer doesn't close it", () => {
+    vi.useFakeTimers();
+    const t = toaster(async () => {});
+    t.note("Saved");
+    vi.advanceTimersByTime(NOTE_MS / 2);
+    t.note("Saved");
+    vi.advanceTimersByTime(NOTE_MS / 2 + 300);
+    expect(t.el.querySelector(".toast:not(.leaving)")?.textContent).toBe("Saved");
+    vi.advanceTimersByTime(NOTE_MS);
+    expect(t.el.childElementCount).toBe(0);
+  });
+});

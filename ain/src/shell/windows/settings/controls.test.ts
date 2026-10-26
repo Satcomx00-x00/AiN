@@ -422,6 +422,16 @@ describe("a secret option, when the credential store fails", () => {
     expect(row.querySelector<HTMLInputElement>("input[type=password]")?.placeholder).toBe("Unknown: the credential store can't be read");
   });
 
+  it("says why a secret couldn't be removed", async () => {
+    const seen = problems();
+    const row = optionControl(secret("Token"), "", vi.fn(), undefined, { saved: async () => true, save: async () => Promise.reject(new Error("locked")) });
+    await settle();
+    buttonOf(row, "Remove").click();
+    await settle();
+    expect(seen.list).toEqual([{ title: "Couldn't remove Token", message: "locked", code: "SECRET_SAVE" }]);
+    seen.stop();
+  });
+
   it("says a required one is needed once removed", async () => {
     const row = optionControl(secret("Token", { required: true, placeholder: "Paste it here" }), "", vi.fn(), undefined, { saved: async () => true, save: async () => {} });
     await settle();

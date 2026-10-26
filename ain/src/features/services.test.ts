@@ -183,5 +183,18 @@ describe("conversation", () => {
     expect(invoke).toHaveBeenLastCalledWith("plugin:persona|remove_local");
     await tauriPersona.openFolder();
     expect(invoke).toHaveBeenLastCalledWith("plugin:persona|open_local_dir");
+    await tauriPersona.stopTest();
+    expect(invoke).toHaveBeenLastCalledWith("plugin:persona|stop_test");
+  });
+
+  it("tests the server, following its progress until it answers, then stops listening", async () => {
+    const log: string[] = [];
+    events(log, ["Loading the model"]);
+    vi.mocked(invoke).mockResolvedValueOnce(41234);
+    const lines: string[] = [];
+    expect(await tauriPersona.test((line) => lines.push(line))).toBe(41234);
+    expect(lines).toEqual(["Loading the model"]);
+    expect(invoke).toHaveBeenLastCalledWith("plugin:persona|test_local");
+    expect(log).toEqual(["listen plugin:persona:test-progress", "unlisten plugin:persona:test-progress"]);
   });
 });

@@ -9,6 +9,7 @@ import type { Sdk } from "../../../sdk";
 import type { SettingsPorts } from "./ports";
 import type { Report, UpdaterPort } from "../../updater";
 import { advance, environment, pick, press, restore, system, type System } from "../../../integration/harness";
+import { onProblem } from "../../../sdk/report";
 
 const dialog = vi.hoisted(() => ({ open: vi.fn<(options: Record<string, unknown>) => Promise<string | string[] | null>>() }));
 vi.mock("@tauri-apps/plugin-dialog", () => dialog);
@@ -120,7 +121,7 @@ describe("Settings → General", () => {
     launch(page).click();
     await advance(0);
     expect(launch(page).getAttribute("aria-checked")).toBe("false");
-    expect(page.toasts()).toEqual(["[AUTOSTART] Couldn't turn on Launch at login: denied"]);
+    expect(page.toasts()).toEqual(["[AUTOSTART] Couldn't change Launch at login: denied"]);
   });
 
   it("shows the switch shown off when the system can't tell", async () => {
@@ -370,6 +371,12 @@ describe("Settings → Shortcuts", () => {
     expect(page.field(DICTATE).querySelector(".field-hint")?.textContent).toBe(
       "Types what you say where the cursor is. — already used by another app: pick another shortcut.",
     );
+    expect(page.toasts()).toEqual(["[SHORTCUT_REGISTER] The shortcut for Dictate doesn't work: already used by another app: pick another one in Shortcuts."]);
+    const said: string[] = [];
+    const stop = onProblem((p) => said.push(p.title));
+    report({ "dictation.toggle": "already used by another app", "ghost.cmd": "taken" });
+    stop();
+    expect(said).toEqual(["The shortcut for ghost.cmd doesn't work"]);
     // Elsewhere in Settings, nothing is redrawn.
     await page.open("General");
     report({});
@@ -1081,5 +1088,222 @@ describe("In a narrow window", () => {
     document.querySelector("nav")!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
     expect(app.dataset.menu).toBe("closed");
     expect(document.activeElement).toBe(menu);
+  });
+});
+
+describe("Finding your way, by keyboard and by search", () => {
+  const typeSearch = (value: string) => {
+    const box = document.querySelector<HTMLInputElement>(".search-input")!;
+    box.value = value;
+    box.dispatchEvent(new Event("input"));
+    return box;
+  };
+  const key = (target: Element, k: string) => target.dispatchEvent(new KeyboardEvent("keydown", { key: k, bubbles: true }));
+  const rows = () => [...document.querySelectorAll<HTMLButtonElement>(".results .list-row")];
+
+  it("moves through the results with the arrows, and back to the box from the first", async () => {
+    environment();
+    await load(system());
+    const box = typeSearch("delay");
+    await advance(0);
+    key(box, "ArrowDown");
+    expect(document.activeElement).toBe(rows()[0]);
+    key(rows()[0]!, "ArrowDown");
+    expect(document.activeElement).toBe(rows()[1]);
+    key(rows()[1]!, "ArrowDown");
+    expect(document.activeElement).toBe(rows()[1]);
+    key(rows()[1]!, "ArrowUp");
+    expect(document.activeElement).toBe(rows()[0]);
+    key(rows()[0]!, "Tab");
+    expect(document.activeElement).toBe(rows()[0]);
+    key(rows()[0]!, "ArrowUp");
+    expect(document.activeElement).toBe(box);
+    key(box, "Escape");
+    key(box, "Escape");
+    await advance(0);
+    expect(document.querySelector("h1")?.textContent).toBe("General");
+  });
+
+  it("does nothing on Enter when nothing matches", async () => {
+    environment();
+    const page = await load(system());
+    const box = typeSearch("zzz");
+    await advance(0);
+    key(box, "Enter");
+    key(box, "ArrowDown");
+    await advance(0);
+    expect(page.heading()).toBe("Search");
+  });
+
+  it("finds a widget with no options, and a heading, and leads to each", async () => {
+    environment();
+    const sys = system();
+    sys.addFile("bare.js", (island: Sdk) => island.definePlugin({ id: "bare", label: "Bare", description: "Nothing to set.", icon: "", slots: ["tab"], setup: () => ({ panel() {} }) }));
+    await sys.save((s) => ({ ...s, extensions: ["bare.js"] }));
+    const page = await load(sys, "plugins");
+    await advance(0);
+    typeSearch("bare");
+    await advance(0);
+    rows().find((r) => r.textContent?.includes("Bare"))!.click();
+    await advance(0);
+    expect(page.heading()).toBe("Bare");
+
+    // Plugins was opened first: the store is read, the page isn't drawn again under the highlight.
+    typeSearch("community store");
+    await advance(0);
+    rows()[0]!.click();
+    await advance(0);
+    expect(page.heading()).toBe("Plugins");
+    expect(page.page.querySelector(".subhead.highlight")?.textContent).toBe("Community store");
+  });
+
+  it("leads from every widget to Layout", async () => {
+    environment();
+    const page = await load(system(), "widgets");
+    press(page.page.querySelector(".page-head")!, "Edit layout");
+    await advance(0);
+    expect(page.heading()).toBe("Layout");
+  });
+
+  it("keeps the focus on the menu item picked, as the menu is drawn again", async () => {
+    environment();
+    const page = await load(system());
+    const item = (selector: string) => page.page.querySelector<HTMLButtonElement>(`nav ${selector}`)!;
+    item("[data-widget=clock]").focus();
+    item("[data-widget=clock]").click();
+    await advance(0);
+    expect(document.activeElement).toBe(item("[data-widget=clock]"));
+    item("[data-section=general]").focus();
+    item("[data-section=general]").click();
+    await advance(0);
+    expect(document.activeElement).toBe(item("[data-section=general]"));
+  });
+
+  it("brings the card asked for into view", async () => {
+    environment();
+    const sys = system();
+    await sys.save((s) => ({ ...s, providers: [{ id: "lab", name: "Lab", preset: "custom", baseUrl: "http://lab/v1", auth: { kind: "none" } }] }));
+    let navigate: (target: string) => void = () => {};
+    vi.spyOn(sys.store, "onNavigate").mockImplementation(async (on) => ((navigate = on), () => {}));
+    const page = await load(sys);
+    navigate("providers:provider-lab");
+    await advance(0);
+    expect(page.heading()).toBe("AI providers");
+    expect(document.getElementById("card-provider-lab")?.classList).toContain("highlight");
+  });
+
+  it("tells about an error nothing caught, whatever it carries", async () => {
+    environment();
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const page = await load(system());
+    window.dispatchEvent(new ErrorEvent("error", { error: new Error("bad state"), message: "Uncaught Error: bad state" }));
+    window.dispatchEvent(new ErrorEvent("error", { message: "Script error." }));
+    await advance(0);
+    expect(page.toasts()).toEqual(["[UNEXPECTED] Something went wrong: bad state", "[UNEXPECTED] Something went wrong: Script error."]);
+  });
+});
+
+describe("A plugin that fails to draw", () => {
+  const broken = (island: Sdk) =>
+    island.definePlugin({
+      id: "broken",
+      label: "Broken",
+      description: "",
+      icon: "",
+      slots: ["tab"],
+      settingsPanel() {
+        throw new Error("panel exploded");
+      },
+      page() {
+        throw new Error("page exploded");
+      },
+      setup: () => ({ panel() {} }),
+    });
+
+  it("says so for its settings panel and its page, and Settings carries on", async () => {
+    environment();
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const sys = system();
+    sys.addFile("broken.js", broken);
+    await sys.save((s) => ({ ...s, extensions: ["broken.js"] }));
+    let navigate: (target: string) => void = () => {};
+    vi.spyOn(sys.store, "onNavigate").mockImplementation(async (on) => ((navigate = on), () => {}));
+    const page = await load(sys, "plugins", { inApp: true });
+    await advance(0);
+    expect(page.toasts()).toContain("[PLUGIN_PANEL] Broken's settings panel couldn't be shown: panel exploded");
+
+    // Opened from Plugins, its page leads back there.
+    navigate("page:broken");
+    await advance(0);
+    expect(page.toasts()).toContain("[PLUGIN_PAGE] Broken's page couldn't be shown: page exploded");
+    expect(location.hash).toBe("#page:broken");
+    navigate("plugins");
+    await advance(0);
+    expect(page.heading()).toBe("Plugins");
+  });
+
+  it("goes back from its page to where Settings was, when that isn't Widgets", async () => {
+    environment();
+    const sys = system();
+    let navigate: (target: string) => void = () => {};
+    vi.spyOn(sys.store, "onNavigate").mockImplementation(async (on) => ((navigate = on), () => {}));
+    const page = await load(sys, "about");
+    navigate("page:ghost");
+    await advance(0);
+    press(page.page, "‹ About");
+    await advance(0);
+    expect([page.heading(), location.hash]).toEqual(["About", "#about"]);
+  });
+});
+
+describe("The search box in a narrow window", () => {
+  it("sits in the top bar while the window is narrow, and in the menu once it's wide again", async () => {
+    environment();
+    let narrow = true;
+    let changed: () => void = () => {};
+    vi.spyOn(window, "matchMedia").mockImplementation(
+      (query: string) =>
+        ({
+          get matches() {
+            return query.includes("max-width") && narrow;
+          },
+          media: query,
+          addEventListener: (_: string, on: () => void) => (changed = on),
+          removeEventListener() {},
+        }) as unknown as MediaQueryList,
+    );
+    await load(system());
+    expect(document.querySelector(".topbar .search")).not.toBeNull();
+    narrow = false;
+    changed();
+    expect(document.querySelector("nav .search")).not.toBeNull();
+    expect(document.querySelector(".topbar .search")).toBeNull();
+  });
+});
+
+describe("The menu, beyond its items", () => {
+  it("lists every widget from All widgets, and a click beside the items closes nothing", async () => {
+    environment();
+    const page = await load(system(), "widgets:clock");
+    const menu = document.querySelector<HTMLButtonElement>(".menu-button")!;
+    menu.click();
+    document.querySelector<HTMLElement>("nav .brand")!.click();
+    expect(page.page.dataset.menu).toBe("open");
+    await page.open("All widgets");
+    expect([page.heading(), location.hash, page.page.dataset.menu]).toEqual(["Widgets", "#widgets", "closed"]);
+  });
+
+  it("leads a search to the page of a setting it doesn't draw, without a row to show", async () => {
+    environment();
+    const page = await load(system());
+    const box = document.querySelector<HTMLInputElement>(".search-input")!;
+    box.value = "engine dictation";
+    box.dispatchEvent(new Event("input"));
+    await advance(0);
+    document.querySelector<HTMLButtonElement>(".results .list-row")!.click();
+    await advance(0);
+    // Outside the app, Dictation's own panel (where its engine is picked) isn't drawn.
+    expect(page.heading()).toBe("Dictation");
+    expect(page.page.querySelector(".highlight")).toBeNull();
   });
 });
