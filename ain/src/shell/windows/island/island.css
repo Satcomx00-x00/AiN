@@ -112,9 +112,11 @@ body {
 
 #island[data-open="true"] {
   border-radius: 0 0 var(--r-open) var(--r-open);
+  /* Within the window's slack (geometry.ts SLACK): on Wayland the window ends there, and would cut
+     a longer shadow off in a hard line. Each reaches y + blur + spread = 14 px below the pill. */
   box-shadow:
-    0 14px 30px -14px color-mix(in srgb, var(--ambient) 55%, transparent),
-    0 14px 30px -12px rgba(0, 0, 0, 0.7),
+    0 8px 16px -10px color-mix(in srgb, var(--ambient) 60%, transparent),
+    0 8px 16px -10px rgba(0, 0, 0, 0.75),
     inset 0 -1px 0 var(--faint);
   transition-duration: 0.56s;
   transition-timing-function: var(--spring);

@@ -80,9 +80,14 @@ pub enum Phase {
 #[derive(Debug, Clone, Serialize, Type, Event)]
 pub struct PhaseChanged(pub Phase);
 
-/// PersonaPlex on this computer was installed or removed, or its server started or stopped.
+/// PersonaPlex on this computer was installed or removed, its weights downloaded, or its server
+/// started or stopped.
 #[derive(Debug, Clone, Serialize, Type, Event)]
 pub struct LocalChanged(pub LocalInfo);
+
+/// A test start of PersonaPlex on this computer: its server's last line while it starts.
+#[derive(Debug, Clone, Serialize, Type, Event)]
+pub struct TestProgress(pub String);
 
 /// `toggle` starts a conversation, or ends the one going on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Type)]
@@ -253,6 +258,8 @@ impl Line {
 struct Persona {
     shared: Arc<Shared>,
     worker: Worker<Command>,
+    /// Set to give up on a test start.
+    stop_test: Arc<AtomicBool>,
 }
 
 impl Persona {
@@ -287,7 +294,52 @@ fn install_local(app: AppHandle, persona: State<'_, Persona>) -> Res<()> {
     Ok(persona.shared.local.install(persona.place(&app))?)
 }
 
-/// Stops an install or the server, and deletes PersonaPlex and its weights from this computer.
+/// Downloads PersonaPlex's weights on this computer, in the background, with the user's Hugging Face
+/// token (they are gated).
+#[tauri::command]
+#[specta::specta]
+fn download_model(app: AppHandle, persona: State<'_, Persona>) -> Res<()> {
+    let token = secrets::secret(FEATURE, "hfToken").ok().flatten();
+    Ok(persona.shared.local.download(persona.place(&app), token)?)
+}
+
+/// Stops a download of the weights; the next one resumes it.
+#[tauri::command]
+#[specta::specta]
+fn cancel_download(persona: State<'_, Persona>) {
+    persona.shared.local.cancel_download();
+}
+
+/// Starts PersonaPlex's server on this computer as a conversation would, with the same settings,
+/// reporting its progress (`TestProgress`): answers with the port it listens on, or why it didn't
+/// start (with the end of its log). It then stays up like after a conversation.
+#[tauri::command]
+#[specta::specta]
+async fn test_local(app: AppHandle, persona: State<'_, Persona>) -> Res<u16> {
+    let current = settings::current(&app);
+    let place = persona.place(&app);
+    let launch = Launch {
+        token: secrets::secret(FEATURE, "hfToken").ok().flatten(),
+        cpu_offload: settings::option(&current, FEATURE, "cpuOffload").and_then(Value::as_bool).unwrap_or(false),
+    };
+    let (local, stop) = (Arc::clone(&persona.shared.local), Arc::clone(&persona.stop_test));
+    stop.store(false, Ordering::SeqCst);
+    let started = tauri::async_runtime::spawn_blocking(move || {
+        local.serve(&place, &launch, &|| !stop.load(Ordering::SeqCst), &mut |line| drop(TestProgress(line.into()).emit(&app)))
+    })
+    .await
+    .map_err(|_| crate::Error::WorkerGone)?;
+    started.map_err(crate::Error::msg)
+}
+
+/// Gives up on a test start.
+#[tauri::command]
+#[specta::specta]
+fn stop_test(persona: State<'_, Persona>) {
+    persona.stop_test.store(true, Ordering::SeqCst);
+}
+
+/// Stops an install, a download or the server, and deletes PersonaPlex and its weights from this computer.
 #[tauri::command]
 #[specta::specta]
 async fn remove_local(app: AppHandle, persona: State<'_, Persona>) -> Res<()> {
@@ -324,6 +376,17 @@ fn on_shortcut(app: &AppHandle, action: &popup::Action) {
     }
 }
 
+/// The bundled package, where the installed app keeps its resources; for a binary run where it was
+/// built (not installed: Linux looks in /usr/lib/AiN), beside it, where the resources were copied.
+fn bundled_wheel(resources: PathBuf, exe: Option<PathBuf>) -> PathBuf {
+    let installed = resources.join("personaplex").join(local::WHEEL);
+    let beside = exe.as_deref().and_then(Path::parent).map(|dir| dir.join("personaplex").join(local::WHEEL));
+    match beside {
+        Some(beside) if !installed.is_file() && beside.is_file() => beside,
+        _ => installed,
+    }
+}
+
 crate::ipc::persona!();
 
 pub fn init() -> TauriPlugin<Wry> {
@@ -331,11 +394,13 @@ pub fn init() -> TauriPlugin<Wry> {
         .builder(|app| {
             let models = app.path().app_data_dir()?.join("models");
             let handle = app.clone();
-            let local = Arc::new(Local::new(&place(&settings::current(app), &models), move |info| drop(LocalChanged(info).emit(&handle))));
+            let wheel = bundled_wheel(app.path().resource_dir()?, std::env::current_exe().ok());
+            let local =
+                Arc::new(Local::new(&place(&settings::current(app), &models), wheel, move |info| drop(LocalChanged(info).emit(&handle))));
             let shared = Arc::new(Shared { phase: Live::new(Phase::Idle), session: AtomicU64::new(0), local, models });
             let (handle, stepped) = (app.clone(), Arc::clone(&shared));
             let worker = super::worker::spawn("persona", TICK, Line::default, move |line, command| line.step(&handle, &stepped, command))?;
-            app.manage(Persona { shared, worker });
+            app.manage(Persona { shared, worker, stop_test: Arc::new(AtomicBool::new(false)) });
             let handle = app.clone();
             popup::Action::listen_any(app, move |event| on_shortcut(&handle, &event.payload));
             // Another models folder: what Settings shows follows it.
@@ -378,6 +443,22 @@ mod tests {
         assert_eq!((persona.voice.as_str(), persona.prompt.as_str()), (DEFAULT_VOICE, DEFAULT_PROMPT));
         assert_eq!(endpoint, Endpoint::ThisComputer { cpu_offload: false });
         assert_eq!(wanted(&json!({})).unwrap().1, endpoint);
+    }
+
+    #[test]
+    fn finds_the_bundled_package_installed_or_beside_the_binary() {
+        let dir = std::env::temp_dir().join(format!("ain-wheel-{}", std::process::id()));
+        let (resources, bin) = (dir.join("usr-lib"), dir.join("bin"));
+        let wheel = |root: &Path| root.join("personaplex").join(local::WHEEL);
+        let exe = Some(bin.join("ain"));
+        assert_eq!(bundled_wheel(resources.clone(), exe.clone()), wheel(&resources), "neither: the installed place, to say it's missing");
+        std::fs::create_dir_all(wheel(&bin).parent().unwrap()).unwrap();
+        std::fs::write(wheel(&bin), "").unwrap();
+        assert_eq!(bundled_wheel(resources.clone(), exe.clone()), wheel(&bin), "not installed: beside the binary");
+        std::fs::create_dir_all(wheel(&resources).parent().unwrap()).unwrap();
+        std::fs::write(wheel(&resources), "").unwrap();
+        assert_eq!(bundled_wheel(resources.clone(), exe), wheel(&resources), "installed: the installed one");
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[test]

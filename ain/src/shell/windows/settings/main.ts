@@ -37,8 +37,11 @@ import type { Field, Fields } from "../../../sdk/options";
 import { memorySecrets } from "../../secrets";
 import { settingsPorts } from "./ports";
 import { slotList } from "./slots";
-import { PROVIDERS_ICON, providersSection } from "./providers";
+import { PROVIDERS_ICON, PROVIDERS_LEAD, providersSection } from "./providers";
 import { type Report, type Tone, demoUpdater, describe, noteLines } from "../../updater";
+import { messageOf, onProblem, reportProblem } from "../../../sdk/report";
+import { toaster } from "./toasts";
+import { type SearchEntry, search } from "./search";
 
 const SAVE_DELAY = 250;
 /** Built-in features, then plugins from enabled files that loaded fine. */
@@ -53,15 +56,20 @@ const entries = commandsOf(catalogue);
 /** Shortcuts the island couldn't register, and why. */
 let failures: Record<string, string> = {};
 
+const GRID = `<rect x="2.5" y="2.5" width="4.5" height="4.5" rx="1"/><rect x="9" y="2.5" width="4.5" height="4.5" rx="1"/><rect x="2.5" y="9" width="4.5" height="4.5" rx="1"/><rect x="9" y="9" width="4.5" height="4.5" rx="1"/>`;
+const SEARCH = `<circle cx="7" cy="7" r="4.25"/><path d="M10.25 10.25 13.5 13.5"/>`;
+const CHEVRON = `<path d="M6.5 4 10.5 8l-4 4"/>`;
+const MENU = `<path d="M2.75 4.5h10.5M2.75 8h10.5M2.75 11.5h10.5"/>`;
+
 const SECTIONS = {
+  general: { label: "General", icon: `<path d="M3 4.5h10M3 11.5h10"/><circle cx="6" cy="4.5" r="1.75"/><circle cx="10.5" cy="11.5" r="1.75"/>` },
   appearance: {
     label: "Appearance",
     icon: `<path d="M8 1.75a6.25 6.25 0 1 0 0 12.5c.9 0 1.4-.6 1.4-1.3 0-.9-.8-1.2-.8-2 0-.7.6-1.2 1.3-1.2h1.5a2.85 2.85 0 0 0 2.85-2.85C14.25 4.1 11.45 1.75 8 1.75z"/><circle cx="4.9" cy="7.4" r=".9"/><circle cx="7.2" cy="4.7" r=".9"/><circle cx="10.4" cy="5.2" r=".9"/>`,
   },
-  general: { label: "General", icon: `<path d="M3 4.5h10M3 11.5h10"/><circle cx="6" cy="4.5" r="1.75"/><circle cx="10.5" cy="11.5" r="1.75"/>` },
   layout: { label: "Layout", icon: `<rect x="2.5" y="3" width="11" height="10" rx="2"/><path d="M2.5 7h11M7 7v6"/>` },
   shortcuts: { label: "Shortcuts", icon: `<rect x="1.75" y="4" width="12.5" height="8" rx="1.75"/><path d="M4.5 6.75h.01M7 6.75h.01M9.5 6.75h.01M12 6.75h-.5M5 9.5h6"/>` },
-  widgets: { label: "Widgets", icon: `<rect x="2.5" y="2.5" width="4.5" height="4.5" rx="1"/><rect x="9" y="2.5" width="4.5" height="4.5" rx="1"/><rect x="2.5" y="9" width="4.5" height="4.5" rx="1"/><rect x="9" y="9" width="4.5" height="4.5" rx="1"/>` },
+  widgets: { label: "Widgets", icon: GRID },
   providers: { label: "AI providers", icon: PROVIDERS_ICON },
   plugins: {
     label: "Plugins",
@@ -73,10 +81,16 @@ type Section = keyof typeof SECTIONS;
 
 let settings: Settings = fallback;
 const isSection = (s: string): s is Section => s in SECTIONS;
-// Opened at a place ("widgets:dictation"): the section, then the card to bring into view.
+// Opened at a place ("widgets:dictation" is that widget's page; "plugins:x" a card to bring into view).
 const opened = parseTarget(location.hash.slice(1), Object.keys(SECTIONS));
 let section: Section = opened && isSection(opened.section) ? opened.section : "general";
-let scrollToCard: string | null = opened?.card ?? null;
+/** The widget whose page is shown, under Widgets; null for the list of them all. */
+let widget: string | null = section === "widgets" ? (opened?.card ?? null) : null;
+let scrollToCard: string | null = section === "widgets" ? null : (opened?.card ?? null);
+/** A row to bring into view and outline once drawn, by its label: where a search result leads. */
+let scrollToField: string | null = null;
+/** What's typed in the search box; while it isn't empty, the results take the page. */
+let query = "";
 
 /** A plugin's page, shown instead of a section; leaving it goes back to `back`, at the plugin's card. */
 type OpenPage = { readonly id: string; readonly params: PageParams; readonly back: Section };
@@ -93,8 +107,51 @@ let pending: ReturnType<typeof setTimeout> | undefined;
 
 const content = h("main", { class: "content" });
 const status = h("div", { class: "status", "data-state": "saved", role: "status" }, "Saved");
-const nav = h("nav", { class: "nav", "aria-label": "Settings sections" });
-const app = h("div", { class: "app" }, nav, content);
+const searchBox = h("input", { class: "search-input", type: "search", placeholder: "Search settings", spellcheck: "false", "aria-label": "Search settings" });
+const navList = h("div", { class: "nav-list" });
+const navFoot = h("div", { class: "nav-foot" });
+const searchField = h("label", { class: "search" }, icon(SEARCH), searchBox, h("kbd", { class: "search-key", "aria-hidden": "true" }, "Ctrl F"));
+const brand = () => h("div", { class: "brand" }, h("span", { class: "brand-pill", "aria-hidden": "true" }), "AiN", h("span", { class: "brand-sub" }, "Settings"));
+const nav = h("nav", { class: "nav", id: "settings-nav", "aria-label": "Settings sections" }, brand(), searchField, navList, navFoot);
+// In a narrow window the menu is a drawer, opened from a bar at the top that holds the search box.
+const menuButton = button(icon(MENU), () => setMenu(app.dataset.menu !== "open"), {
+  class: "menu-button",
+  "aria-label": "Menu",
+  "aria-controls": "settings-nav",
+  "aria-expanded": "false",
+});
+const topbar = h("header", { class: "topbar" }, menuButton, brand());
+const backdrop = h("div", { class: "nav-backdrop", "aria-hidden": "true" });
+const app = h("div", { class: "app", "data-menu": "closed" }, topbar, nav, content, backdrop);
+
+/** Opens or closes the menu's drawer (narrow windows only; wide, the menu is always there). */
+function setMenu(open: boolean) {
+  app.dataset.menu = open ? "open" : "closed";
+  menuButton.setAttribute("aria-expanded", String(open));
+  if (open) nav.querySelector<HTMLElement>("[aria-current=page]")?.focus();
+}
+backdrop.addEventListener("click", () => setMenu(false));
+nav.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && app.dataset.menu === "open") {
+    setMenu(false);
+    menuButton.focus();
+  }
+});
+// Picking a place closes the drawer.
+nav.addEventListener("click", (e) => {
+  if ((e.target as HTMLElement).closest("button")) setMenu(false);
+});
+
+/** Narrow, the search box sits in the top bar, always in reach; wide, at the top of the menu. */
+const narrow = window.matchMedia("(max-width: 760px)");
+const placeSearch = () => {
+  if (narrow.matches) return topbar.append(searchField);
+  nav.insertBefore(searchField, navList);
+  setMenu(false);
+};
+narrow.addEventListener("change", placeSearch);
+placeSearch();
+const toasts = toaster();
 
 // ---------- state ----------
 
@@ -113,7 +170,10 @@ function commit(next: Settings, redraw = false) {
     pending = undefined;
     store.save(settings).then(
       () => setStatus("saved", "Saved"),
-      (e: unknown) => setStatus("error", `Not saved: ${String(e)}`),
+      (e: unknown) => {
+        setStatus("error", "Not saved");
+        reportProblem("Your changes weren't saved", e, "SETTINGS_SAVE");
+      },
     );
   }, SAVE_DELAY);
 }
@@ -138,54 +198,96 @@ const setOption = (id: string, key: string, value: unknown) => {
 const resetOptions = (id: string) => {
   const { [id]: _, ...rest } = settings.options;
   commit({ ...settings, options: rest }, true);
+  toasts.note("Back to the defaults");
 };
+
+// ---------- the parts of a page ----------
+
+/** What a page shows at its top, pinned while the rest scrolls: where it is, its name, what it's for, and its actions. */
+type Head = {
+  readonly crumbs?: readonly (readonly [string, () => void])[];
+  readonly title: string;
+  readonly lead?: string | undefined;
+  readonly icon?: string | undefined;
+  readonly badges?: readonly Node[];
+  readonly actions?: readonly Node[];
+};
+type Page = Head & { readonly body: readonly Node[] };
+
+function pageHead(head: Head): HTMLElement {
+  const crumbs = head.crumbs ?? [];
+  return h(
+    "header",
+    { class: "page-head" },
+    ...(crumbs.length
+      ? [h("div", { class: "crumbs", role: "navigation", "aria-label": "You are in" }, ...crumbs.flatMap(([label, go]) => [button(label, go, { class: "crumb" }), h("span", { class: "crumb-sep", "aria-hidden": "true" }, "›")]))]
+      : []),
+    h(
+      "div",
+      { class: "page-title" },
+      ...(head.icon ? [h("span", { class: "ico page-ico", "aria-hidden": "true" }, icon(head.icon))] : []),
+      h("div", { class: "grow" }, h("div", { class: "title-row" }, h("h1", {}, head.title), ...(head.badges ?? [])), ...(head.lead ? [h("p", { class: "lead" }, head.lead)] : [])),
+      ...(head.actions?.length ? [h("div", { class: "page-actions" }, ...head.actions)] : []),
+    ),
+  );
+}
+
+/** Settings that belong together, under a title saying what they're about. */
+function group(title: string | null, ...rows: Node[]): HTMLElement {
+  return h("section", { class: "group" }, ...(title ? [h("h2", { class: "group-title" }, title)] : []), h("div", { class: "card" }, ...rows));
+}
+
+/** A titled group around a card that draws itself. */
+const titled = (title: string, card: HTMLElement): HTMLElement => h("section", { class: "group" }, h("h2", { class: "group-title" }, title), card);
+
+/** A plugin page's title and why it shows nothing else. */
+function header(title: string, lead: string) {
+  return [h("h1", {}, title), h("p", { class: "lead" }, lead)];
+}
 
 // ---------- sections ----------
 
-function header(title: string, lead?: string) {
-  return [h("h1", {}, title), ...(lead ? [h("p", { class: "lead" }, lead)] : [])];
-}
-
-function general(): Node[] {
+function general(): Page {
   const autostart = switchControl(false, (on) => {
     store.setAutostart(on).catch((e: unknown) => {
       autostart.setAttribute("aria-checked", String(!on));
-      setStatus("error", `Launch at login: ${String(e)}`);
+      reportProblem("Couldn't change Launch at login", e, "AUTOSTART");
     });
   }, "Launch at login");
   store.autostart().then((on) => autostart.setAttribute("aria-checked", String(on)), () => (autostart.disabled = true));
-  return [
-    ...header("General"),
-    h(
-      "section",
-      { class: "card" },
-      field("Launch at login", undefined, autostart),
-      field(
-        "Quit AiN",
-        undefined,
-        button("Quit", () => void store.quit().catch((e: unknown) => setStatus("error", `Couldn't quit: ${String(e)}`)), { class: "secondary danger" }),
+  return {
+    title: "General",
+    lead: "How AiN starts, and how quickly the island answers the pointer.",
+    body: [
+      group("Startup", field("Launch at login", "Starts AiN when you sign in, so the island is there from the start.", autostart)),
+      group(
+        "Island",
+        field(
+          "Open delay",
+          "How long the pointer rests on the pill before the island opens.",
+          rangeControl(settings.general.openDelay, { ...DELAY_RANGE, unit: "ms" }, (v) => setGeneral({ openDelay: v }), "Open delay"),
+        ),
+        field(
+          "Close delay",
+          "How long the island stays open once the pointer leaves it.",
+          rangeControl(settings.general.closeDelay, { ...DELAY_RANGE, unit: "ms" }, (v) => setGeneral({ closeDelay: v }), "Close delay"),
+        ),
+        field(
+          "Hide the pill",
+          "With the Hidden style, the pill only shows while the pointer rests at the top center of the screen.",
+          button("Appearance", () => goTo("appearance"), { class: "secondary" }),
+        ),
       ),
-      field(
-        "Open delay",
-        undefined,
-        rangeControl(settings.general.openDelay, { ...DELAY_RANGE, unit: "ms" }, (v) => setGeneral({ openDelay: v }), "Open delay"),
+      group(
+        "App",
+        field(
+          "Quit AiN",
+          "Closes the island and this window. Start AiN again from the Start menu.",
+          button("Quit", () => void store.quit().catch((e: unknown) => reportProblem("Couldn't quit AiN", e, "QUIT")), { class: "secondary danger" }),
+        ),
       ),
-      field(
-        "Close delay",
-        undefined,
-        rangeControl(settings.general.closeDelay, { ...DELAY_RANGE, unit: "ms" }, (v) => setGeneral({ closeDelay: v }), "Close delay"),
-      ),
-    ),
-    h(
-      "section",
-      { class: "card" },
-      field(
-        "Hide the pill",
-        "Pick the Hidden style in Appearance: the pill then shows only while the cursor rests at the top center of the screen.",
-        button("Appearance", () => goTo("appearance"), { class: "secondary" }),
-      ),
-    ),
-  ];
+    ],
+  };
 }
 
 const PILL_SIZES: readonly { value: PillSize; label: string }[] = [
@@ -194,14 +296,12 @@ const PILL_SIZES: readonly { value: PillSize; label: string }[] = [
   { value: "large", label: "Large" },
 ];
 
-/** The pill's style and size, the reveal delay of a hidden style, and the style's own options. */
-function pillCard(): HTMLElement {
+/** The pill's style and size, the reveal delay of a hidden style, its shape, and the style's own options. */
+function pillRows(): HTMLElement[] {
   const choices = styleChoices();
   const style = styleById(choices.styles, settings.general.style);
   const values = resolve(style.options ?? {}, settings.options[style.id]) as Record<string, unknown>;
-  return h(
-    "section",
-    { class: "card" },
+  return [
     field(
       "Pill style",
       style.hidden ? "It shows only while the cursor rests at the top center of the screen, so it stays out of games and other apps." : undefined,
@@ -222,95 +322,81 @@ function pillCard(): HTMLElement {
           ),
         ]
       : []),
+    field(
+      "Pill width",
+      "At the Normal size.",
+      rangeControl(settings.general.pillWidth, { ...WIDTH_RANGE, unit: "px" }, (v) => setGeneral({ pillWidth: v }), "Pill width"),
+    ),
+    field(
+      "Corner curve",
+      "From square corners to a full pill.",
+      rangeControl(settings.general.pillCurve, { ...CURVE_RANGE, unit: "%" }, (v) => setGeneral({ pillCurve: v }), "Corner curve"),
+    ),
     ...standardFields(style.options ?? {}).map(([key, f]) => optionControl(f, values[key], (v) => setOption(style.id, key, v), pickFolder)),
-  );
+  ];
 }
 
-function appearance(): Node[] {
+function appearance(): Page {
   const theme = themeById(settings.general.theme);
   const choices = greetingChoices();
   // A choice whose plugin is gone plays the default.
   const chosen = choices.some((c) => c.value === settings.general.greeting) ? settings.general.greeting : greetings[0]!.id;
-  return [
-    ...header("Appearance"),
-    pillCard(),
-    h(
-      "section",
-      { class: "card" },
-      field("Startup animation", undefined, greetingPicker(choices, chosen)),
-    ),
-    h(
-      "section",
-      { class: "card" },
-      field(
-        "Pill color",
-        undefined,
-        colorPicker(settings.general.pillColor, theme.bg, (v) => setGeneral({ pillColor: v }), "Pill color"),
+  return {
+    title: "Appearance",
+    lead: "The pill's shape and colors, and what it plays when AiN starts.",
+    body: [
+      group("Pill", ...pillRows()),
+      group(
+        "Colors",
+        field(
+          "Theme",
+          theme.name,
+          themeGrid(THEMES, theme.id, (th) => setGeneral({ theme: th.id, pillColor: th.bg, accentColor: th.accent }, true)),
+          true,
+        ),
+        field("Pill color", "The island's background.", colorPicker(settings.general.pillColor, theme.bg, (v) => setGeneral({ pillColor: v }), "Pill color")),
+        field("Accent color", "Buttons, progress and highlights, here too.", colorPicker(settings.general.accentColor, theme.accent, (v) => setGeneral({ accentColor: v }), "Accent color")),
       ),
-      field(
-        "Accent color",
-        undefined,
-        colorPicker(settings.general.accentColor, theme.accent, (v) => setGeneral({ accentColor: v }), "Accent color"),
-      ),
-    ),
-    h(
-      "section",
-      { class: "card" },
-      field(
-        "Pill width",
-        "At the Normal size.",
-        rangeControl(settings.general.pillWidth, { ...WIDTH_RANGE, unit: "px" }, (v) => setGeneral({ pillWidth: v }), "Pill width"),
-      ),
-      field(
-        "Corner curve",
-        undefined,
-        rangeControl(settings.general.pillCurve, { ...CURVE_RANGE, unit: "%" }, (v) => setGeneral({ pillCurve: v }), "Corner curve"),
-      ),
-    ),
-    h(
-      "section",
-      { class: "card" },
-      field(
-        "Theme",
-        theme.name,
-        themeGrid(THEMES, theme.id, (th) => setGeneral({ theme: th.id, pillColor: th.bg, accentColor: th.accent }, true)),
-        true,
-      ),
-    ),
-  ];
+      group("Startup", field("Startup animation", "Played on the island each time AiN starts.", greetingPicker(choices, chosen))),
+    ],
+  };
 }
 
-function layout(): Node[] {
+function layout(): Page {
   const { glance, tabs } = settings.layout;
   const glanceable = plugins.filter((p) => p.slots.includes("glance"));
-  return [
-    ...header("Layout", "Drag to reorder."),
-    h(
-      "div",
-      { class: "slots" },
-      slotList({
-        title: "Left of the pill",
-        hint: "In priority order.",
-        ids: glance.left,
-        candidates: glanceable,
-        onChange: (left) => setLayout({ ...settings.layout, glance: { ...glance, left } }),
-      }),
-      slotList({
-        title: "Right of the pill",
-        hint: "In priority order.",
-        ids: glance.right,
-        candidates: glanceable,
-        onChange: (right) => setLayout({ ...settings.layout, glance: { ...glance, right } }),
-      }),
-      slotList({
-        title: "Tabs",
-        ids: tabs,
-        candidates: plugins.filter((p) => p.slots.includes("tab")),
-        onChange: (next) => setLayout({ ...settings.layout, tabs: next }),
-      }),
-    ),
-    h("div", { class: "actions" }, button("Restore default layout", () => setLayout(defaultLayout), { class: "secondary" })),
-  ];
+  return {
+    title: "Layout",
+    lead: "What the island shows, and in which order: drag the widgets, or use their arrows. When space runs out, the first ones stay.",
+    actions: [button("Restore default layout", () => setLayout(defaultLayout), { class: "secondary" })],
+    body: [
+      h(
+        "div",
+        { class: "slots" },
+        slotList({
+          title: "Left of the pill",
+          hint: "In priority order.",
+          ids: glance.left,
+          candidates: glanceable,
+          onChange: (left) => setLayout({ ...settings.layout, glance: { ...glance, left } }),
+        }),
+        slotList({
+          title: "Right of the pill",
+          hint: "In priority order.",
+          ids: glance.right,
+          candidates: glanceable,
+          onChange: (right) => setLayout({ ...settings.layout, glance: { ...glance, right } }),
+        }),
+        slotList({
+          title: "Tabs",
+          hint: "When the island opens.",
+          ids: tabs,
+          candidates: plugins.filter((p) => p.slots.includes("tab")),
+          onChange: (next) => setLayout({ ...settings.layout, tabs: next }),
+        }),
+      ),
+    ],
+  };
 }
 
 /** A shortcut recorder: shows the keys; click, then press the new combination. */
@@ -349,28 +435,33 @@ function recorder(entry: Entry): HTMLElement {
     keys,
     change,
     ...(isDefault ? [] : [button("Reset", () => resetShortcut(entry.id), { class: "secondary" })]),
-    button("Try it", () => popup.open(entry.id, surfaceOf(entry)).catch(() => {}), { class: "secondary", ...(inTauri ? {} : { disabled: "" }) }),
+    button("Try it", () => popup.open(entry.id, surfaceOf(entry)).catch((e: unknown) => reportProblem(`Couldn't try ${entry.command.label}`, e, "SHORTCUT_TRY")), {
+      class: "secondary",
+      ...(inTauri ? {} : { disabled: "", title: "Only in the app" }),
+    }),
   );
 }
 
-function shortcuts(): Node[] {
-  return [
-    ...header("Shortcuts"),
-    entries.length
-      ? h(
-          "section",
-          { class: "card" },
-          ...entries.map((e) => {
-            const failed = failures[e.id];
-            const hint = failed ? `${e.command.description} — ${failed}: pick another shortcut.` : e.command.description;
-            const row = field(`${e.command.label} · ${e.plugin.label}`, hint, recorder(e));
-            if (failed) row.classList.add("failed");
-            return row;
-          }),
-        )
-      : h("p", { class: "lead" }, "No shortcuts."),
-    h("p", { class: "note" }, "Win + a single letter is reserved by Windows: add Shift or Alt."),
-  ];
+function shortcuts(): Page {
+  return {
+    title: "Shortcuts",
+    lead: "Keys that work anywhere, even while another app has the focus. Click Change, then press the new keys.",
+    body: [
+      entries.length
+        ? group(
+            null,
+            ...entries.map((e) => {
+              const failed = failures[e.id];
+              const hint = failed ? `${e.command.description} — ${failed}: pick another shortcut.` : e.command.description;
+              const row = field(`${e.command.label} · ${e.plugin.label}`, hint, recorder(e));
+              if (failed) row.classList.add("failed");
+              return row;
+            }),
+          )
+        : h("p", { class: "lead" }, "No shortcuts."),
+      h("p", { class: "note" }, "Win + a single letter is reserved by Windows: add Shift or Alt."),
+    ],
+  };
 }
 
 /** Where the layout currently shows a plugin. */
@@ -392,10 +483,6 @@ async function pickFolder(current: string, directory = true): Promise<string | n
   return typeof chosen === "string" ? chosen : null;
 }
 
-/**
- * The controls of a plugin's or a style's options, with the plugin's own settings panel among them:
- * what its card shows under its head. Empty when it has nothing to set.
- */
 /** Reaches one of a plugin's secrets in the credential store; saving one may complete its setup. */
 const secretAccess = (id: string, key: string): SecretAccess => ({
   saved: () => secrets.saved(id, [key]).then(([saved]) => saved === true),
@@ -414,13 +501,22 @@ function setupBadge(id: string, fields: Fields): HTMLElement {
   return badge;
 }
 
+/** The menu's dot beside a widget that needs setting up, kept with its badges. */
+function setupDot(id: string, fields: Fields): HTMLElement {
+  setupFields.set(id, fields);
+  const dot = h("span", { class: "nav-dot", "data-setup": id, "aria-hidden": "true" });
+  dot.hidden = true;
+  void paintSetup(dot, id, fields);
+  return dot;
+}
+
 async function paintSetup(badge: HTMLElement, id: string, fields: Fields): Promise<void> {
   const keys = Object.entries(fields).flatMap(([key, f]) => (f.kind === "secret" && f.required ? [key] : []));
   // Unreadable, the credential store can't say a secret is missing: no badge rather than a false one.
   const saved = keys.length ? await secrets.saved(id, keys).catch(() => keys.map(() => true)) : [];
   const missing = unset(fields, settings.options[id], (key) => saved[keys.indexOf(key)] === true);
   badge.hidden = missing.length === 0;
-  badge.textContent = "Needs setup";
+  if (!badge.classList.contains("nav-dot")) badge.textContent = "Needs setup";
   badge.title = missing.length ? `Still to fill in: ${missing.join(", ")}` : "";
 }
 
@@ -463,6 +559,7 @@ function optionRows(p: AnyPlugin | AnyStyle | { readonly id: string; readonly op
           commit({ ...settings, options: { ...settings.options, [p.id]: { ...settings.options[p.id], ...patch } } }),
         openPage: (params?: PageParams) => openPage(p.id, params),
       };
+      // A plugin from a file can't break the window: its panel is guarded where it's loaded.
       const stop = setUp.call(p, panel, services as never, host);
       if (stop) panelStops.push(stop);
     }
@@ -470,30 +567,66 @@ function optionRows(p: AnyPlugin | AnyStyle | { readonly id: string; readonly op
   return [...before.map(control), ...(panel ? [panel] : []), ...after.map(control), ...resetRow(p.id, p.options ?? {})];
 }
 
-function widgets(): Node[] {
-  return [
-    ...header("Widgets"),
-    ...plugins.map((p) => {
-      const rows = optionRows(p);
-      return h(
-        "section",
-        { class: "card", id: `card-${p.id}` },
-        h(
-          "div",
-          { class: "card-head" },
-          h("span", { class: "ico", "aria-hidden": "true" }, icon(p.icon)),
-          h("div", { class: "grow" }, h("h2", {}, p.label), h("p", {}, p.description)),
-          setupBadge(p.id, p.options ?? {}),
-          h(
-            "span",
-            { class: "badge", "data-placed": String(placesOf(p.id).length > 0) },
-            placesOf(p.id).join(" · ") || "Not placed",
-          ),
-        ),
-        ...(rows.length ? rows : [h("p", { class: "no-options" }, "No options.")]),
-      );
-    }),
-  ];
+/** Where the island shows a widget, in words. */
+function placedText(id: string): string {
+  const names: Record<string, string> = { Left: "Left of the pill", Right: "Right of the pill", Tabs: "Tabs" };
+  const places = placesOf(id);
+  return places.length ? places.map((p) => names[p]).join(" · ") : "Not on the island yet: add it in Layout.";
+}
+
+/** Every widget, one per row: what it is, where it shows, whether it needs setting up. */
+function widgetList(): Page {
+  return {
+    title: "Widgets",
+    lead: "Everything the island can show. Open one to set it up; choose where it shows in Layout.",
+    actions: [button("Edit layout", () => goTo("layout"), { class: "secondary" })],
+    body: [
+      h(
+        "div",
+        { class: "card list" },
+        ...plugins.map((p) => {
+          const places = placesOf(p.id);
+          return button(
+            h(
+              "span",
+              { class: "list-in" },
+              h("span", { class: "ico", "aria-hidden": "true" }, icon(p.icon)),
+              h("span", { class: "grow" }, h("span", { class: "list-title" }, p.label), h("span", { class: "list-detail" }, p.description)),
+              setupBadge(p.id, p.options ?? {}),
+              h("span", { class: "badge", "data-placed": String(places.length > 0) }, places.join(" · ") || "Not placed"),
+              h("span", { class: "chevron", "aria-hidden": "true" }, icon(CHEVRON)),
+            ),
+            () => openWidget(p.id),
+            { class: "list-row", "data-widget": p.id },
+          );
+        }),
+      ),
+    ],
+  };
+}
+
+/** One widget's page: where it shows, then its options. */
+function widgetPage(p: AnyPlugin): Page {
+  const rows = optionRows(p);
+  return {
+    crumbs: [["Widgets", () => openWidget(null)]],
+    title: p.label,
+    lead: p.description,
+    icon: p.icon,
+    badges: [setupBadge(p.id, p.options ?? {})],
+    body: [
+      group("On the island", field("Shows in", placedText(p.id), button("Edit layout", () => goTo("layout"), { class: "secondary" }))),
+      titled(
+        "Options",
+        h("section", { class: "card", id: `card-${p.id}`, "data-title": p.label }, ...(rows.length ? rows : [h("p", { class: "no-options" }, "No options.")])),
+      ),
+    ],
+  };
+}
+
+function widgets(): Page {
+  const shown = widget ? plugins.find((p) => p.id === widget) : undefined;
+  return shown ? widgetPage(shown) : widgetList();
 }
 
 // ---------- plugins from the plugins folder ----------
@@ -559,8 +692,8 @@ function styleChoices(): { styles: readonly AnyStyle[]; options: SelectOption[] 
 function greetingPicker(choices: ReturnType<typeof greetingChoices>, chosen: string): HTMLElement {
   let shown = chosen;
   const play = button(icon(PLAY), () => {
-    store.playGreeting(shown).catch((e: unknown) => setStatus("error", `Couldn't play it: ${String(e)}`));
-  }, { class: "secondary icon-only", "aria-label": "Play", title: "Play" });
+    store.playGreeting(shown).catch((e: unknown) => reportProblem("Couldn't play the startup animation", e, "GREETING_PLAY"));
+  }, { class: "secondary icon-only", "aria-label": "Play", title: "Play it on the island" });
   const update = () => (play.disabled = shown === NO_GREETING);
   const list = select(choices, chosen, (greeting) => {
     shown = greeting;
@@ -576,19 +709,19 @@ function greetingPicker(choices: ReturnType<typeof greetingChoices>, chosen: str
 /** The store's plugins, read when the Plugins section first opens and again on Refresh; `null` until then. */
 let shelf: { offers: Offer[]; problem: string | null } | null = null;
 let readingShelf = false;
-/** The store plugin being downloaded, and why the last downloads failed. */
+/** The store plugin being downloaded. */
 let installing: string | null = null;
-const installFailures = new Map<string, string>();
 const FOLDER = `<path d="M2.5 4.5c0-.55.45-1 1-1h3l1.5 1.5h4.5c.55 0 1 .45 1 1v6c0 .55-.45 1-1 1h-9c-.55 0-1-.45-1-1z"/>`;
 const STORE = `<path d="M2.5 6 3.5 2.5h9l1 3.5"/><path d="M2.5 6a1.85 1.85 0 0 0 3.7 0 1.85 1.85 0 0 0 3.6 0 1.85 1.85 0 0 0 3.7 0"/><path d="M3.5 8v5.5h9V8M6.5 13.5V10h3v3.5"/>`;
-
-const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 async function readShelf(): Promise<void> {
   readingShelf = true;
   shelf = await community.catalog().then(
     (s) => ({ offers: s.plugins, problem: null }),
-    (e: unknown) => ({ offers: [], problem: message(e) }),
+    (e: unknown) => {
+      reportProblem("Couldn't read the community store", e, "STORE_READ");
+      return { offers: [], problem: messageOf(e) };
+    },
   );
   readingShelf = false;
 }
@@ -596,13 +729,13 @@ async function readShelf(): Promise<void> {
 /** Downloads a store plugin into the folder; it then shows above, off, like any file put there. */
 async function installOffer(offer: Offer): Promise<void> {
   installing = offer.id;
-  installFailures.delete(offer.id);
   render();
   try {
     await community.install(offer.id);
     await rescan();
+    toasts.note(`${offer.name} is installed: turn it on above`);
   } catch (e) {
-    installFailures.set(offer.id, message(e));
+    reportProblem(`Couldn't install ${offer.name}`, e, "STORE_INSTALL");
   } finally {
     installing = null;
     render();
@@ -614,20 +747,22 @@ function storeCards(): Node[] {
     if (!readingShelf) void readShelf().then(() => section === "plugins" && render());
     return [h("p", { class: "lead" }, "Reading the store…")];
   }
-  if (shelf.problem) return [h("p", { class: "note failed" }, `Couldn't read the store: ${shelf.problem}`)];
+  if (shelf.problem) return [h("p", { class: "note empty" }, "The store isn't available right now. Refresh to try again.")];
   if (!shelf.offers.length) return [h("p", { class: "lead" }, "The store has no plugins yet.")];
   const files = found.plugins.map((p) => p.file);
   return shelf.offers.map((offer) => {
     const state = offerState(offer, files);
-    const failure = installFailures.get(offer.id);
     const busy = installing === offer.id;
     const action = button(
       busy ? "Installing…" : state === "update" ? "Update" : "Install",
       () => void installOffer(offer),
-      { class: "secondary", ...(state === "unavailable" || installing ? { disabled: "" } : {}) },
+      { class: state === "update" ? "secondary" : "primary", ...(state === "unavailable" || installing ? { disabled: "" } : {}) },
     );
-    const repo = button("Repository", () => void community.openRepo(offer.id).catch(() => {}), { class: "link", title: offer.repo });
-    const detail = failure ? `Couldn't install it: ${failure}` : offer.problem ? `Install it by hand: ${offer.problem}.` : offer.description;
+    const repo = button("Repository", () => void community.openRepo(offer.id).catch((e: unknown) => reportProblem("Couldn't open the repository", e, "STORE_REPO")), {
+      class: "link",
+      title: offer.repo,
+    });
+    const detail = offer.problem ? `Install it by hand: ${offer.problem}.` : offer.description;
     const card = h(
       "section",
       { class: "card store-card" },
@@ -644,7 +779,7 @@ function storeCards(): Node[] {
         h("div", { class: "card-actions" }, repo, action),
       ),
     );
-    if (failure || offer.problem) card.classList.add("failed");
+    if (offer.problem) card.classList.add("failed");
     return card;
   });
 }
@@ -681,14 +816,18 @@ function folderBar(): HTMLElement {
       h(
         "div",
         { class: "card-actions" },
-        button("Open", () => void folder.openDir().then(rescan).then(render).catch(() => {}), { class: "secondary", title: "Open plugins folder", ...(inTauri ? {} : { disabled: "" }) }),
+        button("Open", () => void folder.openDir().then(rescan).then(render).catch((e: unknown) => reportProblem("Couldn't open the plugins folder", e, "FOLDER_OPEN")), {
+          class: "secondary",
+          title: "Open plugins folder",
+          ...(inTauri ? {} : { disabled: "" }),
+        }),
         button("Refresh", () => void Promise.all([rescan(), readShelf()]).then(render), { class: "secondary" }),
       ),
     ),
   );
 }
 
-function pluginsSection(): Node[] {
+function pluginsSection(): Page {
   const rows = fileRows(found.plugins, settings.extensions, loaded);
   const offers = shelf?.offers ?? [];
   const list = rows.map((row) => {
@@ -706,9 +845,9 @@ function pluginsSection(): Node[] {
           ? "Startup animation, chosen in Appearance."
           : row.style
             ? "Pill style, chosen in Appearance."
-          : row.on
-          ? "Loading…"
-          : (listed?.description ?? "Turn it on to load it.");
+            : row.on
+              ? "Loading…"
+              : (listed?.description ?? "Turn it on to load it.");
     const card = h(
       "section",
       { class: "card" },
@@ -726,15 +865,18 @@ function pluginsSection(): Node[] {
     if (row.problem) card.classList.add("failed");
     return card;
   });
-  return [
-    ...header("Plugins", "Plugins run with the island's permissions: only turn on those you trust."),
-    folderBar(),
-    h("h2", { class: "subhead" }, "Installed"),
-    ...(list.length ? list : [h("p", { class: "lead" }, "No plugins yet. Install one from the store below, or add .js files to the plugins folder.")]),
-    h("h2", { class: "subhead" }, "Community store"),
-    h("p", { class: "note" }, "Plugins made by others, downloaded from their repository. They are installed off: read the code, then turn them on above."),
-    ...storeCards(),
-  ];
+  return {
+    title: "Plugins",
+    lead: "Widgets, pill styles and startup animations made by others. They run with AiN's permissions: only turn on those you trust.",
+    body: [
+      folderBar(),
+      h("h2", { class: "subhead" }, "Installed"),
+      ...(list.length ? list : [h("p", { class: "note empty" }, "No plugins yet. Install one from the store below, or add .js files to the plugins folder.")]),
+      h("h2", { class: "subhead" }, "Community store"),
+      h("p", { class: "note" }, "Plugins made by others, downloaded from their repository. They are installed off: read the code, then turn them on above."),
+      ...storeCards(),
+    ],
+  };
 }
 
 const UPDATE_ICONS: Record<Tone, string> = {
@@ -758,12 +900,15 @@ function updatesCard(): HTMLElement {
   const { state } = update;
   const view = describe(state);
   card.dataset.tone = view.tone;
-  const fail = (e: unknown) => setStatus("error", `Update: ${String(e)}`);
+  const fail = (what: string, code: string) => (e: unknown) => reportProblem(what, e, code);
 
   const control =
     view.action === "install"
-      ? button("Install and restart", () => void updater.install().catch(fail), { class: "primary" })
-      : button(BUSY_LABEL[state.kind] ?? "Check now", () => void updater.check().catch(fail), { class: "secondary", ...(view.action ? {} : { disabled: "" }) });
+      ? button("Install and restart", () => void updater.install().catch(fail("Couldn't install the update", "UPDATE_INSTALL")), { class: "primary" })
+      : button(BUSY_LABEL[state.kind] ?? "Check now", () => void updater.check().catch(fail("Couldn't check for updates", "UPDATE_CHECK")), {
+          class: "secondary",
+          ...(view.action ? {} : { disabled: "" }),
+        });
 
   card.append(
     h(
@@ -796,7 +941,7 @@ function updatesCard(): HTMLElement {
       "div",
       { class: "update-foot" },
       h("span", {}, state.kind === "disabled" ? "Download new versions by hand from the releases page." : "Checked at launch, then every 6 hours. Nothing installs without you."),
-      ...(update.releases ? [button("All releases ↗", () => void updater.openReleases().catch(fail), { class: "link" })] : []),
+      ...(update.releases ? [button("All releases ↗", () => void updater.openReleases().catch(fail("Couldn't open the releases page", "UPDATE_RELEASES")), { class: "link" })] : []),
     ),
   );
   return card;
@@ -804,13 +949,13 @@ function updatesCard(): HTMLElement {
 
 /** Redraws just the Updates card, so download progress doesn't rebuild the whole section. */
 function paintUpdates() {
-  if (section !== "about") return;
+  if (section !== "about" || query) return;
   const card = document.getElementById("card-updates");
   if (card) card.replaceWith(updatesCard());
   else render();
 }
 
-function about(): Node[] {
+function about(): Page {
   let armed = false;
   const reset = button("Reset", () => {
     if (!armed) {
@@ -820,23 +965,161 @@ function about(): Node[] {
       return;
     }
     commit(fallback, true);
+    toasts.note("Every setting is back to its default");
   }, { class: "secondary" });
-  return [
-    ...header("About", "AiN, All I Needed — a Dynamic Island for your desktop."),
-    updatesCard(),
-    h("section", { class: "card" }, field("Reset all settings", undefined, reset)),
-  ];
+  return {
+    title: "About",
+    lead: "AiN, All I Needed — a Dynamic Island for your desktop.",
+    body: [
+      titled("Updates", updatesCard()),
+      group("Reset", field("Reset all settings", "Puts every setting back to its default. Saved secrets and plugin files stay.", reset)),
+    ],
+  };
 }
 
-const providers = () =>
-  providersSection({
+const providers = (): Page => ({
+  title: "AI providers",
+  lead: PROVIDERS_LEAD,
+  body: providersSection({
     providers: () => settings.providers,
     save: (next, redraw) => commit({ ...settings, providers: next }, redraw),
     port: services.providers,
     pickFile: (current) => pickFolder(current, false),
-  });
+  }),
+});
 
-const RENDER: Record<Section, () => Node[]> = { appearance, general, layout, shortcuts, widgets, providers, plugins: pluginsSection, about };
+const RENDER: Record<Section, () => Page> = { appearance, general, layout, shortcuts, widgets, providers, plugins: pluginsSection, about };
+
+// ---------- search ----------
+
+/** Settings Settings draws itself, by section: what they're called, what they do, and other words for them. */
+const SEARCHABLE: Partial<Record<Section, readonly (readonly [label: string, hint: string, keywords?: string])[]>> = {
+  general: [
+    ["Launch at login", "Starts AiN when you sign in", "startup boot autostart windows"],
+    ["Open delay", "How long the pointer rests on the pill before the island opens", "hover speed"],
+    ["Close delay", "How long the island stays open once the pointer leaves it", "hover speed"],
+    ["Hide the pill", "Show the pill only at the top center of the screen", "hidden auto-hide games"],
+    ["Quit AiN", "Closes the island and this window", "exit close stop"],
+  ],
+  appearance: [
+    ["Pill style", "How the pill looks", "notch hidden"],
+    ["Size", "Low profile, Normal or Large", "pill size scale"],
+    ["Pill width", "At the Normal size", "wide"],
+    ["Corner curve", "From square corners to a full pill", "radius round"],
+    ["Theme", "The island's colors", "dark light palette"],
+    ["Pill color", "The island's background", "colour background"],
+    ["Accent color", "Buttons, progress and highlights", "colour"],
+    ["Startup animation", "Played on the island when AiN starts", "greeting hello intro"],
+  ],
+  layout: [
+    ["Left of the pill", "Glances shown left of the pill", "order priority"],
+    ["Right of the pill", "Glances shown right of the pill", "order priority"],
+    ["Tabs", "Tabs when the island opens", "order"],
+  ],
+  providers: [["Add a provider", "An online service or your own OpenAI-compatible server", "openai groq api key token server"]],
+  plugins: [
+    ["Plugins folder", "Where plugin files live", "extensions js"],
+    ["Community store", "Plugins made by others", "install download extensions"],
+  ],
+  about: [
+    ["Updates", "Check for and install new versions", "version upgrade"],
+    ["Reset all settings", "Puts every setting back to its default", "defaults factory"],
+  ],
+};
+
+/** Everything search can find: the sections' settings, the shortcuts, and every widget with its options. */
+function searchEntries(): SearchEntry[] {
+  const sections = (Object.entries(SEARCHABLE) as [Section, (typeof SEARCHABLE)[Section] & {}][]).flatMap(([s, rows]) =>
+    rows.map(([label, hint, keywords]) => ({ label, hint, keywords, where: SECTIONS[s].label, target: s, field: label })),
+  );
+  const keys = entries.map((e) => ({
+    label: e.command.label,
+    hint: e.command.description,
+    keywords: `shortcut keys ${e.plugin.label}`,
+    where: SECTIONS.shortcuts.label,
+    target: "shortcuts",
+    field: `${e.command.label} · ${e.plugin.label}`,
+  }));
+  const widgetEntries = plugins.flatMap((p) => [
+    { label: p.label, hint: p.description, keywords: "widget", where: SECTIONS.widgets.label, target: `widgets:${p.id}` },
+    ...Object.values(p.options ?? {}).map((f) => ({ label: f.label, hint: f.hint, where: `${SECTIONS.widgets.label} › ${p.label}`, target: `widgets:${p.id}`, field: f.label })),
+  ]);
+  return [...sections, ...keys, ...widgetEntries];
+}
+
+function results(): Page {
+  const found = search(query, searchEntries());
+  const shown = query.trim();
+  return {
+    title: "Search",
+    lead: found.length ? `${found.length} result${found.length === 1 ? "" : "s"} for “${shown}”` : `Nothing matches “${shown}”. Try another word, or pick a section on the left.`,
+    body: found.length
+      ? [
+          h(
+            "div",
+            { class: "card list results" },
+            ...found.map((r) =>
+              button(
+                h(
+                  "span",
+                  { class: "list-in" },
+                  h("span", { class: "grow" }, h("span", { class: "list-title" }, r.label), ...(r.hint ? [h("span", { class: "list-detail" }, r.hint)] : [])),
+                  h("span", { class: "list-where" }, r.where),
+                  h("span", { class: "chevron", "aria-hidden": "true" }, icon(CHEVRON)),
+                ),
+                () => {
+                  clearSearch();
+                  scrollToField = r.field ?? null;
+                  goTo(r.target);
+                },
+                { class: "list-row" },
+              ),
+            ),
+          ),
+        ]
+      : [],
+  };
+}
+
+function clearSearch() {
+  query = "";
+  searchBox.value = "";
+}
+
+searchBox.addEventListener("input", () => {
+  query = searchBox.value;
+  content.scrollTop = 0;
+  render();
+});
+searchBox.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && searchBox.value) {
+    e.preventDefault();
+    clearSearch();
+    render();
+  } else if (e.key === "ArrowDown" || e.key === "Enter") {
+    const first = content.querySelector<HTMLButtonElement>(".results .list-row");
+    if (!first) return;
+    e.preventDefault();
+    if (e.key === "Enter") first.click();
+    else first.focus();
+  }
+});
+// Up and down through the results, back to the box from the first.
+content.addEventListener("keydown", (e) => {
+  const row = (e.target as HTMLElement).closest?.(".results .list-row");
+  if (!row || (e.key !== "ArrowDown" && e.key !== "ArrowUp")) return;
+  e.preventDefault();
+  const next = e.key === "ArrowDown" ? row.nextElementSibling : row.previousElementSibling;
+  if (next instanceof HTMLElement) next.focus();
+  else if (e.key === "ArrowUp") searchBox.focus();
+});
+window.addEventListener("keydown", (e) => {
+  if ((e.ctrlKey || e.metaKey) && (e.key === "f" || e.key === "k") && !e.altKey) {
+    e.preventDefault();
+    searchBox.focus();
+    searchBox.select();
+  }
+});
 
 // ---------- plugin pages ----------
 
@@ -852,9 +1135,10 @@ function openPage(id: string, params: PageParams = {}) {
 function leavePage() {
   if (!page) return;
   section = page.back;
-  scrollToCard = page.id;
+  if (section === "widgets") widget = page.id;
+  else scrollToCard = page.id;
   page = null;
-  history.replaceState(null, "", `#${section}`);
+  history.replaceState(null, "", `#${here()}`);
   render();
 }
 
@@ -877,12 +1161,12 @@ function pageView(open: OpenPage): Node[] {
   if (!plugin?.page) {
     // Plugins from the folder may still be loading: drawn again once they are.
     const why = !scanned ? "Loading…" : plugin ? `${plugin.label} has no page.` : "This plugin isn't turned on: see Plugins.";
-    return [back, ...header(plugin?.label ?? "Page", why)];
+    return [h("div", { class: "page-missing" }, back, ...header(plugin?.label ?? "Page", why))];
   }
   const root = h("div", { class: "plugin-page" });
   document.title = plugin.label;
   let stop: (() => void) | undefined;
-  if (!inTauri) return [back, ...header(plugin.label, "This page is available in the app.")];
+  if (!inTauri) return [h("div", { class: "page-missing" }, back, ...header(plugin.label, "This page is available in the app."))];
   else {
     const host: PageHost<never> = {
       params: Object.freeze({ ...open.params }),
@@ -898,16 +1182,76 @@ function pageView(open: OpenPage): Node[] {
   return drawnPage.nodes;
 }
 
+// ---------- the menu ----------
+
+/** Where Settings is, as its address: "general", "widgets:dictation". */
+const here = () => (section === "widgets" && widget ? `widgets:${widget}` : section);
+
+function showSection(key: Section) {
+  page = null;
+  section = key;
+  widget = null;
+  clearSearch();
+  history.replaceState(null, "", `#${key}`);
+  content.scrollTop = 0;
+  render();
+}
+
+function openWidget(id: string | null) {
+  page = null;
+  section = "widgets";
+  widget = id;
+  clearSearch();
+  history.replaceState(null, "", `#${here()}`);
+  content.scrollTop = 0;
+  render();
+}
+
+function navItem(label: string, markup: string, current: boolean, go: () => void, attrs: Record<string, string>, extra: Node[] = []): HTMLButtonElement {
+  return button(h("span", { class: "nav-in" }, icon(markup), h("span", { class: "nav-label" }, label), ...extra), go, {
+    ...attrs,
+    ...(current ? { "aria-current": "page" } : {}),
+  });
+}
+
+function renderNav() {
+  // Drawn again on every change: the item that had the focus gets it back, and the list keeps its place.
+  const focused = document.activeElement instanceof HTMLElement && nav.contains(document.activeElement) ? document.activeElement : null;
+  const key = focused ? `${focused.dataset.section ?? ""}:${focused.dataset.widget ?? ""}:${focused.textContent}` : null;
+  const scroll = navList.scrollTop;
+  fillNav();
+  navList.scrollTop = scroll;
+  if (key) [...nav.querySelectorAll<HTMLElement>("button")].find((b) => `${b.dataset.section ?? ""}:${b.dataset.widget ?? ""}:${b.textContent}` === key)?.focus();
+}
+
+function fillNav() {
+  const at = (key: Section) => !page && !query && section === key && (key !== "widgets" || !plugins.some((p) => p.id === widget));
+  const item = (key: Section) => navItem(SECTIONS[key].label, SECTIONS[key].icon, at(key), () => showSection(key), { "data-section": key });
+  navList.replaceChildren(
+    ...(["general", "appearance", "layout", "shortcuts"] as const).map(item),
+    h("div", { class: "nav-group" }, "Widgets"),
+    navItem("All widgets", GRID, at("widgets"), () => openWidget(null), { "data-section": "widgets" }),
+    ...plugins.map((p) =>
+      navItem(p.label, p.icon || GRID, !page && !query && section === "widgets" && widget === p.id, () => openWidget(p.id), { "data-widget": p.id, class: "nav-sub" }, [
+        setupDot(p.id, p.options ?? {}),
+      ]),
+    ),
+    h("div", { class: "nav-group" }, "Integrations"),
+    item("providers"),
+    item("plugins"),
+  );
+  navFoot.replaceChildren(item("about"), status);
+}
+
+// ---------- drawing ----------
+
 function render() {
   app.dataset.page = "false";
-  for (const b of nav.querySelectorAll<HTMLButtonElement>("button[data-section]")) {
-    if (!page && b.dataset.section === section) b.setAttribute("aria-current", "page");
-    else b.removeAttribute("aria-current");
-  }
+  renderNav();
   const scroll = content.scrollTop;
   for (const stop of panelStops) stop();
   panelStops = [];
-  if (page) {
+  if (page && !query) {
     const nodes = pageView(page);
     // A plugin's page has the whole window: no menu, no margins.
     app.dataset.page = String(nodes[0] instanceof HTMLElement && nodes[0].classList.contains("plugin-page"));
@@ -917,7 +1261,8 @@ function render() {
   }
   closeDrawnPage();
   document.title = "AiN settings";
-  content.replaceChildren(...RENDER[section]());
+  const shown = query.trim() ? results() : RENDER[section]();
+  content.replaceChildren(pageHead(shown), h("div", { class: "page-body" }, ...shown.body));
   content.scrollTop = scroll;
   if (scrollToCard) {
     const card = document.getElementById(`card-${scrollToCard}`);
@@ -928,9 +1273,19 @@ function render() {
       card.classList.add("highlight");
     }
   }
+  if (scrollToField) {
+    // A row by its label, else a card or a group by its title, else a heading.
+    const named = (el: HTMLElement) => (el.matches(".subhead") ? el : el.querySelector(":scope > div > .field-label, :scope > .card-head h2, :scope > .group-title"))?.textContent?.trim();
+    const row = [...content.querySelectorAll<HTMLElement>(".field, .card, .group, .subhead")].find((el) => named(el) === scrollToField);
+    scrollToField = null;
+    if (row) {
+      row.scrollIntoView({ block: "center" });
+      row.classList.add("highlight");
+    }
+  }
 }
 
-/** Shows a place asked for from elsewhere, e.g. the island's "Set up in Settings". */
+/** Shows a place asked for from elsewhere, e.g. the island's "Set up in Settings", or a search result. */
 function goTo(target: string) {
   const asked = parsePage(target);
   if (asked) return openPage(asked.id, asked.params);
@@ -938,29 +1293,32 @@ function goTo(target: string) {
   if (!place || !isSection(place.section)) return;
   page = null;
   section = place.section;
-  scrollToCard = place.card;
-  history.replaceState(null, "", `#${section}`);
+  widget = section === "widgets" ? place.card : null;
+  scrollToCard = section === "widgets" ? null : place.card;
+  history.replaceState(null, "", `#${here()}`);
+  content.scrollTop = 0;
   render();
 }
 
+// ---------- problems ----------
+
+onProblem(toasts.problem);
+// What nothing else caught: still said, so a failure is never silent.
+window.addEventListener("unhandledrejection", (e) => reportProblem("Something went wrong", e.reason, "UNEXPECTED"));
+window.addEventListener("error", (e) => reportProblem("Something went wrong", e.error ?? e.message, "UNEXPECTED"));
+
 // ---------- bootstrap ----------
 
-nav.append(
-  h("div", { class: "brand" }, h("span", { class: "brand-pill", "aria-hidden": "true" }), "AiN"),
-  ...(Object.keys(SECTIONS) as Section[]).map((key) =>
-    button(h("span", { class: "nav-in" }, icon(SECTIONS[key].icon), SECTIONS[key].label), () => {
-      page = null;
-      section = key;
-      history.replaceState(null, "", `#${key}`);
-      content.scrollTop = 0;
-      render();
-    }, { "data-section": key }),
-  ),
-  status,
-);
-document.body.append(app);
+document.body.append(app, toasts.el);
+renderNav();
 
 void popup.watchFailures((next) => {
+  // Newly failing shortcuts are said once; the row stays marked until fixed.
+  for (const [id, why] of Object.entries(next)) {
+    if (failures[id] === why) continue;
+    const e = entries.find((x) => x.id === id);
+    reportProblem(`The shortcut for ${e ? e.command.label : id} doesn't work`, `${why}: pick another one in Shortcuts.`, "SHORTCUT_REGISTER");
+  }
   failures = next;
   if (section === "shortcuts") render();
 });

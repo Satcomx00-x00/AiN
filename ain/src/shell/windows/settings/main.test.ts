@@ -9,6 +9,7 @@ import type { Sdk } from "../../../sdk";
 import type { SettingsPorts } from "./ports";
 import type { Report, UpdaterPort } from "../../updater";
 import { advance, environment, pick, press, restore, system, type System } from "../../../integration/harness";
+import { onProblem } from "../../../sdk/report";
 
 const dialog = vi.hoisted(() => ({ open: vi.fn<(options: Record<string, unknown>) => Promise<string | string[] | null>>() }));
 vi.mock("@tauri-apps/plugin-dialog", () => dialog);
@@ -45,8 +46,10 @@ async function load(sys: System, at = "", extra: Partial<SettingsPorts> = {}) {
       await advance(0);
     },
     field: (label: string) => [...page.querySelectorAll<HTMLElement>(".field")].find((f) => f.querySelector(".field-label")?.textContent?.trim() === label)!,
-    card: (title: string) => [...page.querySelectorAll<HTMLElement>(".card")].find((c) => c.querySelector("h2")?.textContent === title)!,
+    card: (title: string) => [...page.querySelectorAll<HTMLElement>(".card")].find((c) => c.querySelector("h2")?.textContent === title || c.dataset.title === title)!,
     status: () => page.querySelector<HTMLElement>(".status")!,
+    /** The toasts shown now, as "[code] title: message". */
+    toasts: () => [...document.querySelectorAll<HTMLElement>(".toast")].map((t) => `[${t.querySelector(".toast-code")?.textContent ?? ""}] ${t.querySelector(".toast-title")?.textContent}: ${t.querySelector(".toast-message")?.textContent ?? ""}`),
     heading: () => page.querySelector("h1")?.textContent,
     saved: () => advance(400),
   };
@@ -78,7 +81,8 @@ describe("Saving", () => {
     expect(page.status().textContent).toBe("Saving…");
     await page.saved();
     expect(page.status().dataset.state).toBe("error");
-    expect(page.status().textContent).toBe("Not saved: Error: disk full");
+    expect(page.status().textContent).toBe("Not saved");
+    expect(page.toasts()).toEqual(["[SETTINGS_SAVE] Your changes weren't saved: disk full"]);
   });
 
   it("keeps what is being edited when other settings arrive meanwhile, and saves it", async () => {
@@ -117,7 +121,7 @@ describe("Settings → General", () => {
     launch(page).click();
     await advance(0);
     expect(launch(page).getAttribute("aria-checked")).toBe("false");
-    expect(page.status().textContent).toBe("Launch at login: Error: denied");
+    expect(page.toasts()).toEqual(["[AUTOSTART] Couldn't change Launch at login: denied"]);
   });
 
   it("shows the switch shown off when the system can't tell", async () => {
@@ -139,7 +143,7 @@ describe("Settings → General", () => {
     expect(page.status().textContent).toBe("Saved");
     press(page.field("Quit AiN"), "Quit");
     await advance(0);
-    expect(page.status().textContent).toBe("Couldn't quit: Error: busy");
+    expect(page.toasts()).toEqual(["[QUIT] Couldn't quit AiN: busy"]);
   });
 
   it("saves how long the island waits to open and to close", async () => {
@@ -229,7 +233,7 @@ describe("Settings → Appearance", () => {
     const page = await load(sys, "appearance");
     page.field("Startup animation").querySelector<HTMLButtonElement>("[aria-label=Play]")!.click();
     await advance(0);
-    expect(page.status().textContent).toBe("Couldn't play it: Error: island closed");
+    expect(page.toasts()).toEqual(["[GREETING_PLAY] Couldn't play the startup animation: island closed"]);
   });
 
   it("shows the default animation when the chosen one's plugin is gone", async () => {
@@ -367,6 +371,12 @@ describe("Settings → Shortcuts", () => {
     expect(page.field(DICTATE).querySelector(".field-hint")?.textContent).toBe(
       "Types what you say where the cursor is. — already used by another app: pick another shortcut.",
     );
+    expect(page.toasts()).toEqual(["[SHORTCUT_REGISTER] The shortcut for Dictate doesn't work: already used by another app: pick another one in Shortcuts."]);
+    const said: string[] = [];
+    const stop = onProblem((p) => said.push(p.title));
+    report({ "dictation.toggle": "already used by another app", "ghost.cmd": "taken" });
+    stop();
+    expect(said).toEqual(["The shortcut for ghost.cmd doesn't work"]);
     // Elsewhere in Settings, nothing is redrawn.
     await page.open("General");
     report({});
@@ -398,7 +408,7 @@ describe("Settings → Widgets", () => {
     environment();
     const sys = system();
     dialog.open.mockResolvedValueOnce("D:\\models").mockResolvedValueOnce(null);
-    const page = await load(sys, "widgets", { inApp: true });
+    const page = await load(sys, "widgets:dictation", { inApp: true });
     const folder = () => page.card("Dictation").querySelector<HTMLElement>(".path")!;
     press(folder(), "Browse…");
     await page.saved();
@@ -414,7 +424,7 @@ describe("Settings → Widgets", () => {
   it("has no folder dialog outside the app", async () => {
     environment();
     const sys = system();
-    const page = await load(sys, "widgets");
+    const page = await load(sys, "widgets:dictation");
     press(page.card("Dictation").querySelector(".path")!, "Browse…");
     await page.saved();
     expect(dialog.open).not.toHaveBeenCalled();
@@ -424,7 +434,7 @@ describe("Settings → Widgets", () => {
   it("saves what a plugin's own settings panel sets", async () => {
     environment();
     const sys = system();
-    const page = await load(sys, "widgets", { inApp: true });
+    const page = await load(sys, "widgets:dictation", { inApp: true });
     const models = page.card("Dictation").querySelector<HTMLElement>(".plugin-panel [aria-label='Speech model']")!.parentElement!;
     pick(models, "Whisper small");
     await page.saved();
@@ -438,9 +448,10 @@ describe("Settings → Widgets", () => {
     await sys.save((s) => ({ ...s, extensions: ["bare.js"] }));
     const page = await load(sys, "widgets");
     await advance(0);
-    await page.open("Widgets");
+    await page.open("Bare");
+    expect(page.heading()).toBe("Bare");
     expect(page.card("Bare").querySelector(".no-options")?.textContent).toBe("No options.");
-    expect(page.card("Bare").querySelector<HTMLElement>(".needs-setup")?.hidden).toBe(true);
+    expect(page.page.querySelector<HTMLElement>(".page-head .needs-setup")?.hidden).toBe(true);
   });
 
   it("shows no setup badge when the credential store can't say what's missing", async () => {
@@ -461,10 +472,12 @@ describe("Settings → Widgets", () => {
     vi.spyOn(sys.secrets, "saved").mockRejectedValue(new Error("locked"));
     const page = await load(sys, "widgets");
     await advance(0);
-    await page.open("Widgets");
+    await page.open("Weather");
     await advance(0);
-    expect(page.card("Weather").querySelector<HTMLElement>(".needs-setup")?.hidden).toBe(true);
-    expect(page.card("Weather").querySelector(".field-error")?.textContent).toBe("Couldn't read the credential store: locked");
+    expect(page.page.querySelector<HTMLElement>(".page-head .needs-setup")?.hidden).toBe(true);
+    expect(page.page.querySelector<HTMLElement>("[data-widget=weather] .nav-dot")?.hidden).toBe(true);
+    expect(page.card("Weather").querySelector(".field-error")).toBeNull();
+    expect(page.toasts()).toEqual(["[SECRET_READ] Couldn't read the credential store: locked"]);
   });
 });
 
@@ -556,7 +569,8 @@ describe("Settings → Plugins", () => {
     environment();
     const sys = system();
     const page = await load(sys, "plugins", { community: { ...sys.community, catalog: async () => Promise.reject("offline") } });
-    expect(page.page.querySelector(".note.failed")?.textContent).toBe("Couldn't read the store: offline");
+    expect(page.page.querySelector(".note.empty:last-child")?.textContent).toBe("The store isn't available right now. Refresh to try again.");
+    expect(page.toasts()).toEqual(["[STORE_READ] Couldn't read the community store: offline"]);
   });
 
   it("reads the store once while it's slow, however often the page redraws", async () => {
@@ -583,6 +597,7 @@ describe("Settings → Plugins", () => {
     await advance(0);
     expect(openRepo).toHaveBeenCalledWith("orbit");
     expect(page.status().textContent).toBe("Saved");
+    expect(page.toasts()).toEqual(["[STORE_REPO] Couldn't open the repository: no browser"]);
   });
 });
 
@@ -621,7 +636,7 @@ describe("Settings → About", () => {
     press(card(), "Check now");
     await advance(0);
     expect(port.check).toHaveBeenCalled();
-    expect(page.status().textContent).toBe("Update: Error: offline");
+    expect(page.toasts()).toEqual(["[UPDATE_CHECK] Couldn't check for updates: offline"]);
 
     await push(report({ kind: "checking" }));
     expect(buttonIn(card(), "Checking…")?.disabled).toBe(true);
@@ -641,7 +656,7 @@ describe("Settings → About", () => {
     press(card(), "Install and restart");
     await advance(0);
     expect(port.install).toHaveBeenCalled();
-    expect(page.status().textContent).toBe("Update: Error: signature mismatch");
+    expect(page.toasts()).toEqual(["[UPDATE_INSTALL] Couldn't install the update: signature mismatch"]);
   });
 
   it("shows the download's progress, redrawing only its card", async () => {
@@ -666,7 +681,7 @@ describe("Settings → About", () => {
     press(card(), "All releases ↗");
     await advance(0);
     expect(port.openReleases).toHaveBeenCalled();
-    expect(page.status().textContent).toBe("Update: Error: no browser");
+    expect(page.toasts()).toEqual(["[UPDATE_RELEASES] Couldn't open the releases page: no browser"]);
 
     await push(report({ kind: "upToDate" }, ""));
     expect(buttonIn(card(), "All releases ↗")).toBeUndefined();
@@ -758,7 +773,7 @@ describe("A plugin's page", () => {
     await sys.save((s) => ({ ...s, extensions: ["sketch.js"] }));
     const page = await load(sys, "widgets", { inApp: true });
     await advance(0);
-    await page.open("Widgets");
+    await page.open("Sketch");
     expect(page.card("Sketch").querySelector(".seen")?.textContent).toBe("{}");
     environment();
     const view = await load(sys, "page:sketch", { inApp: true });
@@ -941,12 +956,354 @@ describe("Settings → AI providers", () => {
     environment();
     const sys = system();
     await sys.save((s) => ({ ...s, providers: [{ id: "lab", name: "Lab", preset: "custom", baseUrl: "http://lab/v1", auth: { kind: "none" } }] }));
-    const page = await load(sys, "widgets", { inApp: true });
+    const page = await load(sys, "widgets:dictation", { inApp: true });
     const engine = page.card("Dictation").querySelector<HTMLElement>(".engine")!;
     pick(engine, "Lab");
     type(engine.querySelector<HTMLInputElement>('input[aria-label="Provider model"]')!, "whisper-1");
     await page.saved();
     expect((await sys.settings()).options.dictation).toMatchObject({ engine: "lab", remoteModel: "whisper-1" });
     expect(page.field("Speech model").hidden).toBe(true);
+  });
+});
+
+describe("Finding your way", () => {
+  const typeSearch = (value: string) => {
+    const box = document.querySelector<HTMLInputElement>(".search-input")!;
+    box.value = value;
+    box.dispatchEvent(new Event("input"));
+    return box;
+  };
+  const results = () => [...document.querySelectorAll<HTMLElement>(".results .list-row")].map((r) => `${r.querySelector(".list-title")?.textContent} — ${r.querySelector(".list-where")?.textContent}`);
+
+  it("lists every widget in the menu, each with its own page, and a way back to them all", async () => {
+    environment();
+    const page = await load(system());
+    await page.open("Dictation");
+    expect(page.heading()).toBe("Dictation");
+    expect(location.hash).toBe("#widgets:dictation");
+    expect(page.page.querySelector(".crumbs")?.textContent).toBe("Widgets›");
+    expect(page.field("Shows in").querySelector(".field-hint")?.textContent).toBe("Right of the pill · Tabs");
+    expect(page.page.querySelector("nav [aria-current=page]")?.textContent?.trim()).toBe("Dictation");
+
+    press(page.page.querySelector(".crumbs")!, "Widgets");
+    await advance(0);
+    expect(page.heading()).toBe("Widgets");
+    expect(location.hash).toBe("#widgets");
+    page.page.querySelector<HTMLButtonElement>(".list-row[data-widget=screenshot]")!.click();
+    await advance(0);
+    expect(page.heading()).toBe("Screenshot");
+    expect(page.field("Shows in").querySelector(".field-hint")?.textContent).toBe("Not on the island yet: add it in Layout.");
+    press(page.field("Shows in"), "Edit layout");
+    await advance(0);
+    expect(page.heading()).toBe("Layout");
+  });
+
+  it("finds a setting by its words, and leads to it", async () => {
+    environment();
+    const page = await load(system(), "about");
+    typeSearch("delay");
+    await advance(0);
+    expect(page.heading()).toBe("Search");
+    expect(results()).toEqual(["Open delay — General", "Close delay — General"]);
+    expect(page.page.querySelector("nav [aria-current=page]")).toBeNull();
+
+    typeSearch("model folder dictation");
+    await advance(0);
+    expect(results()).toEqual(["Model folder — Widgets › Dictation"]);
+    document.querySelector<HTMLInputElement>(".search-input")!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter" }));
+    await advance(0);
+    expect(page.heading()).toBe("Dictation");
+    expect(page.field("Model folder").classList).toContain("highlight");
+    expect(document.querySelector<HTMLInputElement>(".search-input")?.value).toBe("");
+  });
+
+  it("says when nothing matches, and Escape goes back to where it was", async () => {
+    environment();
+    const page = await load(system(), "layout");
+    const box = typeSearch("zzz");
+    await advance(0);
+    expect(page.page.querySelector(".lead")?.textContent).toBe("Nothing matches “zzz”. Try another word, or pick a section on the left.");
+    box.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    await advance(0);
+    expect(page.heading()).toBe("Layout");
+  });
+
+  it("puts the cursor in the search box on Ctrl+F", async () => {
+    environment();
+    await load(system());
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "f", ctrlKey: true }));
+    expect(document.activeElement).toBe(document.querySelector(".search-input"));
+  });
+
+  it("marks a widget that needs setting up in the menu", async () => {
+    environment();
+    const sys = system();
+    sys.addFile("weather.js", (island: Sdk) =>
+      island.definePlugin({
+        id: "weather",
+        label: "Weather",
+        description: "",
+        icon: "",
+        slots: ["glance"],
+        options: { apiKey: island.options.secret("API key", { required: true }) },
+        setup: () => ({ glance: () => null }),
+      }),
+    );
+    await sys.save((s) => ({ ...s, extensions: ["weather.js"] }));
+    const page = await load(sys);
+    await advance(0);
+    const dot = page.page.querySelector<HTMLElement>("[data-widget=weather] .nav-dot")!;
+    expect(dot.hidden).toBe(false);
+    expect(dot.title).toBe("Still to fill in: API key");
+    expect(page.page.querySelector<HTMLElement>("[data-widget=clock] .nav-dot")?.hidden).toBe(true);
+  });
+
+  it("tells about a failure nothing else caught", async () => {
+    environment();
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const page = await load(system());
+    window.dispatchEvent(Object.assign(new Event("unhandledrejection"), { reason: new Error("socket closed") }));
+    await advance(0);
+    expect(page.toasts()).toEqual(["[UNEXPECTED] Something went wrong: socket closed"]);
+  });
+});
+
+describe("In a narrow window", () => {
+  it("opens the menu as a drawer, and closes it on a choice, on the backdrop, or on Escape", async () => {
+    environment();
+    const page = await load(system());
+    const app = page.page;
+    const menu = document.querySelector<HTMLButtonElement>(".menu-button")!;
+    expect([app.dataset.menu, menu.getAttribute("aria-expanded")]).toEqual(["closed", "false"]);
+    menu.click();
+    expect([app.dataset.menu, menu.getAttribute("aria-expanded")]).toEqual(["open", "true"]);
+    await page.open("Shortcuts");
+    expect([app.dataset.menu, page.heading()]).toEqual(["closed", "Shortcuts"]);
+
+    menu.click();
+    document.querySelector<HTMLElement>(".nav-backdrop")!.click();
+    expect(app.dataset.menu).toBe("closed");
+
+    menu.click();
+    document.querySelector("nav")!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    expect(app.dataset.menu).toBe("closed");
+    expect(document.activeElement).toBe(menu);
+  });
+});
+
+describe("Finding your way, by keyboard and by search", () => {
+  const typeSearch = (value: string) => {
+    const box = document.querySelector<HTMLInputElement>(".search-input")!;
+    box.value = value;
+    box.dispatchEvent(new Event("input"));
+    return box;
+  };
+  const key = (target: Element, k: string) => target.dispatchEvent(new KeyboardEvent("keydown", { key: k, bubbles: true }));
+  const rows = () => [...document.querySelectorAll<HTMLButtonElement>(".results .list-row")];
+
+  it("moves through the results with the arrows, and back to the box from the first", async () => {
+    environment();
+    await load(system());
+    const box = typeSearch("delay");
+    await advance(0);
+    key(box, "ArrowDown");
+    expect(document.activeElement).toBe(rows()[0]);
+    key(rows()[0]!, "ArrowDown");
+    expect(document.activeElement).toBe(rows()[1]);
+    key(rows()[1]!, "ArrowDown");
+    expect(document.activeElement).toBe(rows()[1]);
+    key(rows()[1]!, "ArrowUp");
+    expect(document.activeElement).toBe(rows()[0]);
+    key(rows()[0]!, "Tab");
+    expect(document.activeElement).toBe(rows()[0]);
+    key(rows()[0]!, "ArrowUp");
+    expect(document.activeElement).toBe(box);
+    key(box, "Escape");
+    key(box, "Escape");
+    await advance(0);
+    expect(document.querySelector("h1")?.textContent).toBe("General");
+  });
+
+  it("does nothing on Enter when nothing matches", async () => {
+    environment();
+    const page = await load(system());
+    const box = typeSearch("zzz");
+    await advance(0);
+    key(box, "Enter");
+    key(box, "ArrowDown");
+    await advance(0);
+    expect(page.heading()).toBe("Search");
+  });
+
+  it("finds a widget with no options, and a heading, and leads to each", async () => {
+    environment();
+    const sys = system();
+    sys.addFile("bare.js", (island: Sdk) => island.definePlugin({ id: "bare", label: "Bare", description: "Nothing to set.", icon: "", slots: ["tab"], setup: () => ({ panel() {} }) }));
+    await sys.save((s) => ({ ...s, extensions: ["bare.js"] }));
+    const page = await load(sys, "plugins");
+    await advance(0);
+    typeSearch("bare");
+    await advance(0);
+    rows().find((r) => r.textContent?.includes("Bare"))!.click();
+    await advance(0);
+    expect(page.heading()).toBe("Bare");
+
+    // Plugins was opened first: the store is read, the page isn't drawn again under the highlight.
+    typeSearch("community store");
+    await advance(0);
+    rows()[0]!.click();
+    await advance(0);
+    expect(page.heading()).toBe("Plugins");
+    expect(page.page.querySelector(".subhead.highlight")?.textContent).toBe("Community store");
+  });
+
+  it("leads from every widget to Layout", async () => {
+    environment();
+    const page = await load(system(), "widgets");
+    press(page.page.querySelector(".page-head")!, "Edit layout");
+    await advance(0);
+    expect(page.heading()).toBe("Layout");
+  });
+
+  it("keeps the focus on the menu item picked, as the menu is drawn again", async () => {
+    environment();
+    const page = await load(system());
+    const item = (selector: string) => page.page.querySelector<HTMLButtonElement>(`nav ${selector}`)!;
+    item("[data-widget=clock]").focus();
+    item("[data-widget=clock]").click();
+    await advance(0);
+    expect(document.activeElement).toBe(item("[data-widget=clock]"));
+    item("[data-section=general]").focus();
+    item("[data-section=general]").click();
+    await advance(0);
+    expect(document.activeElement).toBe(item("[data-section=general]"));
+  });
+
+  it("brings the card asked for into view", async () => {
+    environment();
+    const sys = system();
+    await sys.save((s) => ({ ...s, providers: [{ id: "lab", name: "Lab", preset: "custom", baseUrl: "http://lab/v1", auth: { kind: "none" } }] }));
+    let navigate: (target: string) => void = () => {};
+    vi.spyOn(sys.store, "onNavigate").mockImplementation(async (on) => ((navigate = on), () => {}));
+    const page = await load(sys);
+    navigate("providers:provider-lab");
+    await advance(0);
+    expect(page.heading()).toBe("AI providers");
+    expect(document.getElementById("card-provider-lab")?.classList).toContain("highlight");
+  });
+
+  it("tells about an error nothing caught, whatever it carries", async () => {
+    environment();
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const page = await load(system());
+    window.dispatchEvent(new ErrorEvent("error", { error: new Error("bad state"), message: "Uncaught Error: bad state" }));
+    window.dispatchEvent(new ErrorEvent("error", { message: "Script error." }));
+    await advance(0);
+    expect(page.toasts()).toEqual(["[UNEXPECTED] Something went wrong: bad state", "[UNEXPECTED] Something went wrong: Script error."]);
+  });
+});
+
+describe("A plugin that fails to draw", () => {
+  const broken = (island: Sdk) =>
+    island.definePlugin({
+      id: "broken",
+      label: "Broken",
+      description: "",
+      icon: "",
+      slots: ["tab"],
+      settingsPanel() {
+        throw new Error("panel exploded");
+      },
+      page() {
+        throw new Error("page exploded");
+      },
+      setup: () => ({ panel() {} }),
+    });
+
+  it("says so for its settings panel and its page, and Settings carries on", async () => {
+    environment();
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const sys = system();
+    sys.addFile("broken.js", broken);
+    await sys.save((s) => ({ ...s, extensions: ["broken.js"] }));
+    let navigate: (target: string) => void = () => {};
+    vi.spyOn(sys.store, "onNavigate").mockImplementation(async (on) => ((navigate = on), () => {}));
+    const page = await load(sys, "plugins", { inApp: true });
+    await advance(0);
+    expect(page.toasts()).toContain("[PLUGIN_PANEL] Broken's settings panel couldn't be shown: panel exploded");
+
+    // Opened from Plugins, its page leads back there.
+    navigate("page:broken");
+    await advance(0);
+    expect(page.toasts()).toContain("[PLUGIN_PAGE] Broken's page couldn't be shown: page exploded");
+    expect(location.hash).toBe("#page:broken");
+    navigate("plugins");
+    await advance(0);
+    expect(page.heading()).toBe("Plugins");
+  });
+
+  it("goes back from its page to where Settings was, when that isn't Widgets", async () => {
+    environment();
+    const sys = system();
+    let navigate: (target: string) => void = () => {};
+    vi.spyOn(sys.store, "onNavigate").mockImplementation(async (on) => ((navigate = on), () => {}));
+    const page = await load(sys, "about");
+    navigate("page:ghost");
+    await advance(0);
+    press(page.page, "‹ About");
+    await advance(0);
+    expect([page.heading(), location.hash]).toEqual(["About", "#about"]);
+  });
+});
+
+describe("The search box in a narrow window", () => {
+  it("sits in the top bar while the window is narrow, and in the menu once it's wide again", async () => {
+    environment();
+    let narrow = true;
+    let changed: () => void = () => {};
+    vi.spyOn(window, "matchMedia").mockImplementation(
+      (query: string) =>
+        ({
+          get matches() {
+            return query.includes("max-width") && narrow;
+          },
+          media: query,
+          addEventListener: (_: string, on: () => void) => (changed = on),
+          removeEventListener() {},
+        }) as unknown as MediaQueryList,
+    );
+    await load(system());
+    expect(document.querySelector(".topbar .search")).not.toBeNull();
+    narrow = false;
+    changed();
+    expect(document.querySelector("nav .search")).not.toBeNull();
+    expect(document.querySelector(".topbar .search")).toBeNull();
+  });
+});
+
+describe("The menu, beyond its items", () => {
+  it("lists every widget from All widgets, and a click beside the items closes nothing", async () => {
+    environment();
+    const page = await load(system(), "widgets:clock");
+    const menu = document.querySelector<HTMLButtonElement>(".menu-button")!;
+    menu.click();
+    document.querySelector<HTMLElement>("nav .brand")!.click();
+    expect(page.page.dataset.menu).toBe("open");
+    await page.open("All widgets");
+    expect([page.heading(), location.hash, page.page.dataset.menu]).toEqual(["Widgets", "#widgets", "closed"]);
+  });
+
+  it("leads a search to the page of a setting it doesn't draw, without a row to show", async () => {
+    environment();
+    const page = await load(system());
+    const box = document.querySelector<HTMLInputElement>(".search-input")!;
+    box.value = "engine dictation";
+    box.dispatchEvent(new Event("input"));
+    await advance(0);
+    document.querySelector<HTMLButtonElement>(".results .list-row")!.click();
+    await advance(0);
+    // Outside the app, Dictation's own panel (where its engine is picked) isn't drawn.
+    expect(page.heading()).toBe("Dictation");
+    expect(page.page.querySelector(".highlight")).toBeNull();
   });
 });

@@ -175,9 +175,26 @@ describe("conversation", () => {
     expect(invoke).toHaveBeenLastCalledWith("plugin:persona|control", { command: "toggle" });
     await tauriPersona.install();
     expect(invoke).toHaveBeenLastCalledWith("plugin:persona|install_local");
+    await tauriPersona.download();
+    expect(invoke).toHaveBeenLastCalledWith("plugin:persona|download_model");
+    await tauriPersona.cancelDownload();
+    expect(invoke).toHaveBeenLastCalledWith("plugin:persona|cancel_download");
     await tauriPersona.remove();
     expect(invoke).toHaveBeenLastCalledWith("plugin:persona|remove_local");
     await tauriPersona.openFolder();
     expect(invoke).toHaveBeenLastCalledWith("plugin:persona|open_local_dir");
+    await tauriPersona.stopTest();
+    expect(invoke).toHaveBeenLastCalledWith("plugin:persona|stop_test");
+  });
+
+  it("tests the server, following its progress until it answers, then stops listening", async () => {
+    const log: string[] = [];
+    events(log, ["Loading the model"]);
+    vi.mocked(invoke).mockResolvedValueOnce(41234);
+    const lines: string[] = [];
+    expect(await tauriPersona.test((line) => lines.push(line))).toBe(41234);
+    expect(lines).toEqual(["Loading the model"]);
+    expect(invoke).toHaveBeenLastCalledWith("plugin:persona|test_local");
+    expect(log).toEqual(["listen plugin:persona:test-progress", "unlisten plugin:persona:test-progress"]);
   });
 });

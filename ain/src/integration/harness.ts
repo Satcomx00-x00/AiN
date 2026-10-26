@@ -130,7 +130,11 @@ export function system() {
     persona: {
       watch: talk.watch,
       control: async (c) => void talked.push(c),
-      watchLocal: async (onChange) => (onChange({ dir: "/models/personaplex", running: false, state: "ready" }), () => {}),
+      watchLocal: async (onChange) => (onChange({ dir: "/models/personaplex", running: false, model: { state: "ready" }, state: "ready" }), () => {}),
+      download: async () => {},
+      cancelDownload: async () => {},
+      test: async () => 8998,
+      stopTest: async () => {},
       install: async () => {},
       remove: async () => {},
       openFolder: async () => {},

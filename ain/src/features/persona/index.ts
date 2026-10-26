@@ -1,8 +1,10 @@
 import { button, h, icon } from "../../sdk/dom";
 import { choice, folder, secret, text, toggle } from "../../sdk/options";
 import { type Glance, definePlugin } from "../../sdk/plugin";
+import { messageOf, reportProblem } from "../../sdk/report";
 import type { ProvidersPort } from "../../shell/providers";
 import { type OwnEngine, engineOptions, enginePanel } from "../engine";
+import { type CardLine, downloading, modelCard, progressOf, speedometer } from "../model-files";
 import type { LocalInfo, Phase, PersonaPort } from "./service";
 import { DEFAULT_PROMPT, DEFAULT_VOICE, VOICES, voiceName } from "./voices";
 
@@ -19,17 +21,21 @@ export const THIS_COMPUTER: OwnEngine = { label: "On this computer", detail: "Pe
 /** Starting, connecting or talking: the main button ends it. */
 export const talking = (phase: Phase): boolean => phase.phase === "starting" || phase.phase === "connecting" || phase.phase === "live";
 
+/** The steps the install names itself, as the backend words them. */
+const STEP = /^(Getting ready|Making its Python environment|Installing PyTorch|Installing PersonaPlex|No uv here)/;
+
 /** What Settings says about PersonaPlex on this computer, and what its button does there. */
 export function localSetup(info: LocalInfo): { detail: string; action: "install" | "remove"; label: string } {
   switch (info.state) {
     case "missing":
       return {
-        detail: "Not installed. Installing takes about 5 GB (Python and PyTorch, with uv); the first conversation then downloads the model, about 17 GB.",
+        detail: "Not installed. Installing takes about 5 GB (Python and PyTorch, with uv, or pip without it); then download the model, about 17 GB.",
         action: "install",
         label: "Install",
       };
     case "installing":
-      return { detail: `Installing… ${info.line}`.trim(), action: "remove", label: "Cancel" };
+      // The install's own words ("Installing PyTorch… 3:07") stand alone; uv's and pip's follow "Installing…".
+      return { detail: STEP.test(info.line) ? info.line : `Installing… ${info.line}`.trim(), action: "remove", label: "Cancel" };
     case "ready":
       return {
         detail: info.running ? "Installed, running now" : "Installed. It starts with a conversation, and stops after 10 minutes unused.",
@@ -41,25 +47,120 @@ export function localSetup(info: LocalInfo): { detail: string; action: "install"
   }
 }
 
-/** Settings' row for PersonaPlex on this computer: its state, and the buttons to show its folder, install it or remove it. */
-function localRow(port: PersonaPort): { readonly el: HTMLElement; draw(info: LocalInfo): void } {
+/** Once installed, what Settings says about the model's weights while they are not all there, and what its button does; null once downloaded. */
+export function modelSetup(info: LocalInfo): { detail: string; action: "download" | "stop"; label: string; progress: number | null } | null {
+  if (info.state !== "ready") return null;
+  switch (info.model.state) {
+    case "missing":
+      return { detail: "Installed. Its model isn't downloaded yet; it needs your Hugging Face token.", action: "download", label: "Download · 17 GB", progress: null };
+    case "downloading":
+      return { detail: downloading(info.model.received, info.model.total), action: "stop", label: "Stop", progress: progressOf(info.model.received, info.model.total) };
+    case "ready":
+      return null;
+    case "error":
+      return { detail: `Download failed: ${info.model.message}`, action: "download", label: "Retry", progress: null };
+  }
+}
+
+/** The island's card while PersonaPlex on this computer isn't ready to talk: what it lacks, and how far its install or download is; null once ready. */
+export function localLine(info: LocalInfo): CardLine | null {
+  const line = (detail: string, state: string, progress: number | null = null): CardLine => ({ title: "PersonaPlex", detail, progress, state, dir: info.dir });
+  switch (info.state) {
+    case "missing":
+      return line("Not installed", "missing");
+    case "installing":
+      return line("Installing…", "downloading");
+    case "error":
+      return line(`Install failed: ${info.message}`, "error");
+    case "ready":
+      break;
+  }
+  switch (info.model.state) {
+    case "missing":
+      return line("Model not downloaded yet", "missing");
+    case "downloading":
+      return { ...line(downloading(info.model.received, info.model.total), "downloading", progressOf(info.model.received, info.model.total)), received: info.model.received };
+    case "error":
+      return line(`Download failed: ${info.model.message}`, "error");
+    case "ready":
+      return null;
+  }
+}
+
+/** Settings' row for PersonaPlex on this computer: its state, and the buttons to show its folder, install it or remove it, and download its model. */
+function localRow(port: PersonaPort): { readonly el: HTMLElement; draw(info: LocalInfo): void; fail(e: unknown): void } {
   let current: LocalInfo | null = null;
   const detail = h("div", { class: "field-hint" });
   const action = button("", () => {
-    const run = current && localSetup(current).action === "install" ? port.install() : port.remove();
-    run.catch((e: unknown) => (detail.textContent = String(e)));
+    const installing = current && localSetup(current).action === "install";
+    const run = installing ? port.install() : port.remove();
+    run.catch((e: unknown) => reportProblem(installing ? "Couldn't install PersonaPlex" : "Couldn't remove PersonaPlex", e, "PERSONA_SETUP"));
   }, { class: "secondary" });
-  const folder = button("Show folder", () => void port.openFolder().catch(() => {}), { class: "secondary" });
-  const el = h("div", { class: "field" }, h("div", {}, h("div", { class: "field-label" }, "PersonaPlex"), detail), h("div", { class: "recorder" }, folder, action));
+  const model = button("", () => {
+    const stopping = current && modelSetup(current)?.action === "stop";
+    const run = stopping ? port.cancelDownload() : port.download();
+    run.catch((e: unknown) => reportProblem(stopping ? "Couldn't stop the download" : "Couldn't download PersonaPlex's model", e, "PERSONA_MODEL"));
+  }, { class: "secondary" });
+  const folder = button("Show folder", () => void port.openFolder().catch((e: unknown) => reportProblem("Couldn't open PersonaPlex's folder", e, "FOLDER_OPEN")), { class: "secondary" });
+  // A test start of the server, as a conversation would: how it goes, under the row's state.
+  const result = h("div", { class: "field-hint test-result", role: "status" });
+  result.hidden = true;
+  let testing = false;
+  const show = (text: string, state: "busy" | "ok" | "error") => {
+    result.hidden = false;
+    result.textContent = text;
+    result.dataset.state = state;
+  };
+  const test = button("Test", () => {
+    if (testing) return void port.stopTest().catch((e: unknown) => reportProblem("Couldn't stop the test", e, "PERSONA_TEST"));
+    testing = true;
+    test.textContent = "Stop test";
+    show("Starting PersonaPlex…", "busy");
+    port
+      .test((line) => testing && show(`Starting PersonaPlex… ${line}`.trim(), "busy"))
+      .then(
+        (port) => show(`Running: PersonaPlex answered on port ${port}. It stops after 10 minutes unused.`, "ok"),
+        (e: unknown) => {
+          if (messageOf(e) === "cancelled") return show("Test stopped.", "error");
+          show("It didn't start: the notification says why.", "error");
+          reportProblem("PersonaPlex didn't start", e, "PERSONA_TEST");
+        },
+      )
+      .finally(() => {
+        testing = false;
+        test.textContent = "Test";
+      });
+  }, { class: "secondary", title: "Starts the server as a conversation would, and says how it went" });
+  // Until the backend says where PersonaPlex stands, there is nothing to install, remove or download.
+  action.hidden = model.hidden = test.hidden = true;
+  const bar = h("div", { class: "progress" }, h("i"));
+  bar.hidden = true;
+  const el = h("div", { class: "field" }, h("div", {}, h("div", { class: "field-label" }, "PersonaPlex"), detail, bar, result), h("div", { class: "recorder" }, folder, test, action, model));
+  const fail = (e: unknown) => {
+    detail.textContent = "Its state can't be read right now.";
+    reportProblem("Couldn't check PersonaPlex on this computer", e, "PERSONA_STATE");
+  };
+  const speed = speedometer();
   const draw = (info: LocalInfo) => {
     current = info;
     const setup = localSetup(info);
-    detail.textContent = setup.detail;
+    const weights = modelSetup(info);
+    const received = info.state === "ready" && info.model.state === "downloading" ? info.model.received : null;
+    const fast = speed(received);
+    detail.textContent = weights ? weights.detail + fast : setup.detail;
     detail.title = info.dir;
+    bar.hidden = weights?.progress == null;
+    bar.style.setProperty("--p", String(weights?.progress ?? 0));
+    // While the model downloads, Stop is its button; Remove waits.
+    action.hidden = weights?.action === "stop";
     action.textContent = setup.label;
     action.classList.toggle("danger", setup.label === "Remove");
+    model.hidden = !weights;
+    model.textContent = weights?.label ?? "";
+    // Something to test once installed, unless the model is on its way (a test would fetch it too).
+    test.hidden = !testing && (info.state !== "ready" || weights?.action === "stop");
   };
-  return { el, draw };
+  return { el, draw, fail };
 }
 
 /** The pill while talking: who speaks, and how loud the user is; then briefly what went wrong. */
@@ -114,7 +215,11 @@ export const persona = definePlugin({
       hint: "For PersonaPlex on this computer: its weights download once you accept their license on huggingface.co/nvidia/personaplex-7b-v1.",
       placeholder: "hf_…",
     }),
-    cpuOffload: toggle("Offload to the CPU", false, "For PersonaPlex on this computer, with a GPU short of 24 GB: part of the model runs on the CPU, slower."),
+    cpuOffload: toggle(
+      "Offload to the CPU",
+      false,
+      "PersonaPlex's own way to run on a GPU short of 24 GB, with part of the model in RAM. It doesn't work yet (PersonaPlex stops at its first step), and would be too slow to talk live anyway.",
+    ),
     modelDir: folder("Model folder", "Default folder", "Where PersonaPlex on this computer is installed, with its weights."),
   },
   commands: [
@@ -131,6 +236,7 @@ export const persona = definePlugin({
     const engine = enginePanel(providers, host, "s2s", (here) => void (local.el.hidden = !here), THIS_COMPUTER);
     root.append(engine.el, local.el);
     const watching = port.watchLocal(local.draw);
+    watching.catch(local.fail);
     return () => {
       engine.stop();
       void watching.then((stop) => stop(), () => {});
@@ -145,6 +251,15 @@ export const persona = definePlugin({
     const status = h("p", { class: "dict-status" });
     const level = h("div", { class: "bar thin dict-level" }, h("i"));
     const settings = button("Settings", () => host.openSettings(), { class: "chip" });
+    // PersonaPlex on this computer, read-only, until it is installed and downloaded: Settings does both.
+    const card = modelCard(() => host.openSettings());
+    card.el.hidden = true;
+    const drawLocal = (info: LocalInfo) => {
+      const line = host.options().engine ? null : localLine(info);
+      card.el.hidden = !line;
+      if (line) card.show(line);
+      host.refresh();
+    };
 
     const draw = () => {
       const busy = talking(phase);
@@ -166,9 +281,11 @@ export const persona = definePlugin({
       draw();
       host.refresh();
     });
+    // The backend says again when the settings change, so switching engines redraws the card.
+    void port.watchLocal(drawLocal).catch(() => {});
 
     return {
-      panel: (root) => root.append(h("div", { class: "dictation" }, h("div", { class: "dict-head" }, main, h("div", { class: "dict-now" }, status, level), settings))),
+      panel: (root) => root.append(h("div", { class: "dictation" }, h("div", { class: "dict-head" }, main, h("div", { class: "dict-now" }, status, level), settings), card.el)),
       glance: (now) => personaGlance(phase, since, now),
     };
   },

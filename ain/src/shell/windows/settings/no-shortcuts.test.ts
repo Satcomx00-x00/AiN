@@ -15,7 +15,7 @@ describe("Settings → Shortcuts, with no commands", () => {
     environment();
     const page = await startSettings(system(), "shortcuts");
     expect(page.page.querySelector("h1")?.textContent).toBe("Shortcuts");
-    expect(page.page.querySelector(".lead")?.textContent).toBe("No shortcuts.");
+    expect(page.page.querySelector(".page-body .lead")?.textContent).toBe("No shortcuts.");
     expect(page.page.querySelector(".recorder")).toBeNull();
     expect(page.page.querySelector(".note")?.textContent).toBe("Win + a single letter is reserved by Windows: add Shift or Alt.");
   });
