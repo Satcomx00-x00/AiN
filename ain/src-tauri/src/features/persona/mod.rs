@@ -376,6 +376,17 @@ fn on_shortcut(app: &AppHandle, action: &popup::Action) {
     }
 }
 
+/// The bundled package, where the installed app keeps its resources; for a binary run where it was
+/// built (not installed: Linux looks in /usr/lib/AiN), beside it, where the resources were copied.
+fn bundled_wheel(resources: PathBuf, exe: Option<PathBuf>) -> PathBuf {
+    let installed = resources.join("personaplex").join(local::WHEEL);
+    let beside = exe.as_deref().and_then(Path::parent).map(|dir| dir.join("personaplex").join(local::WHEEL));
+    match beside {
+        Some(beside) if !installed.is_file() && beside.is_file() => beside,
+        _ => installed,
+    }
+}
+
 crate::ipc::persona!();
 
 pub fn init() -> TauriPlugin<Wry> {
@@ -383,7 +394,7 @@ pub fn init() -> TauriPlugin<Wry> {
         .builder(|app| {
             let models = app.path().app_data_dir()?.join("models");
             let handle = app.clone();
-            let wheel = app.path().resource_dir()?.join("personaplex").join(local::WHEEL);
+            let wheel = bundled_wheel(app.path().resource_dir()?, std::env::current_exe().ok());
             let local =
                 Arc::new(Local::new(&place(&settings::current(app), &models), wheel, move |info| drop(LocalChanged(info).emit(&handle))));
             let shared = Arc::new(Shared { phase: Live::new(Phase::Idle), session: AtomicU64::new(0), local, models });
@@ -432,6 +443,22 @@ mod tests {
         assert_eq!((persona.voice.as_str(), persona.prompt.as_str()), (DEFAULT_VOICE, DEFAULT_PROMPT));
         assert_eq!(endpoint, Endpoint::ThisComputer { cpu_offload: false });
         assert_eq!(wanted(&json!({})).unwrap().1, endpoint);
+    }
+
+    #[test]
+    fn finds_the_bundled_package_installed_or_beside_the_binary() {
+        let dir = std::env::temp_dir().join(format!("ain-wheel-{}", std::process::id()));
+        let (resources, bin) = (dir.join("usr-lib"), dir.join("bin"));
+        let wheel = |root: &Path| root.join("personaplex").join(local::WHEEL);
+        let exe = Some(bin.join("ain"));
+        assert_eq!(bundled_wheel(resources.clone(), exe.clone()), wheel(&resources), "neither: the installed place, to say it's missing");
+        std::fs::create_dir_all(wheel(&bin).parent().unwrap()).unwrap();
+        std::fs::write(wheel(&bin), "").unwrap();
+        assert_eq!(bundled_wheel(resources.clone(), exe.clone()), wheel(&bin), "not installed: beside the binary");
+        std::fs::create_dir_all(wheel(&resources).parent().unwrap()).unwrap();
+        std::fs::write(wheel(&resources), "").unwrap();
+        assert_eq!(bundled_wheel(resources.clone(), exe), wheel(&resources), "installed: the installed one");
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[test]
