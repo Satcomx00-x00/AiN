@@ -341,8 +341,8 @@ jobs:
         with:
           pattern: npm-*
           path: ${{ runner.temp }}/downloads
-      # Trusted publishing needs npm 11.5.1 or later.
-      - run: npm install --global npm@11.21.1
+      # Trusted publishing needs npm 11.5.1 or later. Pinned, as the action and tool versions above.
+      - run: npm install --global npm@11.21.1 # zizmor: ignore[adhoc-packages]
       - name: Build the packages
         env:
           VERSION: ${{ needs.plan.outputs.version }}

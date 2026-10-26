@@ -169,8 +169,9 @@ jobs:
           bun-version: ${{ env.BUN_VERSION }}
       - run: bun install --frozen-lockfile
       - run: bun run typecheck
+      # Installs the tarballs just built, not packages from the registry.
       - name: Build, install and launch
-        run: |
+        run: | # zizmor: ignore[adhoc-packages]
           bin="$RUNNER_TEMP/bin" out="$RUNNER_TEMP/out" ran="$RUNNER_TEMP/ran"
           mkdir -p "$bin/linux-x64" "$bin/win32-x64" "$bin/darwin-x64/AiN.app/Contents/MacOS"
           printf '#!/bin/sh\necho "$@" > %s\n' "$ran" > "$bin/linux-x64/AiN.AppImage"
