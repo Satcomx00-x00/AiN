@@ -8,7 +8,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 
-const { persona, personaGlance, statusText, talking, voiceName, localSetup, modelSetup } = await import(".");
+const { persona, personaGlance, statusText, talking, voiceName, localSetup, modelSetup, downloadLine } = await import(".");
 const { VOICES } = await import("./voices");
 const { bindings } = await import("../../shell/commands");
 const { catalogue } = await import("..");
@@ -146,15 +146,23 @@ describe("its settings", () => {
   it("offers to download the model once installed, until it is there", () => {
     const at = { dir: "/m", running: false };
     expect(modelSetup({ ...at, model: { state: "missing" }, state: "missing" })).toBeNull();
-    expect(modelSetup({ ...at, model: { state: "missing" }, state: "ready" })).toMatchObject({ action: "download", label: "Download model" });
+    expect(modelSetup({ ...at, model: { state: "missing" }, state: "ready" })).toMatchObject({ action: "download", label: "Download · 17 GB", progress: null });
     expect(modelSetup({ ...at, model: { state: "missing" }, state: "ready" })?.detail).toContain("Hugging Face token");
-    expect(modelSetup({ ...at, model: { state: "downloading", line: "model.safetensors: 12%" }, state: "ready" })).toEqual({
-      detail: "Downloading the model… model.safetensors: 12%",
-      action: "cancel",
-      label: "Cancel download",
+    expect(modelSetup({ ...at, model: { state: "downloading", line: "Getting ready…" }, state: "ready" })).toEqual({
+      detail: "Downloading the model… Getting ready…",
+      action: "stop",
+      label: "Stop",
+      progress: null,
     });
-    expect(modelSetup({ ...at, model: { state: "error", message: "403 gated" }, state: "ready" })).toEqual({ detail: "Download failed: 403 gated", action: "download", label: "Retry download" });
+    expect(modelSetup({ ...at, model: { state: "error", message: "403 gated" }, state: "ready" })).toEqual({ detail: "Download failed: 403 gated", action: "download", label: "Retry", progress: null });
     expect(modelSetup({ ...at, model: { state: "ready" }, state: "ready" })).toBeNull();
+  });
+
+  it("reads Hugging Face's progress bars as words and a fraction", () => {
+    expect(downloadLine("model.safetensors:  42%|████▏     | 6.9G/16.7G [03:12<04:30, 36.1MB/s]")).toEqual({ text: "model.safetensors · 6.9G/16.7G · 04:30 left", progress: 0.42 });
+    expect(downloadLine("voices.tgz: 100%|██████████| 6.10M/6.10M [00:01<00:00, 5.2MB/s]")).toEqual({ text: "voices.tgz · 6.10M/6.10M · 00:00 left", progress: 1 });
+    expect(downloadLine("config.json: 0%|          | 0.00/1.2k [00:00<?, ?B/s]")).toEqual({ text: "config.json · 0.00/1.2k", progress: 0 });
+    expect(downloadLine(" Fetching 5 files ")).toEqual({ text: "Fetching 5 files", progress: null });
   });
 });
 
@@ -199,19 +207,22 @@ describe("in Settings", () => {
     expect(stopLocal).toHaveBeenCalledOnce();
   });
 
-  it("downloads the model once installed, and cancels the download", async () => {
-    const { port, local, localRow, model } = mount("", { dir: "/m/personaplex", running: false, model: { state: "missing" }, state: "ready" });
+  it("downloads the model once installed, and stops the download", async () => {
+    const { port, local, localRow, action, model } = mount("", { dir: "/m/personaplex", running: false, model: { state: "missing" }, state: "ready" });
     await tick();
-    expect([model().hidden, model().textContent]).toEqual([false, "Download model"]);
+    const bar = localRow.querySelector<HTMLElement>(".progress")!;
+    expect([model().hidden, model().textContent, action().hidden, bar.hidden]).toEqual([false, "Download · 17 GB", false, true]);
     expect(localRow.textContent).toContain("isn't downloaded yet");
     model().click();
     expect(port.download).toHaveBeenCalledOnce();
-    local({ dir: "/m/personaplex", running: false, model: { state: "downloading", line: "model.safetensors: 40%" }, state: "ready" });
-    expect([localRow.textContent?.includes("Downloading the model… model.safetensors: 40%"), model().textContent]).toEqual([true, "Cancel download"]);
+    local({ dir: "/m/personaplex", running: false, model: { state: "downloading", line: "model.safetensors:  40%|████      | 6.7G/16.7G [03:00<04:30, 36MB/s]" }, state: "ready" });
+    expect(localRow.textContent).toContain("Downloading the model… model.safetensors · 6.7G/16.7G · 04:30 left");
+    expect([model().textContent, action().hidden, bar.hidden, bar.style.getPropertyValue("--p")]).toEqual(["Stop", true, false, "0.4"]);
     model().click();
     expect(port.cancelDownload).toHaveBeenCalledOnce();
     port.download.mockRejectedValueOnce("worker gone");
     local({ dir: "/m/personaplex", running: false, model: { state: "error", message: "403 gated" }, state: "ready" });
+    expect([model().textContent, action().hidden, bar.hidden]).toEqual(["Retry", false, true]);
     model().click();
     await tick();
     expect(localRow.textContent).toContain("worker gone");
@@ -232,8 +243,12 @@ describe("in Settings", () => {
     const fake = fakePort();
     fake.port.watchLocal.mockRejectedValueOnce(new Error("gone"));
     const host = { options: () => ({ engine: "", remoteModel: "" }), setOptions: vi.fn(), openPage: vi.fn() };
-    const cleanup = persona.settingsPanel?.(document.createElement("div"), { persona: fake.port, providers: memoryProviders([]) } as never, host as never) as () => void;
+    const root = document.createElement("div");
+    const cleanup = persona.settingsPanel?.(root, { persona: fake.port, providers: memoryProviders([]) } as never, host as never) as () => void;
     await tick();
+    const row = [...root.querySelectorAll<HTMLElement>(".field")].find((f) => f.textContent?.startsWith("PersonaPlex"))!;
+    expect(row.textContent).toContain("Couldn't check PersonaPlex on this computer: gone");
+    expect([...row.querySelectorAll("button")].filter((b) => !b.hidden).map((b) => b.textContent)).toEqual(["Show folder"]);
     expect(() => cleanup()).not.toThrow();
   });
 

@@ -253,6 +253,13 @@ h1 {
   max-width: 56ch;
 }
 
+/* The engine's hint sits between rows, under the picker: inset like them. */
+.engine > .field-hint {
+  max-width: none;
+  margin: -6px 0 0;
+  padding: 0 16px 13px;
+}
+
 .no-options {
   margin: 0;
   padding: 12px 16px;

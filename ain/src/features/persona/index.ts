@@ -41,23 +41,34 @@ export function localSetup(info: LocalInfo): { detail: string; action: "install"
   }
 }
 
+/** A Hugging Face progress bar's line (`model.safetensors:  42%|████▏ | 6.9G/16.7G [03:12<04:30, 36.1MB/s]`) as words and a fraction; other lines as they are. */
+export function downloadLine(line: string): { text: string; progress: number | null } {
+  const bar = /^(.*?):\s*(\d+)%\|[^|]*\|\s*(\S+)(?:\s*\[[^<\]]*<([^,\]]+))?/.exec(line.trim());
+  if (!bar) return { text: line.trim(), progress: null };
+  const [, file, percent, size, left] = bar;
+  const eta = left && left !== "?" ? ` · ${left} left` : "";
+  return { text: `${file} · ${size}${eta}`, progress: Number(percent) / 100 };
+}
+
 /** Once installed, what Settings says about the model's weights while they are not all there, and what its button does; null once downloaded. */
-export function modelSetup(info: LocalInfo): { detail: string; action: "download" | "cancel"; label: string } | null {
+export function modelSetup(info: LocalInfo): { detail: string; action: "download" | "stop"; label: string; progress: number | null } | null {
   if (info.state !== "ready") return null;
   switch (info.model.state) {
     case "missing":
-      return { detail: "Installed, but its model isn't downloaded yet: about 17 GB, with your Hugging Face token.", action: "download", label: "Download model" };
-    case "downloading":
-      return { detail: `Downloading the model… ${info.model.line}`.trim(), action: "cancel", label: "Cancel download" };
+      return { detail: "Installed. Its model isn't downloaded yet; it needs your Hugging Face token.", action: "download", label: "Download · 17 GB", progress: null };
+    case "downloading": {
+      const line = downloadLine(info.model.line);
+      return { detail: `Downloading the model… ${line.text}`.trim(), action: "stop", label: "Stop", progress: line.progress };
+    }
     case "ready":
       return null;
     case "error":
-      return { detail: `Download failed: ${info.model.message}`, action: "download", label: "Retry download" };
+      return { detail: `Download failed: ${info.model.message}`, action: "download", label: "Retry", progress: null };
   }
 }
 
 /** Settings' row for PersonaPlex on this computer: its state, and the buttons to show its folder, install it or remove it, and download its model. */
-function localRow(port: PersonaPort): { readonly el: HTMLElement; draw(info: LocalInfo): void } {
+function localRow(port: PersonaPort): { readonly el: HTMLElement; draw(info: LocalInfo): void; fail(e: unknown): void } {
   let current: LocalInfo | null = null;
   const detail = h("div", { class: "field-hint" });
   const failed = (e: unknown) => void (detail.textContent = String(e));
@@ -66,23 +77,32 @@ function localRow(port: PersonaPort): { readonly el: HTMLElement; draw(info: Loc
     run.catch(failed);
   }, { class: "secondary" });
   const model = button("", () => {
-    const run = current && modelSetup(current)?.action === "cancel" ? port.cancelDownload() : port.download();
+    const run = current && modelSetup(current)?.action === "stop" ? port.cancelDownload() : port.download();
     run.catch(failed);
   }, { class: "secondary" });
   const folder = button("Show folder", () => void port.openFolder().catch(() => {}), { class: "secondary" });
-  const el = h("div", { class: "field" }, h("div", {}, h("div", { class: "field-label" }, "PersonaPlex"), detail), h("div", { class: "recorder" }, folder, action, model));
+  // Until the backend says where PersonaPlex stands, there is nothing to install, remove or download.
+  action.hidden = model.hidden = true;
+  const bar = h("div", { class: "progress" }, h("i"));
+  bar.hidden = true;
+  const el = h("div", { class: "field" }, h("div", {}, h("div", { class: "field-label" }, "PersonaPlex"), detail, bar), h("div", { class: "recorder" }, folder, action, model));
+  const fail = (e: unknown) => void (detail.textContent = `Couldn't check PersonaPlex on this computer: ${e instanceof Error ? e.message : String(e)}`);
   const draw = (info: LocalInfo) => {
     current = info;
     const setup = localSetup(info);
     const weights = modelSetup(info);
     detail.textContent = weights?.detail ?? setup.detail;
     detail.title = info.dir;
+    bar.hidden = weights?.progress == null;
+    bar.style.setProperty("--p", String(weights?.progress ?? 0));
+    // While the model downloads, Stop is its button; Remove waits.
+    action.hidden = weights?.action === "stop";
     action.textContent = setup.label;
     action.classList.toggle("danger", setup.label === "Remove");
     model.hidden = !weights;
     model.textContent = weights?.label ?? "";
   };
-  return { el, draw };
+  return { el, draw, fail };
 }
 
 /** The pill while talking: who speaks, and how loud the user is; then briefly what went wrong. */
@@ -154,6 +174,7 @@ export const persona = definePlugin({
     const engine = enginePanel(providers, host, "s2s", (here) => void (local.el.hidden = !here), THIS_COMPUTER);
     root.append(engine.el, local.el);
     const watching = port.watchLocal(local.draw);
+    watching.catch(local.fail);
     return () => {
       engine.stop();
       void watching.then((stop) => stop(), () => {});
