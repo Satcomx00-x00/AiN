@@ -10,6 +10,7 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 const { SAMPLE, reading, statusText, tts, ttsGlance, voiceOptions } = await import(".");
 const { bindings } = await import("../../shell/commands");
 const { catalogue } = await import("..");
+const { memoryProviders } = await import("../../shell/providers");
 import type { ModelInfo, Phase, TtsPort } from "./service";
 
 const at = { model: "kokoro-en", dir: "D:/Models/kokoro-en-v0_19", installed: [] };
@@ -70,10 +71,10 @@ describe("on the pill", () => {
 });
 
 describe("in the island", () => {
-  const mount = () => {
+  const mount = (options: object = {}, providers = memoryProviders()) => {
     const fake = fakePort();
-    const host = { refresh: vi.fn(), options: () => ({}) as never, setOptions: vi.fn(), secret: async () => "", openSettings: vi.fn(), openPage: vi.fn(), appearance: () => ({ style: "pill", size: "normal", theme: "island", tone: "dark", notch: false }) as const };
-    const widget = tts.setup({ tts: fake.port } as never, host);
+    const host = { refresh: vi.fn(), options: () => options as never, setOptions: vi.fn(), secret: async () => "", openSettings: vi.fn(), openPage: vi.fn(), appearance: () => ({ style: "pill", size: "normal", theme: "island", tone: "dark", notch: false }) as const };
+    const widget = tts.setup({ tts: fake.port, providers } as never, host);
     const root = document.createElement("section");
     widget.panel?.(root);
     const main = root.querySelector<HTMLButtonElement>(".dict-main")!;
@@ -92,6 +93,17 @@ describe("in the island", () => {
     phase({ phase: "idle" });
     main.click();
     expect(port.speak).toHaveBeenCalledWith("Hello");
+  });
+
+  it("reads with a provider's voice without its own being downloaded", async () => {
+    const lab = { id: "lab", name: "Lab", preset: "custom", baseUrl: "http://lab/v1", auth: { kind: "none" } } as const;
+    const { root, phase, model, main } = mount({ engine: "lab", remoteModel: "kokoro" }, memoryProviders([lab]));
+    model({ ...at, state: "missing", size: 305e6 });
+    phase({ phase: "speaking", text: "Hello" });
+    phase({ phase: "idle" });
+    await tick();
+    expect(root.querySelector(".dict-model strong")?.textContent).toBe("Lab · kokoro");
+    expect(main.disabled).toBe(false);
   });
 
   it("stays put when the backend refuses to read", async () => {
@@ -120,9 +132,9 @@ describe("in Settings", () => {
     const fake = fakePort();
     const root = document.createElement("div");
     document.body.replaceChildren(root);
-    const host = { options: () => ({ model: "kokoro-en", voice, speed: 1, modelDir: "", keepLoaded: false }), setOptions: vi.fn(), openPage: vi.fn() };
-    const cleanup = tts.settingsPanel?.(root, { tts: fake.port } as never, host);
-    const [models, voices] = root.querySelectorAll<HTMLElement>(".ui-select");
+    const host = { options: () => ({ engine: "", remoteModel: "", remoteVoice: "", model: "kokoro-en", voice, speed: 1, modelDir: "", keepLoaded: false }), setOptions: vi.fn(), openPage: vi.fn() };
+    const cleanup = tts.settingsPanel?.(root, { tts: fake.port, providers: memoryProviders() } as never, host);
+    const [, models, voices] = root.querySelectorAll<HTMLElement>(".ui-select");
     return { ...fake, root, host, cleanup, models: models!, voices: voices! };
   };
 
@@ -179,8 +191,8 @@ describe("in Settings", () => {
   it("has nothing to stop when the model couldn't be watched", async () => {
     const fake = fakePort();
     fake.port.watchModel.mockRejectedValueOnce(new Error("backend gone"));
-    const host = { options: () => ({ model: "kokoro-en", voice: 0, speed: 1, modelDir: "", keepLoaded: false }), setOptions: vi.fn(), openPage: vi.fn() };
-    const cleanup = tts.settingsPanel?.(document.createElement("div"), { tts: fake.port } as never, host);
+    const host = { options: () => ({ engine: "", remoteModel: "", remoteVoice: "", model: "kokoro-en", voice: 0, speed: 1, modelDir: "", keepLoaded: false }), setOptions: vi.fn(), openPage: vi.fn() };
+    const cleanup = tts.settingsPanel?.(document.createElement("div"), { tts: fake.port, providers: memoryProviders() } as never, host);
     expect(() => (cleanup as () => void)()).not.toThrow();
     await tick();
   });

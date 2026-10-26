@@ -8,6 +8,7 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 
 const { dictation, dictationGlance, statusText } = await import(".");
+const { memoryProviders } = await import("../../shell/providers");
 import type { DictationPort, ModelInfo, Phase } from "./service";
 
 const at = { model: "whisper-small", dir: "D:/Models/whisper-small-int8", installed: [] };
@@ -40,14 +41,24 @@ const buttons = (root: HTMLElement) => [...root.querySelectorAll("button")];
 const named = (root: HTMLElement, text: string) => buttons(root).find((b) => b.textContent === text);
 
 describe("in the island", () => {
-  const mount = () => {
+  const mount = (options: object = {}, providers = memoryProviders()) => {
     const { port, model } = fakePort();
-    const host = { refresh() {}, options: () => ({}) as never, setOptions: vi.fn(), secret: async () => "", openSettings: vi.fn(), openPage: vi.fn(), appearance: () => ({ style: "pill", size: "normal", theme: "island", tone: "dark", notch: false }) as const };
-    const widget = dictation.setup({ dictation: port, clipboard: { copy: vi.fn() } } as never, host);
+    const host = { refresh() {}, options: () => options as never, setOptions: vi.fn(), secret: async () => "", openSettings: vi.fn(), openPage: vi.fn(), appearance: () => ({ style: "pill", size: "normal", theme: "island", tone: "dark", notch: false }) as const };
+    const widget = dictation.setup({ dictation: port, clipboard: { copy: vi.fn() }, providers } as never, host);
     const root = document.createElement("section");
     widget.panel?.(root);
     return { root, host, port, model };
   };
+
+  it("runs on a provider's model without its own being downloaded", async () => {
+    const lab = { id: "lab", name: "Lab", preset: "custom", baseUrl: "http://lab/v1", auth: { kind: "none" } } as const;
+    const { root, model } = mount({ engine: "lab", remoteModel: "whisper-1" }, memoryProviders([lab]));
+    model({ ...at, state: "missing", size: 375e6 });
+    await tick();
+    expect(root.querySelector(".dict-model strong")?.textContent).toBe("Lab · whisper-1");
+    expect(root.querySelector<HTMLButtonElement>(".dict-main")?.disabled).toBe(false);
+    expect(named(root, "Set up in Settings")?.hidden).toBe(true);
+  });
 
   it("offers no way to pick a model or a folder", async () => {
     const { root, model } = mount();
@@ -83,7 +94,7 @@ describe("while dictating", () => {
     const fake = fakePort();
     const clipboard = { copy: vi.fn(async (_: string) => {}) };
     const host = { refresh: vi.fn(), options: () => ({}) as never, setOptions: vi.fn(), secret: async () => "", openSettings: vi.fn(), openPage: vi.fn(), appearance: () => ({ style: "pill", size: "normal", theme: "island", tone: "dark", notch: false }) as const };
-    const widget = dictation.setup({ dictation: fake.port, clipboard } as never, host);
+    const widget = dictation.setup({ dictation: fake.port, clipboard, providers: memoryProviders() } as never, host);
     const root = document.createElement("section");
     widget.panel?.(root);
     fake.model({ ...at, state: "ready" });
@@ -147,7 +158,7 @@ describe("in Settings", () => {
     let microphone = "";
     const host = { options: () => ({ model: "whisper-small", microphone }) as never, setOptions: vi.fn(), openPage: vi.fn() };
     const useMic = (id: string) => (microphone = id);
-    const cleanup = dictation.settingsPanel?.(root, { dictation: port } as never, host);
+    const cleanup = dictation.settingsPanel?.(root, { dictation: port, providers: memoryProviders() } as never, host);
     return { root, port, stop, model, cleanup, host, useMic };
   };
 
@@ -155,7 +166,7 @@ describe("in Settings", () => {
     const { root, model } = mount();
     await tick();
     model({ ...at, installed: ["parakeet-v3", "whisper-small"], state: "ready" });
-    const trigger = root.querySelectorAll<HTMLElement>(".ui-select")[1]!.querySelector<HTMLButtonElement>(".ui-select-trigger")!;
+    const trigger = root.querySelectorAll<HTMLElement>(".ui-select")[2]!.querySelector<HTMLButtonElement>(".ui-select-trigger")!;
     expect(trigger.textContent).toContain("Whisper small");
     trigger.click();
     const downloaded = [...root.querySelectorAll("[role=option]")].filter((o) => o.textContent?.includes("Downloaded")).map((o) => o.querySelector(".ui-select-label")?.firstChild?.textContent);
@@ -184,7 +195,7 @@ describe("in Settings", () => {
 
   it("saves the model picked in the list as the option", async () => {
     const { root, host } = mount();
-    const models = root.querySelectorAll<HTMLElement>(".ui-select")[1]!;
+    const models = root.querySelectorAll<HTMLElement>(".ui-select")[2]!;
     models.querySelector<HTMLButtonElement>(".ui-select-trigger")!.click();
     const parakeet = [...root.querySelectorAll<HTMLElement>("[role=option]")].find((o) => o.textContent?.startsWith("Parakeet TDT v3"));
     parakeet?.click();
@@ -204,7 +215,7 @@ describe("in Settings", () => {
     model({ ...at, state: "ready" });
     named(root, "Remove")?.click();
     expect(port.remove).toHaveBeenCalledTimes(2);
-    expect(root.querySelector(".field-hint")?.getAttribute("title")).toBe("D:/Models/whisper-small-int8");
+    expect(root.querySelector(".field-hint[title]")?.getAttribute("title")).toBe("D:/Models/whisper-small-int8");
   });
 
   it("keeps the microphones it has when they can't be listed", async () => {
@@ -222,7 +233,7 @@ describe("in Settings", () => {
     const { port } = fakePort();
     port.watchModel.mockRejectedValueOnce(new Error("backend gone"));
     const host = { options: () => ({ model: "whisper-small", microphone: "" }) as never, setOptions: vi.fn(), openPage: vi.fn() };
-    const cleanup = dictation.settingsPanel?.(document.createElement("div"), { dictation: port } as never, host);
+    const cleanup = dictation.settingsPanel?.(document.createElement("div"), { dictation: port, providers: memoryProviders() } as never, host);
     expect(() => (cleanup as () => void)()).not.toThrow();
     await tick();
   });

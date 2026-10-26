@@ -37,6 +37,7 @@ import type { Field, Fields } from "../../../sdk/options";
 import { memorySecrets } from "../../secrets";
 import { settingsPorts } from "./ports";
 import { slotList } from "./slots";
+import { PROVIDERS_ICON, providersSection } from "./providers";
 import { type Report, type Tone, demoUpdater, describe, noteLines } from "../../updater";
 
 const SAVE_DELAY = 250;
@@ -61,6 +62,7 @@ const SECTIONS = {
   layout: { label: "Layout", icon: `<rect x="2.5" y="3" width="11" height="10" rx="2"/><path d="M2.5 7h11M7 7v6"/>` },
   shortcuts: { label: "Shortcuts", icon: `<rect x="1.75" y="4" width="12.5" height="8" rx="1.75"/><path d="M4.5 6.75h.01M7 6.75h.01M9.5 6.75h.01M12 6.75h-.5M5 9.5h6"/>` },
   widgets: { label: "Widgets", icon: `<rect x="2.5" y="2.5" width="4.5" height="4.5" rx="1"/><rect x="9" y="2.5" width="4.5" height="4.5" rx="1"/><rect x="2.5" y="9" width="4.5" height="4.5" rx="1"/><rect x="9" y="9" width="4.5" height="4.5" rx="1"/>` },
+  providers: { label: "AI providers", icon: PROVIDERS_ICON },
   plugins: {
     label: "Plugins",
     icon: `<path d="M6 2.5v3M10 2.5v3"/><path d="M4 5.5h8v2.75a4 4 0 0 1-8 0z"/><path d="M8 12.25v1.25"/>`,
@@ -382,11 +384,11 @@ function placesOf(id: string): string[] {
   return places.filter(([on]) => on).map(([, name]) => name);
 }
 
-/** The system folder picker; null when cancelled or outside the app. */
-async function pickFolder(current: string): Promise<string | null> {
+/** The system folder (or file) picker; null when cancelled or outside the app. */
+async function pickFolder(current: string, directory = true): Promise<string | null> {
   if (!inTauri) return null;
   const { open } = await import("@tauri-apps/plugin-dialog");
-  const chosen = await open({ directory: true, multiple: false, ...(current ? { defaultPath: current } : {}) });
+  const chosen = await open({ directory, multiple: false, ...(current ? { defaultPath: current } : {}) });
   return typeof chosen === "string" ? chosen : null;
 }
 
@@ -826,7 +828,15 @@ function about(): Node[] {
   ];
 }
 
-const RENDER: Record<Section, () => Node[]> = { appearance, general, layout, shortcuts, widgets, plugins: pluginsSection, about };
+const providers = () =>
+  providersSection({
+    providers: () => settings.providers,
+    save: (next, redraw) => commit({ ...settings, providers: next }, redraw),
+    port: services.providers,
+    pickFile: (current) => pickFolder(current, false),
+  });
+
+const RENDER: Record<Section, () => Node[]> = { appearance, general, layout, shortcuts, widgets, providers, plugins: pluginsSection, about };
 
 // ---------- plugin pages ----------
 

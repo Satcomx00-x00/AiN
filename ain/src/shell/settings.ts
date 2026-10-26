@@ -4,6 +4,7 @@ import { follow } from "../sdk/follow";
 import type { PillSize } from "../sdk/style";
 import { commands, events } from "./bindings/settings";
 import type { Layout } from "./placement";
+import { type AiProvider, parseProviders } from "./providers";
 
 export interface General {
   /** Hover time before the island opens. */
@@ -45,6 +46,8 @@ export interface Settings {
    * plugin's id and details are only known by running it, so they are tracked by file.
    */
   readonly extensions: readonly string[];
+  /** AI providers every AI feature may use instead of its model on this computer (see shell/providers.ts). */
+  readonly providers: readonly AiProvider[];
 }
 
 /** Every plugin id the layout places. */
@@ -82,7 +85,7 @@ export const REVEAL_RANGE = { min: 100, max: 2000, step: 100 } as const;
 export const WIDTH_RANGE = { min: 120, max: 480, step: 10 } as const;
 export const CURVE_RANGE = { min: 0, max: 100, step: 5 } as const;
 
-export const defaults = (layout: Layout): Settings => ({ version: 1, layout, general: DEFAULT_GENERAL, options: {}, shortcuts: {}, seen: placed(layout), extensions: [] });
+export const defaults = (layout: Layout): Settings => ({ version: 1, layout, general: DEFAULT_GENERAL, options: {}, shortcuts: {}, seen: placed(layout), extensions: [], providers: [] });
 
 const ids = z.array(z.string()).transform((list) => [...new Set(list)]);
 const ID = /^[a-z][a-z0-9-]{1,31}$/;
@@ -128,6 +131,7 @@ export function parseSettings(raw: unknown, fallback: Settings): Settings {
     shortcuts: z.record(z.string(), z.string().min(1).nullable()).catch(fallback.shortcuts),
     seen: ids.optional().catch(undefined),
     extensions: ids.catch([]),
+    providers: z.array(z.unknown()).catch([]).transform(parseProviders),
   });
   // Anything unreadable at the top level becomes `{}`, which every field above then defaults.
   const parsed = schema.safeParse(raw);

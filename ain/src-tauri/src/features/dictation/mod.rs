@@ -1,7 +1,8 @@
 //! Dictation: hold or tap a shortcut, speak, and the words land where the cursor is.
 //! Speech is recognized on this machine through sherpa-onnx (as Orca does), by the model the user
 //! picks (Parakeet, Whisper, SenseVoice, Moonshine); nothing leaves the computer. Each model is
-//! downloaded once, when the user asks.
+//! downloaded once, when the user asks. Or, when the user picks one of their AI providers instead
+//! (`shell::providers`), each chunk is sent to its speech-to-text model.
 //!
 //! A worker thread owns the microphone stream. While listening it feeds 16 kHz audio to a
 //! decoder thread in 30 s chunks, so long dictations are mostly transcribed by the time they end.

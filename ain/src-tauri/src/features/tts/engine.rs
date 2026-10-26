@@ -14,7 +14,13 @@ use serde_json::Value;
 use tauri::AppHandle;
 
 use super::{FEATURE, KEEP_WARM, Phase, Request, Shared, lock, model::Model, speakers};
-use crate::{features::audio, shell::settings};
+use crate::{
+    features::audio,
+    shell::{
+        providers::{self, Engine},
+        settings,
+    },
+};
 
 /// The speakers keep a little audio buffered: speech is over once the queue stays empty this long.
 const TAIL: Duration = Duration::from_millis(300);
@@ -68,6 +74,7 @@ pub fn load(model: &'static Model, dir: &Path) -> Result<sherpa_onnx::OfflineTts
 struct Job {
     id: u64,
     text: String,
+    engine: Engine,
     rate: u32,
     queue: speakers::Queue,
     writing: Arc<AtomicBool>,
@@ -75,40 +82,56 @@ struct Job {
 
 /// Writes the job's text a sentence at a time, until done or no longer current.
 fn write(app: AppHandle, shared: Arc<Shared>, job: Job) {
-    let Job { id, text, rate, queue, writing } = job;
+    let Job { id, text, engine, rate, queue, writing } = job;
     let current = {
         let shared = Arc::clone(&shared);
         move || shared.session.load(Ordering::SeqCst) == id
     };
-    let settings = Voice::read(&settings::current(&app));
-    let fixed = shared.models.chosen().0.speaker;
-    let result = shared.models.engine().and_then(|tts| {
-        let from = u32::try_from(tts.sample_rate()).unwrap_or(rate);
-        let config = sherpa_onnx::GenerationConfig {
-            sid: fixed.unwrap_or_else(|| settings.speaker.min(tts.num_speakers().max(1) - 1)),
-            speed: settings.speed,
-            ..Default::default()
-        };
-        let still = current.clone();
-        let on_sentence = move |samples: &[f32], _progress: f32| {
-            if still() {
-                lock(&queue).extend(audio::resample(samples, from, rate));
-            }
-            still()
-        };
-        // A stopped reading ends early: what it returns then doesn't matter.
-        match tts.generate_with_config(&text, &config, Some(on_sentence)) {
-            None if current() => Err("The voice couldn't read this text".to_string()),
-            _ => Ok(()),
+    let voice = Voice::read(&settings::current(&app));
+    let still = current.clone();
+    let play = move |samples: &[f32], from: u32| {
+        if still() {
+            lock(&queue).extend(audio::resample(samples, from, rate));
         }
-    });
-    shared.models.touch();
+        still()
+    };
+    let result = match engine {
+        Engine::Local => local(&shared, &text, &voice, &current, play),
+        Engine::Remote(remote) => remote.speak(&text, voice.speed, play),
+    };
     if let Err(message) = result
         && current()
     {
         shared.publish(&app, Phase::Error { message });
     }
     writing.store(false, Ordering::SeqCst);
+}
+
+/// Reads `text` with the voice on this machine, a sentence at a time.
+fn local(
+    shared: &Shared,
+    text: &str,
+    voice: &Voice,
+    current: &dyn Fn() -> bool,
+    mut play: impl FnMut(&[f32], u32) -> bool + 'static,
+) -> Result<(), String> {
+    let fixed = shared.models.chosen().0.speaker;
+    let result = shared.models.engine().and_then(|tts| {
+        let from = u32::try_from(tts.sample_rate()).unwrap_or(0);
+        let config = sherpa_onnx::GenerationConfig {
+            sid: fixed.unwrap_or_else(|| voice.speaker.min(tts.num_speakers().max(1) - 1)),
+            speed: voice.speed,
+            ..Default::default()
+        };
+        let on_sentence = move |samples: &[f32], _progress: f32| play(samples, from);
+        // A stopped reading ends early: what it returns then doesn't matter.
+        match tts.generate_with_config(text, &config, Some(on_sentence)) {
+            None if current() => Err("The voice couldn't read this text".to_string()),
+            _ => Ok(()),
+        }
+    });
+    shared.models.touch();
+    result
 }
 
 impl Speaker {
@@ -131,7 +154,11 @@ impl Speaker {
 
     fn speak(&mut self, app: &AppHandle, shared: &Arc<Shared>, text: String) {
         self.halt(shared);
-        if !shared.models.ready() {
+        let engine = match providers::chosen(&settings::current(app), FEATURE) {
+            Ok(engine) => engine,
+            Err(message) => return shared.publish(app, Phase::Error { message }),
+        };
+        if engine == Engine::Local && !shared.models.ready() {
             return shared.publish(app, Phase::NeedsModel);
         }
         let queue = speakers::Queue::default();
@@ -141,7 +168,7 @@ impl Speaker {
         };
         let id = shared.session.fetch_add(1, Ordering::SeqCst) + 1;
         let writing = Arc::new(AtomicBool::new(true));
-        let job = Job { id, text: text.clone(), rate, queue: Arc::clone(&queue), writing: Arc::clone(&writing) };
+        let job = Job { id, text: text.clone(), engine, rate, queue: Arc::clone(&queue), writing: Arc::clone(&writing) };
         let (app2, shared2) = (app.clone(), Arc::clone(shared));
         if let Err(e) = std::thread::Builder::new().name("tts-write".into()).spawn(move || write(app2, shared2, job)) {
             return shared.publish(app, Phase::Error { message: e.to_string() });

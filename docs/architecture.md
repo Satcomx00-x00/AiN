@@ -62,6 +62,21 @@ Helpers several backends share live in `platform/`: `pactl` and the key tools on
 property API and synthetic keys on macOS. macOS permission prompts are explained by the strings in
 `src-tauri/Info.plist`.
 
+## AI providers
+
+Settings → AI providers lists online services (OpenAI, Groq, Mistral) and the user's own
+OpenAI-compatible servers (a gateway, vLLM, LocalAI…), kept in the settings' `providers`.
+Each has a base URL and an authentication: none, or a bearer token (an API key or a JWT) read from
+an environment variable or a file, read again on every request so a rotated token is picked up; an
+expired JWT is refused before it is sent. Tokens never enter `settings.json`, only where to find them.
+
+Every AI feature then picks its engine in its card: its own model on this computer (the default),
+or a provider and that provider's model (and voice). The backend's `shell::providers` reads the
+choice (`chosen(settings, feature)`) and speaks the provider's API (`/audio/transcriptions`,
+`/audio/speech` in WAV, `/models` for Settings' "Test connection"); dictation sends each 30 s chunk,
+read aloud a few sentences at a time. A new AI feature adds `engineOptions()` to its options, draws
+`enginePanel` in its settings panel and matches on `providers::Engine` in its backend.
+
 ## Adding a feature
 
 1. **Backend** (if it needs one): add `src-tauri/src/features/<id>.rs` (or a folder), register it in
