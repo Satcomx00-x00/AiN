@@ -8,10 +8,11 @@
 //! in `tauri.conf.json`, installs it and restarts.
 //!
 //! The app only ever checks on its own (shortly after launch, then every few hours); downloading
-//! and installing wait for the user. Builds without a public key (or debug builds) report
-//! `disabled` and never reach the network.
+//! and installing wait for the user. Builds without a public key, debug builds and copies installed by
+//! npm or bun (which update them) report `disabled` and never reach the network.
 
 use std::{
+    path::{Path, PathBuf},
     sync::{Mutex, MutexGuard},
     thread,
     time::Duration,
@@ -151,10 +152,23 @@ fn emit(app: &AppHandle, report: Report) {
     }
 }
 
+/// Whether this path lies in a package manager's install (npm, bun, pnpm, yarn: all `node_modules`).
+fn in_node_modules(path: &Path) -> bool {
+    path.components().any(|c| c.as_os_str() == "node_modules")
+}
+
+/// The installed file: the AppImage itself rather than its mount point, else the executable.
+fn installed_path() -> Option<PathBuf> {
+    std::env::var_os("APPIMAGE").map(PathBuf::from).or_else(|| std::env::current_exe().ok())
+}
+
 /// Why updates are off in this build, if they are.
 fn disabled_reason(app: &AppHandle) -> Option<&'static str> {
     if cfg!(debug_assertions) {
         return Some("Development build: updates are off.");
+    }
+    if installed_path().is_some_and(|p| in_node_modules(&p)) {
+        return Some("Installed with npm or bun: update with `bun update -g @satcomx00/ain`.");
     }
     let pubkey = app.config().plugins.0.get("updater").and_then(|u| u.get("pubkey")).and_then(|k| k.as_str());
     pubkey.is_none_or(|k| k.trim().is_empty()).then_some("This build has no update key: updates are off.")
@@ -307,6 +321,14 @@ mod tests {
         assert_eq!(manifest("me/app"), "https://github.com/me/app/releases/latest/download/latest.json");
         assert_eq!(releases("me/app"), "https://github.com/me/app/releases");
         assert!(Url::parse(&manifest(REPO)).is_ok());
+    }
+
+    #[test]
+    fn package_manager_installs() {
+        assert!(in_node_modules(Path::new("/usr/lib/node_modules/@satcomx00/ain-linux-x64/AiN.AppImage")));
+        assert!(in_node_modules(Path::new("C:/Users/me/.bun/install/global/node_modules/@satcomx00/ain-win32-x64/ain.exe")));
+        assert!(!in_node_modules(Path::new("/Applications/AiN.app/Contents/MacOS/AiN")));
+        assert!(!in_node_modules(Path::new("/opt/not_node_modules/AiN.AppImage")));
     }
 
     #[test]

@@ -152,6 +152,41 @@ jobs:
           "$RUNNER_TEMP/venv/bin/pip" install --quiet cryptography==49.0.0
       - run: PYTHON="$RUNNER_TEMP/venv/bin/python" ./.github/scripts/test-check-update-manifest.sh
 
+  # The npm packages Release publishes (npm/): built from stand-in binaries, installed from their
+  # tarballs as a registry install would, and launched.
+  npm:
+    name: npm packages
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: npm
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+      - name: Build, install and launch
+        run: |
+          bin="$RUNNER_TEMP/bin" out="$RUNNER_TEMP/out" ran="$RUNNER_TEMP/ran"
+          mkdir -p "$bin/linux-x64" "$bin/win32-x64" "$bin/darwin-x64/AiN.app/Contents/MacOS"
+          printf '#!/bin/sh\necho "$@" > %s\n' "$ran" > "$bin/linux-x64/AiN.AppImage"
+          chmod +x "$bin/linux-x64/AiN.AppImage"
+          touch "$bin/win32-x64/ain.exe" "$bin/darwin-x64/AiN.app/Contents/MacOS/AiN"
+          echo '<plist><dict><key>CFBundleExecutable</key><string>AiN</string></dict></plist>' \
+            > "$bin/darwin-x64/AiN.app/Contents/Info.plist"
+          bun build.ts 1.2.3 "$bin" "$out"
+          jq -e '.optionalDependencies | length == 3' "$out/ain/package.json"
+          jq -e '.executable == "AiN.app/Contents/MacOS/AiN"' "$out/ain-darwin-x64/package.json"
+          (cd "$out" && npm pack ./ain-linux-x64 ./ain)
+          npm install --global --prefix "$RUNNER_TEMP/global" "$out"/satcomx00-ain-*.tgz
+          "$RUNNER_TEMP/global/bin/ain" --from-npm
+          for _ in $(seq 20); do [[ -s "$ran" ]] && break; sleep 0.5; done
+          grep -qx -- --from-npm "$ran"
+
   rust-fmt:
     name: Rust format
     runs-on: ubuntu-latest

@@ -184,6 +184,13 @@ Download the latest build for your OS from [Releases](https://github.com/Satcomx
 > [!NOTE]
 > The binaries are not signed yet, so Windows SmartScreen and macOS Gatekeeper will show a warning on first launch.
 
+Or with npm or bun, which download only the build for your machine ([details](npm/README.md)):
+
+```sh
+bun i -g @satcomx00/ain   # or: npm i -g @satcomx00/ain
+ain
+```
+
 > [!IMPORTANT]
 > Up to v0.1.2 the app was called **widget**. AiN installs as a new app: quit the old one, start AiN once (it brings
 > over your settings, plugins, downloaded speech models and launch-at-login choice), then uninstall **widget**.
