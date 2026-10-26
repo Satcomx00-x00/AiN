@@ -1,7 +1,7 @@
 import { button, h, icon } from "../../sdk/dom";
 import { choice, folder, secret, text, toggle } from "../../sdk/options";
 import { type Glance, definePlugin } from "../../sdk/plugin";
-import { reportProblem } from "../../sdk/report";
+import { messageOf, reportProblem } from "../../sdk/report";
 import type { ProvidersPort } from "../../shell/providers";
 import { type OwnEngine, engineOptions, enginePanel } from "../engine";
 import { type CardLine, downloading, modelCard, progressOf, speedometer } from "../model-files";
@@ -98,11 +98,40 @@ function localRow(port: PersonaPort): { readonly el: HTMLElement; draw(info: Loc
     run.catch((e: unknown) => reportProblem(stopping ? "Couldn't stop the download" : "Couldn't download PersonaPlex's model", e, "PERSONA_MODEL"));
   }, { class: "secondary" });
   const folder = button("Show folder", () => void port.openFolder().catch((e: unknown) => reportProblem("Couldn't open PersonaPlex's folder", e, "FOLDER_OPEN")), { class: "secondary" });
+  // A test start of the server, as a conversation would: how it goes, under the row's state.
+  const result = h("div", { class: "field-hint test-result", role: "status" });
+  result.hidden = true;
+  let testing = false;
+  const show = (text: string, state: "busy" | "ok" | "error") => {
+    result.hidden = false;
+    result.textContent = text;
+    result.dataset.state = state;
+  };
+  const test = button("Test", () => {
+    if (testing) return void port.stopTest().catch((e: unknown) => reportProblem("Couldn't stop the test", e, "PERSONA_TEST"));
+    testing = true;
+    test.textContent = "Stop test";
+    show("Starting PersonaPlex…", "busy");
+    port
+      .test((line) => testing && show(`Starting PersonaPlex… ${line}`.trim(), "busy"))
+      .then(
+        (port) => show(`Running: PersonaPlex answered on port ${port}. It stops after 10 minutes unused.`, "ok"),
+        (e: unknown) => {
+          if (messageOf(e) === "cancelled") return show("Test stopped.", "error");
+          show("It didn't start: the notification says why.", "error");
+          reportProblem("PersonaPlex didn't start", e, "PERSONA_TEST");
+        },
+      )
+      .finally(() => {
+        testing = false;
+        test.textContent = "Test";
+      });
+  }, { class: "secondary", title: "Starts the server as a conversation would, and says how it went" });
   // Until the backend says where PersonaPlex stands, there is nothing to install, remove or download.
-  action.hidden = model.hidden = true;
+  action.hidden = model.hidden = test.hidden = true;
   const bar = h("div", { class: "progress" }, h("i"));
   bar.hidden = true;
-  const el = h("div", { class: "field" }, h("div", {}, h("div", { class: "field-label" }, "PersonaPlex"), detail, bar), h("div", { class: "recorder" }, folder, action, model));
+  const el = h("div", { class: "field" }, h("div", {}, h("div", { class: "field-label" }, "PersonaPlex"), detail, bar, result), h("div", { class: "recorder" }, folder, test, action, model));
   const fail = (e: unknown) => {
     detail.textContent = "Its state can't be read right now.";
     reportProblem("Couldn't check PersonaPlex on this computer", e, "PERSONA_STATE");
@@ -124,6 +153,8 @@ function localRow(port: PersonaPort): { readonly el: HTMLElement; draw(info: Loc
     action.classList.toggle("danger", setup.label === "Remove");
     model.hidden = !weights;
     model.textContent = weights?.label ?? "";
+    // Something to test once installed, unless the model is on its way (a test would fetch it too).
+    test.hidden = !testing && (info.state !== "ready" || weights?.action === "stop");
   };
   return { el, draw, fail };
 }

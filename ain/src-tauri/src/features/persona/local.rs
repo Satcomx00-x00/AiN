@@ -82,8 +82,10 @@ print(f"progress {total} {total}", flush=True)
 /// Long enough for the first start, which downloads the weights.
 const READY_WITHIN: Duration = Duration::from_secs(2 * 60 * 60);
 const POLL: Duration = Duration::from_millis(250);
-/// How much of the server's log is read for its last line.
-const TAIL: u64 = 4096;
+/// How much of the server's log is read for its last lines.
+const TAIL: u64 = 16 * 1024;
+/// How many of the log's last lines say why the server stopped: a Python traceback, with its cause.
+const WHY_LINES: usize = 20;
 
 /// Whether PersonaPlex is installed in its folder.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Type)]
@@ -246,17 +248,28 @@ fn last_line(text: &str) -> &str {
     text.rsplit(['\n', '\r']).map(str::trim).find(|l| !l.is_empty()).unwrap_or("")
 }
 
-/// The last line of a file that is still being written.
-fn tail(path: &Path) -> String {
+/// The end of a file that is still being written.
+fn end_of(path: &Path) -> String {
     let read = || -> io::Result<String> {
         let mut file = fs::File::open(path)?;
         let len = file.metadata()?.len();
         file.seek(SeekFrom::Start(len.saturating_sub(TAIL)))?;
         let mut bytes = Vec::new();
         file.read_to_end(&mut bytes)?;
-        Ok(last_line(&String::from_utf8_lossy(&bytes)).to_string())
+        Ok(String::from_utf8_lossy(&bytes).into_owned())
     };
     read().unwrap_or_default()
+}
+
+/// The last line of a file that is still being written.
+fn tail(path: &Path) -> String {
+    last_line(&end_of(path)).to_string()
+}
+
+/// Its last `n` lines with something on them, each as a progress bar last drew it.
+fn last_lines(text: &str, n: usize) -> String {
+    let lines: Vec<&str> = text.lines().map(last_line).filter(|l| !l.is_empty()).collect();
+    lines[lines.len().saturating_sub(n)..].join("\n")
 }
 
 /// Keeps `line` on the last line `stream` wrote: lines end with `\n`, or `\r` where a progress
@@ -424,13 +437,17 @@ impl Server {
                 return Ok(());
             }
             if let Some(status) = self.child.try_wait().map_err(|e| e.to_string())? {
-                return Err(format!("PersonaPlex stopped ({status}): {}", tail(log)));
+                return Err(format!("PersonaPlex stopped ({status}):\n{}", last_lines(&end_of(log), WHY_LINES)));
             }
             if !go_on() {
                 return Err("cancelled".into());
             }
             if start.elapsed() > within {
-                return Err(format!("PersonaPlex didn't start within {} minutes: {}", within.as_secs() / 60, tail(log)));
+                return Err(format!(
+                    "PersonaPlex didn't start within {} minutes:\n{}",
+                    within.as_secs() / 60,
+                    last_lines(&end_of(log), WHY_LINES)
+                ));
             }
             report(&tail(log));
             thread::sleep(POLL);
@@ -680,6 +697,14 @@ mod tests {
         fs::create_dir_all(place.python().parent().unwrap()).unwrap();
         fs::write(place.python(), "").unwrap();
         fs::write(place.marker(), PACKAGE).unwrap();
+    }
+
+    #[test]
+    fn keeps_the_last_lines_as_their_progress_bars_last_drew_them() {
+        let log = "boot\n\nloading  10%\rloading 100%\nTraceback (most recent call last):\n  File \"server.py\"\nRuntimeError: CUDA out of memory\n";
+        assert_eq!(last_lines(log, 3), "Traceback (most recent call last):\nFile \"server.py\"\nRuntimeError: CUDA out of memory");
+        assert_eq!(last_lines(log, 99).lines().collect::<Vec<_>>()[..2], ["boot", "loading 100%"]);
+        assert_eq!(last_lines("", 3), "");
     }
 
     #[test]

@@ -133,6 +133,8 @@ export function system() {
       watchLocal: async (onChange) => (onChange({ dir: "/models/personaplex", running: false, model: { state: "ready" }, state: "ready" }), () => {}),
       download: async () => {},
       cancelDownload: async () => {},
+      test: async () => 8998,
+      stopTest: async () => {},
       install: async () => {},
       remove: async () => {},
       openFolder: async () => {},

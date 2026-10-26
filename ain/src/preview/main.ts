@@ -175,6 +175,8 @@ const fake: Services = {
     watchLocal: async (onChange) => (onChange({ dir: "C:\\Users\\you\\AppData\\Roaming\\dev.satcom.ain\\models\\personaplex", running: false, model: { state: "missing" }, state: "missing" }), () => {}),
     download: async () => {},
     cancelDownload: async () => {},
+    test: async () => 8998,
+    stopTest: async () => {},
     install: async () => {},
     remove: async () => {},
     openFolder: async () => {},

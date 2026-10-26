@@ -20,6 +20,14 @@ export const commands = {
 	downloadModel: () => __TAURI_INVOKE<null>("plugin:persona|download_model"),
 	/**  Stops a download of the weights; the next one resumes it. */
 	cancelDownload: () => __TAURI_INVOKE<void>("plugin:persona|cancel_download"),
+	/**
+	 *  Starts PersonaPlex's server on this computer as a conversation would, with the same settings,
+	 *  reporting its progress (`TestProgress`): answers with the port it listens on, or why it didn't
+	 *  start (with the end of its log). It then stays up like after a conversation.
+	 */
+	testLocal: () => __TAURI_INVOKE<number>("plugin:persona|test_local"),
+	/**  Gives up on a test start. */
+	stopTest: () => __TAURI_INVOKE<void>("plugin:persona|stop_test"),
 	/**  Stops an install, a download or the server, and deletes PersonaPlex and its weights from this computer. */
 	removeLocal: () => __TAURI_INVOKE<null>("plugin:persona|remove_local"),
 	/**  Shows PersonaPlex's folder. */
@@ -30,6 +38,7 @@ export const commands = {
 export const events = {
 	localChanged: makeEvent<LocalChanged>("plugin:persona:local-changed"),
 	phaseChanged: makeEvent<PhaseChanged>("plugin:persona:phase-changed"),
+	testProgress: makeEvent<TestProgress>("plugin:persona:test-progress"),
 };
 
 /* Types */
@@ -67,6 +76,9 @@ export type PhaseChanged = Phase;
 export type Setup = { state: "missing" } | 
 /**  uv, or pip, at work: its last line of output. */
 { state: "installing"; line: string } | { state: "ready" } | { state: "error"; message: string };
+
+/**  A test start of PersonaPlex on this computer: its server's last line while it starts. */
+export type TestProgress = string;
 
 /**  Whether the model's weights are in its folder. */
 export type Weights = { state: "missing" } | 

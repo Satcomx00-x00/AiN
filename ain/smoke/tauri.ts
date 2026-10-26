@@ -85,6 +85,8 @@ function install(backend: Backend): void {
     "plugin:persona|install_local": () => null,
     "plugin:persona|download_model": () => null,
     "plugin:persona|cancel_download": () => null,
+    "plugin:persona|test_local": () => 8998,
+    "plugin:persona|stop_test": () => null,
     "plugin:persona|remove_local": () => null,
     "plugin:persona|open_local_dir": () => null,
     "plugin:secrets|saved_keys": (a) => (a.keys as string[]).map(() => false),

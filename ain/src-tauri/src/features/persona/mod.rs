@@ -85,6 +85,10 @@ pub struct PhaseChanged(pub Phase);
 #[derive(Debug, Clone, Serialize, Type, Event)]
 pub struct LocalChanged(pub LocalInfo);
 
+/// A test start of PersonaPlex on this computer: its server's last line while it starts.
+#[derive(Debug, Clone, Serialize, Type, Event)]
+pub struct TestProgress(pub String);
+
 /// `toggle` starts a conversation, or ends the one going on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Type)]
 #[serde(rename_all = "lowercase")]
@@ -254,6 +258,8 @@ impl Line {
 struct Persona {
     shared: Arc<Shared>,
     worker: Worker<Command>,
+    /// Set to give up on a test start.
+    stop_test: Arc<AtomicBool>,
 }
 
 impl Persona {
@@ -302,6 +308,35 @@ fn download_model(app: AppHandle, persona: State<'_, Persona>) -> Res<()> {
 #[specta::specta]
 fn cancel_download(persona: State<'_, Persona>) {
     persona.shared.local.cancel_download();
+}
+
+/// Starts PersonaPlex's server on this computer as a conversation would, with the same settings,
+/// reporting its progress (`TestProgress`): answers with the port it listens on, or why it didn't
+/// start (with the end of its log). It then stays up like after a conversation.
+#[tauri::command]
+#[specta::specta]
+async fn test_local(app: AppHandle, persona: State<'_, Persona>) -> Res<u16> {
+    let current = settings::current(&app);
+    let place = persona.place(&app);
+    let launch = Launch {
+        token: secrets::secret(FEATURE, "hfToken").ok().flatten(),
+        cpu_offload: settings::option(&current, FEATURE, "cpuOffload").and_then(Value::as_bool).unwrap_or(false),
+    };
+    let (local, stop) = (Arc::clone(&persona.shared.local), Arc::clone(&persona.stop_test));
+    stop.store(false, Ordering::SeqCst);
+    let started = tauri::async_runtime::spawn_blocking(move || {
+        local.serve(&place, &launch, &|| !stop.load(Ordering::SeqCst), &mut |line| drop(TestProgress(line.into()).emit(&app)))
+    })
+    .await
+    .map_err(|_| crate::Error::WorkerGone)?;
+    started.map_err(crate::Error::msg)
+}
+
+/// Gives up on a test start.
+#[tauri::command]
+#[specta::specta]
+fn stop_test(persona: State<'_, Persona>) {
+    persona.stop_test.store(true, Ordering::SeqCst);
 }
 
 /// Stops an install, a download or the server, and deletes PersonaPlex and its weights from this computer.
@@ -354,7 +389,7 @@ pub fn init() -> TauriPlugin<Wry> {
             let shared = Arc::new(Shared { phase: Live::new(Phase::Idle), session: AtomicU64::new(0), local, models });
             let (handle, stepped) = (app.clone(), Arc::clone(&shared));
             let worker = super::worker::spawn("persona", TICK, Line::default, move |line, command| line.step(&handle, &stepped, command))?;
-            app.manage(Persona { shared, worker });
+            app.manage(Persona { shared, worker, stop_test: Arc::new(AtomicBool::new(false)) });
             let handle = app.clone();
             popup::Action::listen_any(app, move |event| on_shortcut(&handle, &event.payload));
             // Another models folder: what Settings shows follows it.

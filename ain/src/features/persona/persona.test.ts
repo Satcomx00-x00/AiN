@@ -41,6 +41,8 @@ function fakePort(installed: LocalInfo = { dir: "/m/personaplex", running: false
     cancelDownload: vi.fn(async () => {}),
     remove: vi.fn(async () => {}),
     openFolder: vi.fn(async () => {}),
+    test: vi.fn(async (_onProgress: (line: string) => void) => 8998),
+    stopTest: vi.fn(async () => {}),
   } satisfies PersonaPort;
   return { port, stopLocal, phase: (p: Phase) => push(p), local: (info: LocalInfo) => pushLocal(info) };
 }
@@ -218,8 +220,8 @@ describe("in Settings", () => {
     const cleanup = persona.settingsPanel?.(root, { persona: fake.port, providers: { ...memoryProviders([gpu]), models } } as never, host as never) as () => void;
     const localRow = [...root.querySelectorAll<HTMLElement>(".field")].find((f) => f.textContent?.startsWith("PersonaPlex"))!;
     const buttons = () => [...localRow.querySelectorAll("button")];
-    const action = () => buttons()[1]!;
-    return { ...fake, root, host, models, cleanup, localRow, action, folder: buttons()[0]!, model: () => buttons()[2]! };
+    const action = () => buttons()[2]!;
+    return { ...fake, root, host, models, cleanup, localRow, action, folder: buttons()[0]!, test: () => buttons()[1]!, model: () => buttons()[3]! };
   };
 
   it("installs PersonaPlex on this computer, then removes it", async () => {
@@ -270,6 +272,63 @@ describe("in Settings", () => {
     await tick();
     expect(seen.list).toEqual([{ title: "Couldn't download PersonaPlex's model", message: "worker gone", code: "PERSONA_MODEL" }]);
     seen.stop();
+  });
+
+  it("tests the server, with its progress, then says it answered", async () => {
+    const { port, test, localRow } = mount("", { dir: "/m/personaplex", running: false, model: { state: "ready" }, state: "ready" });
+    await tick();
+    let progress: (line: string) => void = () => {};
+    let answer: (port: number) => void = () => {};
+    port.test.mockImplementationOnce((onProgress) => ((progress = onProgress), new Promise((r) => (answer = r))));
+    expect([test().hidden, test().textContent]).toEqual([false, "Test"]);
+    test().click();
+    const result = () => localRow.querySelector<HTMLElement>(".test-result")!;
+    expect([result().textContent, test().textContent]).toEqual(["Starting PersonaPlex…", "Stop test"]);
+    progress("Loading the model");
+    expect(result().textContent).toBe("Starting PersonaPlex… Loading the model");
+    answer(41234);
+    await tick();
+    expect([result().textContent, result().dataset.state, test().textContent]).toEqual([
+      "Running: PersonaPlex answered on port 41234. It stops after 10 minutes unused.",
+      "ok",
+      "Test",
+    ]);
+  });
+
+  it("says why the server didn't start, and stops a test when asked", async () => {
+    const { port, test, localRow } = mount("", { dir: "/m/personaplex", running: false, model: { state: "ready" }, state: "ready" });
+    await tick();
+    const seen = problems();
+    const why = "PersonaPlex stopped (exit code: 1):\nTraceback (most recent call last):\nRuntimeError: CUDA out of memory";
+    port.test.mockRejectedValueOnce(why);
+    test().click();
+    await tick();
+    const result = () => localRow.querySelector<HTMLElement>(".test-result")!;
+    expect([result().textContent, result().dataset.state]).toEqual(["It didn't start: the notification says why.", "error"]);
+    expect(seen.list).toEqual([
+      { title: "PersonaPlex didn't start", message: why, code: "PERSONA_TEST" },
+    ]);
+
+    let fail: (e: unknown) => void = () => {};
+    port.test.mockImplementationOnce(() => new Promise((_, no) => (fail = no)));
+    test().click();
+    test().click();
+    expect(port.stopTest).toHaveBeenCalledOnce();
+    fail("cancelled");
+    await tick();
+    expect(result().textContent).toBe("Test stopped.");
+    expect(seen.list).toHaveLength(1);
+    seen.stop();
+  });
+
+  it("offers a test only once installed, and not while the model downloads", async () => {
+    const { local, test } = mount();
+    await tick();
+    expect(test().hidden).toBe(true);
+    local({ dir: "/m/personaplex", running: false, model: { state: "downloading", received: 1, total: 2 }, state: "ready" });
+    expect(test().hidden).toBe(true);
+    local({ dir: "/m/personaplex", running: false, model: { state: "missing" }, state: "ready" });
+    expect(test().hidden).toBe(false);
   });
 
   it("says why an install couldn't start", async () => {
