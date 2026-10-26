@@ -264,6 +264,40 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  # `@satcomx00/ain-fedora44`: the app built on Fedora 44 against its own libraries, for npm only
+  # (see npm/README.md). npm can't tell distros apart, so users pick this package by name.
+  fedora:
+    name: Build (Fedora 44 x64, npm)
+    needs: [plan, prepare]
+    if: ${{ !cancelled() && needs.prepare.result == 'success' && vars.NPM_PUBLISH == 'true' }}
+    runs-on: ubuntu-24.04
+    container: fedora:44
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.plan.outputs.tag }}
+          persist-credentials: false
+      - name: Install Fedora system dependencies
+        run: ./.github/scripts/fedora-deps.sh
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
+      # The bare executable (the frontend is built into it), tarred as for the other platforms.
+      - name: Build the app
+        working-directory: ain
+        run: |
+          bun install --frozen-lockfile
+          bun run tauri build --ci --no-bundle
+          mkdir -p npm && cp src-tauri/target/release/ain npm/
+          tar -czf npm-fedora44.tgz -C npm .
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: npm-fedora44
+          path: ain/npm-fedora44.tgz
+          if-no-files-found: error
+          retention-days: 7
+
   publish:
     name: Publish release
     needs: [plan, prepare, build]
@@ -320,8 +354,10 @@ jobs:
   # provenance), or with the `NPM_TOKEN` secret when set (needed for each package's first version).
   npm:
     name: Publish to npm
-    needs: [plan, publish]
-    if: ${{ !cancelled() && needs.publish.result == 'success' && vars.NPM_PUBLISH == 'true' }}
+    needs: [plan, fedora, publish]
+    if: >-
+      !cancelled() && needs.publish.result == 'success' && needs.fedora.result == 'success' &&
+      vars.NPM_PUBLISH == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
