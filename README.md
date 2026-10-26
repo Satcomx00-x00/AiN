@@ -173,23 +173,39 @@ On Linux, global shortcuts work on X11 only.
 
 ## Install
 
-Download the latest build for your OS from [Releases](https://github.com/Satcomx00-x00/AiN/releases) (x64 only):
+Every build is x64. Pick one way to install:
 
-| OS | Packages |
-| --- | --- |
-| Windows | `.msi`, NSIS `.exe` (per-user install) |
-| Linux | `.deb`, `.rpm`, `.AppImage` (requires `gtk-layer-shell`) |
-| macOS | `.dmg`, `.app` |
-
-> [!NOTE]
-> The binaries are not signed yet, so Windows SmartScreen and macOS Gatekeeper will show a warning on first launch.
-
-Or with npm or bun, which download only the build for your machine ([details](npm/README.md)):
+| Way | Windows | macOS | Linux |
+| --- | --- | --- | --- |
+| [Releases](https://github.com/Satcomx00-x00/AiN/releases) | `.msi`, or NSIS `-setup.exe` (per-user, no admin) | `.dmg` | `.deb`, `.rpm`, `.AppImage` |
+| npm / bun ([details](npm/README.md)) | `@satcomx00/ain` | `@satcomx00/ain` | `@satcomx00/ain` (AppImage), or `@satcomx00/ain-fedora44` |
 
 ```sh
 bun i -g @satcomx00/ain   # or: npm i -g @satcomx00/ain
-ain
+ain                       # starts it
 ```
+
+Installed from Releases, AiN updates itself; installed with npm or bun, `bun update -g @satcomx00/ain` updates it.
+
+> [!NOTE]
+> The binaries are not signed yet, so Windows SmartScreen and macOS Gatekeeper will show a warning on first launch
+> of a downloaded installer (npm and bun installs don't get this warning).
+
+### What each install needs
+
+| Install | Needs |
+| --- | --- |
+| Windows (any) | Windows 10 or 11 x64, and [WebView2](https://developer.microsoft.com/microsoft-edge/webview2/) (built into Windows 11 and up-to-date Windows 10; the installers fetch it if missing, the npm package doesn't) |
+| macOS (any) | macOS 10.13 or later. The build is Intel: on Apple silicon it runs through Rosetta 2 (`softwareupdate --install-rosetta`) |
+| `.deb` | Ubuntu 24.04+ or Debian 13+ (built on Ubuntu 24.04). `apt install ./AiN_*.deb` pulls WebKitGTK 4.1, GTK 3 and `libgtk-layer-shell0` |
+| `.rpm` | Fedora 40+ or another rpm distro of the same age. `dnf install ./AiN-*.rpm` pulls `webkit2gtk4.1`, `gtk-layer-shell` and `libayatana-appindicator-gtk3` |
+| `.AppImage`, `@satcomx00/ain-linux-x64` | Any distro with glibc 2.39+ (Ubuntu 24.04, Fedora 40, Debian 13 or newer). It carries WebKitGTK; it needs FUSE 2 (`libfuse2t64` on Ubuntu/Debian, `fuse-libs` on Fedora) and `gtk-layer-shell` |
+| `@satcomx00/ain-fedora44` | Fedora 44, with: `sudo dnf install webkit2gtk4.1 gtk-layer-shell libayatana-appindicator-gtk3 alsa-lib` |
+| npm / bun (all) | Node.js 18+ or Bun, for the `ain` command |
+
+On Linux, the tray icon needs a tray: GNOME shows it only with the
+[AppIndicator extension](https://extensions.gnome.org/extension/615/appindicator-support/) (on by default on Ubuntu).
+What dictation, the clipboard picker and read aloud need on top is [below](#permissions-and-helper-tools).
 
 > [!IMPORTANT]
 > Up to v0.1.2 the app was called **widget**. AiN installs as a new app: quit the old one, start AiN once (it brings
