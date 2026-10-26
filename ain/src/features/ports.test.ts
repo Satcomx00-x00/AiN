@@ -133,6 +133,11 @@ describe("conversation", () => {
     const phases = await follow(tauriPersona.watch, backend({ "plugin:persona|state": { phase: "idle" } }, { "plugin:persona:phase-changed": [live] }));
     expect(phases.seen).toEqual([{ ...live, level: 0 }, { phase: "idle" }]);
     expect(phases.log.slice(0, 2)).toEqual(["listen plugin:persona:phase-changed", "invoke plugin:persona|state"]);
+
+    const missing = { dir: "D:/m/personaplex", running: false, state: "missing" };
+    const local = await follow(tauriPersona.watchLocal, backend({ "plugin:persona|local_status": missing }));
+    expect(local.seen).toEqual([missing]);
+    expect(local.log.slice(0, 2)).toEqual(["listen plugin:persona:local-changed", "invoke plugin:persona|local_status"]);
   });
 });
 

@@ -173,5 +173,11 @@ describe("conversation", () => {
     vi.mocked(invoke).mockResolvedValue(null);
     await tauriPersona.control("toggle");
     expect(invoke).toHaveBeenLastCalledWith("plugin:persona|control", { command: "toggle" });
+    await tauriPersona.install();
+    expect(invoke).toHaveBeenLastCalledWith("plugin:persona|install_local");
+    await tauriPersona.remove();
+    expect(invoke).toHaveBeenLastCalledWith("plugin:persona|remove_local");
+    await tauriPersona.openFolder();
+    expect(invoke).toHaveBeenLastCalledWith("plugin:persona|open_local_dir");
   });
 });

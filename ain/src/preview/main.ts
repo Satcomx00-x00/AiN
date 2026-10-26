@@ -172,6 +172,10 @@ const fake: Services = {
     watch: async (onChange) =>
       (onChange(params.has("talk") ? { phase: "live", level: 0.4, speaking: true, said: "Sure! What would you like to talk about today?" } : { phase: "idle" }), () => {}),
     control: async () => {},
+    watchLocal: async (onChange) => (onChange({ dir: "C:\\Users\\you\\AppData\\Roaming\\dev.satcom.ain\\models\\personaplex", running: false, state: "missing" }), () => {}),
+    install: async () => {},
+    remove: async () => {},
+    openFolder: async () => {},
   },
   privacy: {
     watch: async (onChange) => (onChange({ mic: params.has("mic") ? ["Discord"] : [], camera: [] }), () => {}),

@@ -1,35 +1,42 @@
 // @vitest-environment happy-dom
 /**
  * Conversation: the shortcut or the tab's button calls PersonaPlex; the pill says who is speaking,
- * and the tab shows the voice's last words. The server, voice and persona are set in Settings.
+ * and the tab shows the voice's last words. Where it runs (this computer, where the app installs it, or
+ * an AI provider's server), the voice and the persona are set in Settings.
  */
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 
-const { persona, personaGlance, statusText, talking, voiceName } = await import(".");
+const { persona, personaGlance, statusText, talking, voiceName, localSetup } = await import(".");
 const { VOICES } = await import("./voices");
 const { bindings } = await import("../../shell/commands");
 const { catalogue } = await import("..");
-const { textProblem } = await import("../../sdk/options");
 const { memoryProviders } = await import("../../shell/providers");
 import type { AiProvider } from "../../shell/providers";
-import type { Phase, PersonaPort } from "./service";
+import type { LocalInfo, Phase, PersonaPort } from "./service";
 
 const live = (said = "", speaking = false): Phase => ({ phase: "live", level: 0.5, speaking, said });
 
 /** A conversation backend whose phase the test pushes. */
-function fakePort() {
+function fakePort(installed: LocalInfo = { dir: "/m/personaplex", running: false, state: "missing" }) {
   let push: (phase: Phase) => void = () => {};
+  let pushLocal: (info: LocalInfo) => void = () => {};
+  const stopLocal = vi.fn();
   const port = {
     watch: vi.fn(async (onChange: (phase: Phase) => void) => ((push = onChange), onChange({ phase: "idle" }), () => {})),
     control: vi.fn(async () => {}),
+    watchLocal: vi.fn(async (onChange: (info: LocalInfo) => void) => ((pushLocal = onChange), onChange(installed), stopLocal)),
+    install: vi.fn(async () => {}),
+    remove: vi.fn(async () => {}),
+    openFolder: vi.fn(async () => {}),
   } satisfies PersonaPort;
-  return { port, phase: (p: Phase) => push(p) };
+  return { port, stopLocal, phase: (p: Phase) => push(p), local: (info: LocalInfo) => pushLocal(info) };
 }
 
 describe("on the pill", () => {
   it("says who is speaking, with the user's level while it listens", () => {
+    expect(personaGlance({ phase: "starting", line: "" }, 0, 0)).toEqual({ text: "Starting…", mark: "eq", wide: true });
     expect(personaGlance({ phase: "connecting" }, 0, 0)).toEqual({ text: "Connecting…", mark: "eq", wide: true });
     expect(personaGlance(live(), 0, 0)).toEqual({ text: "Listening", mark: "mic", level: 0.5, wide: true });
     expect(personaGlance(live("Hi", true), 0, 0)).toEqual({ text: "Speaking", mark: "eq", wide: true });
@@ -106,22 +113,32 @@ describe("its settings", () => {
     expect([voiceName("NATF2"), voiceName("VARM0"), voiceName("odd")]).toEqual(["Natural, female 3", "Varied, male 1", "odd"]);
   });
 
-  it("keeps the engine and the server for the panel", () => {
+  it("keeps the engine for the panel, and the setup of this computer's PersonaPlex for the form", () => {
     expect(persona.options?.engine).toMatchObject({ kind: "text", default: "", inPanel: true });
-    expect(persona.options?.server).toMatchObject({ default: "ws://localhost:8998", inPanel: true });
-  });
-
-  it("checks the server's address", () => {
-    const server = persona.options!.server;
-    expect(["ws://localhost:8998", "wss://gpu.example.com", "10.0.0.2:8998", "https://host/"].map((v) => textProblem(server, v))).toEqual([null, null, null, null]);
-    expect(textProblem(server, "")).not.toBeNull();
-    expect(textProblem(server, "not an address")).not.toBeNull();
+    expect(persona.options?.hfToken).toMatchObject({ kind: "secret" });
+    expect(persona.options?.cpuOffload).toMatchObject({ kind: "toggle", default: false });
+    expect(persona.options?.modelDir).toMatchObject({ kind: "folder", default: "" });
+    expect(persona.options).not.toHaveProperty("server");
   });
 
   it("says what each phase means", () => {
     expect(statusText({ phase: "idle" })).toContain("Ctrl+Alt+T");
+    expect(statusText({ phase: "starting", line: "" })).toBe("Starting PersonaPlex…");
+    expect(statusText({ phase: "starting", line: "Fetching 4 files: 25%" })).toBe("Starting PersonaPlex… Fetching 4 files: 25%");
     expect(statusText({ phase: "connecting" })).toBe("Connecting to PersonaPlex…");
-    expect(talking({ phase: "live", level: 0, speaking: false, said: "" }) && !talking({ phase: "idle" })).toBe(true);
+    expect(talking({ phase: "live", level: 0, speaking: false, said: "" }) && talking({ phase: "starting", line: "" }) && !talking({ phase: "idle" })).toBe(true);
+  });
+
+  it("says where PersonaPlex stands on this computer", () => {
+    const at = { dir: "/m", running: false };
+    expect(localSetup({ ...at, state: "missing" })).toMatchObject({ action: "install", label: "Install" });
+    expect(localSetup({ ...at, state: "missing" }).detail).toContain("17 GB");
+    expect(localSetup({ ...at, state: "installing", line: "" })).toEqual({ detail: "Installing…", action: "remove", label: "Cancel" });
+    expect(localSetup({ ...at, state: "installing", line: "Resolved 40 packages" }).detail).toBe("Installing… Resolved 40 packages");
+    expect(localSetup({ ...at, state: "ready" })).toMatchObject({ action: "remove", label: "Remove" });
+    expect(localSetup({ ...at, state: "ready" }).detail).toContain("10 minutes");
+    expect(localSetup({ ...at, running: true, state: "ready" }).detail).toBe("Installed, running now");
+    expect(localSetup({ ...at, state: "error", message: "uv failed" })).toEqual({ detail: "Install failed: uv failed", action: "install", label: "Retry" });
   });
 });
 
@@ -129,43 +146,68 @@ describe("in Settings", () => {
   const gpu: AiProvider = { id: "gpu", name: "GPU box", preset: "custom", baseUrl: "https://gpu.example.com", auth: { kind: "env", name: "PERSONAPLEX_TOKEN" } };
   const tick = () => new Promise((r) => setTimeout(r));
 
-  const mount = (engine = "") => {
-    let values = { engine, remoteModel: "", server: "ws://localhost:8998", voice: "NATF2", prompt: "" };
+  const mount = (engine = "", installed?: LocalInfo) => {
+    let values = { engine, remoteModel: "", voice: "NATF2", prompt: "" };
     const host = { options: () => values, setOptions: vi.fn((patch: Partial<typeof values>) => void (values = { ...values, ...patch })), openPage: vi.fn() };
     const models = vi.fn(async () => []);
+    const fake = fakePort(installed);
     const root = document.createElement("div");
     document.body.replaceChildren(root);
-    const cleanup = persona.settingsPanel?.(root, { providers: { ...memoryProviders([gpu]), models } } as never, host as never);
-    const [engineRow, , , serverRow] = root.querySelectorAll<HTMLElement>(".field");
-    const input = root.querySelector<HTMLInputElement>("input[aria-label='PersonaPlex server']")!;
-    return { root, host, models, cleanup: cleanup as () => void, engineRow: engineRow!, serverRow: serverRow!, input };
+    const cleanup = persona.settingsPanel?.(root, { persona: fake.port, providers: { ...memoryProviders([gpu]), models } } as never, host as never) as () => void;
+    const localRow = [...root.querySelectorAll<HTMLElement>(".field")].find((f) => f.textContent?.startsWith("PersonaPlex"))!;
+    const buttons = () => [...localRow.querySelectorAll("button")];
+    const action = () => buttons()[1]!;
+    return { ...fake, root, host, models, cleanup, localRow, action, folder: buttons()[0]! };
   };
 
-  const type = (input: HTMLInputElement, value: string) => {
-    input.value = value;
-    input.dispatchEvent(new Event("change"));
-  };
-
-  it("talks to the server set here, saved once it reads as an address", async () => {
-    const { host, serverRow, input, root } = mount();
+  it("installs PersonaPlex on this computer, then removes it", async () => {
+    const { port, local, localRow, action, folder, root, cleanup, stopLocal } = mount();
     await tick();
-    expect(serverRow.hidden).toBe(false);
-    expect(root.querySelector(".ui-select-trigger")?.textContent).toContain("PersonaPlex server");
-    type(input, "not an address");
-    expect(host.setOptions).not.toHaveBeenCalled();
-    expect(serverRow.textContent).toContain("Expected a server address");
-    type(input, " wss://gpu.lan:8998 ");
-    expect(host.setOptions).toHaveBeenLastCalledWith({ server: "wss://gpu.lan:8998" });
-    expect(input.value).toBe("wss://gpu.lan:8998");
+    expect(localRow.hidden).toBe(false);
+    expect(root.querySelector(".ui-select-trigger")?.textContent).toContain("On this computer");
+    expect(localRow.textContent).toContain("Not installed");
+    action().click();
+    expect(port.install).toHaveBeenCalledOnce();
+    local({ dir: "/m/personaplex", running: false, state: "installing", line: "Downloading torch" });
+    expect([localRow.textContent?.includes("Installing… Downloading torch"), action().textContent]).toEqual([true, "Cancel"]);
+    local({ dir: "/m/personaplex", running: true, state: "ready" });
+    expect([action().textContent, action().classList.contains("danger")]).toEqual(["Remove", true]);
+    action().click();
+    expect(port.remove).toHaveBeenCalledOnce();
+    folder.click();
+    expect(port.openFolder).toHaveBeenCalledOnce();
+    cleanup();
+    await tick();
+    expect(stopLocal).toHaveBeenCalledOnce();
   });
 
-  it("or to an AI provider's, with no model to pick", async () => {
-    const { host, serverRow, root, models, cleanup } = mount();
+  it("says why an install couldn't start", async () => {
+    const { port, action, folder, localRow } = mount();
+    await tick();
+    port.install.mockRejectedValueOnce("uv isn't installed");
+    port.openFolder.mockRejectedValueOnce(new Error("no folder"));
+    action().click();
+    folder.click();
+    await tick();
+    expect(localRow.textContent).toContain("uv isn't installed");
+  });
+
+  it("closes cleanly when the backend can't be followed", async () => {
+    const fake = fakePort();
+    fake.port.watchLocal.mockRejectedValueOnce(new Error("gone"));
+    const host = { options: () => ({ engine: "", remoteModel: "" }), setOptions: vi.fn(), openPage: vi.fn() };
+    const cleanup = persona.settingsPanel?.(document.createElement("div"), { persona: fake.port, providers: memoryProviders([]) } as never, host as never) as () => void;
+    await tick();
+    expect(() => cleanup()).not.toThrow();
+  });
+
+  it("or talks to an AI provider's server, with no model to pick", async () => {
+    const { host, localRow, root, models, cleanup } = mount("", { dir: "/m", running: false, state: "ready" });
     await tick();
     root.querySelector<HTMLButtonElement>(".ui-select-trigger")!.click();
     [...root.querySelectorAll<HTMLElement>("[role=option]")].find((o) => o.textContent?.startsWith("GPU box"))!.click();
     expect(host.setOptions).toHaveBeenLastCalledWith({ engine: "gpu" });
-    expect(serverRow.hidden).toBe(true);
+    expect(localRow.hidden).toBe(true);
     expect(root.textContent).toContain("Sent to https://gpu.example.com");
     expect(models).not.toHaveBeenCalled();
     cleanup();

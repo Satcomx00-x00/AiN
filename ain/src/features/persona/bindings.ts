@@ -9,10 +9,19 @@ import * as __TAURI_EVENT from "@tauri-apps/api/event";
 export const commands = {
 	state: () => __TAURI_INVOKE<Phase>("plugin:persona|state"),
 	control: (command: Command) => __TAURI_INVOKE<null>("plugin:persona|control", { command }),
+	/**  PersonaPlex on this computer: its folder, whether it is installed, and whether it runs. */
+	localStatus: () => __TAURI_INVOKE<LocalInfo>("plugin:persona|local_status"),
+	/**  Installs PersonaPlex on this computer, in the background. */
+	installLocal: () => __TAURI_INVOKE<null>("plugin:persona|install_local"),
+	/**  Stops an install or the server, and deletes PersonaPlex and its weights from this computer. */
+	removeLocal: () => __TAURI_INVOKE<null>("plugin:persona|remove_local"),
+	/**  Shows PersonaPlex's folder. */
+	openLocalDir: () => __TAURI_INVOKE<null>("plugin:persona|open_local_dir"),
 };
 
 /** Events */
 export const events = {
+	localChanged: makeEvent<LocalChanged>("plugin:persona:local-changed"),
 	phaseChanged: makeEvent<PhaseChanged>("plugin:persona:phase-changed"),
 };
 
@@ -20,7 +29,21 @@ export const events = {
 /**  `toggle` starts a conversation, or ends the one going on. */
 export type Command = "toggle" | "stop";
 
+/**  PersonaPlex on this computer was installed or removed, or its server started or stopped. */
+export type LocalChanged = LocalInfo;
+
+/**  What Settings shows: the folder, the setup, and whether the server runs now. */
+export type LocalInfo = {
+	dir: string,
+	running: boolean,
+} & Setup;
+
 export type Phase = { phase: "idle" } | 
+/**
+ *  Starting PersonaPlex on this computer (the first time, downloading its weights): its last
+ *  line of output.
+ */
+{ phase: "starting"; line: string } | 
 /**  Reaching the server, which then takes the voice and the persona. */
 { phase: "connecting" } | 
 /**  Talking: how loud the user is (0–1), whether the voice is speaking, and its last words. */
@@ -28,6 +51,11 @@ export type Phase = { phase: "idle" } |
 
 /**  The conversation's phase, sent on every change (the level updates up to 20×/s while live). */
 export type PhaseChanged = Phase;
+
+/**  Whether PersonaPlex is installed in its folder. */
+export type Setup = { state: "missing" } | 
+/**  uv at work: its last line of output. */
+{ state: "installing"; line: string } | { state: "ready" } | { state: "error"; message: string };
 
 /* Tauri Specta runtime */
 type EventEmit<T> = [T] extends [null] ? () => Promise<void> : (payload: T) => Promise<void>;

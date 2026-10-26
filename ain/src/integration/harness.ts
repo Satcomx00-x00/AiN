@@ -127,7 +127,14 @@ export function system() {
       download: async () => {},
       remove: async () => {},
     },
-    persona: { watch: talk.watch, control: async (c) => void talked.push(c) },
+    persona: {
+      watch: talk.watch,
+      control: async (c) => void talked.push(c),
+      watchLocal: async (onChange) => (onChange({ dir: "/models/personaplex", running: false, state: "ready" }), () => {}),
+      install: async () => {},
+      remove: async () => {},
+      openFolder: async () => {},
+    },
   };
 
   // The window: what the island asks of it, and the auto-hide rule's reveals.

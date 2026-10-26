@@ -5,7 +5,6 @@ export const VOICES = [
 ] as const;
 
 export const DEFAULT_VOICE = "NATF2";
-export const DEFAULT_SERVER = "ws://localhost:8998";
 export const DEFAULT_PROMPT = "You are a wise and friendly assistant. Answer questions or give advice in a clear, engaging and brief way.";
 
 /** "NATF2" → "Natural, female 3". */

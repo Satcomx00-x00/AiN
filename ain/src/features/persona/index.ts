@@ -1,11 +1,10 @@
 import { button, h, icon } from "../../sdk/dom";
-import { choice, text, textProblem } from "../../sdk/options";
+import { choice, folder, secret, text, toggle } from "../../sdk/options";
 import { type Glance, definePlugin } from "../../sdk/plugin";
 import type { ProvidersPort } from "../../shell/providers";
 import { type OwnEngine, engineOptions, enginePanel } from "../engine";
-import { fieldRow as row } from "../model-files";
-import type { Phase, PersonaPort } from "./service";
-import { DEFAULT_PROMPT, DEFAULT_SERVER, DEFAULT_VOICE, VOICES, voiceName } from "./voices";
+import type { LocalInfo, Phase, PersonaPort } from "./service";
+import { DEFAULT_PROMPT, DEFAULT_VOICE, VOICES, voiceName } from "./voices";
 
 export { voiceName } from "./voices";
 
@@ -14,26 +13,60 @@ const STOP = `<rect x="4.5" y="4.5" width="7" height="7" rx="1.5" fill="currentC
 /** How long a problem stays on the pill. */
 const SHOW_PROBLEM_MS = 5000;
 
-/** The feature's own engine: the PersonaPlex server whose address is set on its card. */
-export const OWN_SERVER: OwnEngine = { label: "PersonaPlex server", detail: "The address below, with no sign-in" };
+/** The feature's own engine: PersonaPlex, installed and run on this computer by the app. */
+export const THIS_COMPUTER: OwnEngine = { label: "On this computer", detail: "PersonaPlex, run by the app; it needs an NVIDIA GPU with 24 GB" };
 
-const SERVER_HINT = "Where PersonaPlex's server (python -m moshi.server) runs: this computer, or one with a 24 GB GPU; wss:// for a server behind a certificate.";
+/** Starting, connecting or talking: the main button ends it. */
+export const talking = (phase: Phase): boolean => phase.phase === "starting" || phase.phase === "connecting" || phase.phase === "live";
 
-/** The server's address, as typed and checked. */
-const serverField = text("PersonaPlex server", DEFAULT_SERVER, {
-  placeholder: DEFAULT_SERVER,
-  hint: SERVER_HINT,
-  required: true,
-  pattern: "((wss?|https?)://)?[^\\s/]+(:\\d+)?/?",
-  invalid: "a server address, like ws://localhost:8998",
-});
+/** What Settings says about PersonaPlex on this computer, and what its button does there. */
+export function localSetup(info: LocalInfo): { detail: string; action: "install" | "remove"; label: string } {
+  switch (info.state) {
+    case "missing":
+      return {
+        detail: "Not installed. Installing takes about 5 GB (Python and PyTorch, with uv); the first conversation then downloads the model, about 17 GB.",
+        action: "install",
+        label: "Install",
+      };
+    case "installing":
+      return { detail: `Installing… ${info.line}`.trim(), action: "remove", label: "Cancel" };
+    case "ready":
+      return {
+        detail: info.running ? "Installed, running now" : "Installed. It starts with a conversation, and stops after 10 minutes unused.",
+        action: "remove",
+        label: "Remove",
+      };
+    case "error":
+      return { detail: `Install failed: ${info.message}`, action: "install", label: "Retry" };
+  }
+}
 
-/** Connecting or talking: the main button ends it. */
-export const talking = (phase: Phase): boolean => phase.phase === "connecting" || phase.phase === "live";
+/** Settings' row for PersonaPlex on this computer: its state, and the buttons to show its folder, install it or remove it. */
+function localRow(port: PersonaPort): { readonly el: HTMLElement; draw(info: LocalInfo): void } {
+  let current: LocalInfo | null = null;
+  const detail = h("div", { class: "field-hint" });
+  const action = button("", () => {
+    const run = current && localSetup(current).action === "install" ? port.install() : port.remove();
+    run.catch((e: unknown) => (detail.textContent = String(e)));
+  }, { class: "secondary" });
+  const folder = button("Show folder", () => void port.openFolder().catch(() => {}), { class: "secondary" });
+  const el = h("div", { class: "field" }, h("div", {}, h("div", { class: "field-label" }, "PersonaPlex"), detail), h("div", { class: "recorder" }, folder, action));
+  const draw = (info: LocalInfo) => {
+    current = info;
+    const setup = localSetup(info);
+    detail.textContent = setup.detail;
+    detail.title = info.dir;
+    action.textContent = setup.label;
+    action.classList.toggle("danger", setup.label === "Remove");
+  };
+  return { el, draw };
+}
 
 /** The pill while talking: who speaks, and how loud the user is; then briefly what went wrong. */
 export function personaGlance(phase: Phase, since: number, now: number): Glance | null {
   switch (phase.phase) {
+    case "starting":
+      return { text: "Starting…", mark: "eq", wide: true };
     case "connecting":
       return { text: "Connecting…", mark: "eq", wide: true };
     case "live":
@@ -50,6 +83,8 @@ export function statusText(phase: Phase): string {
   switch (phase.phase) {
     case "idle":
       return "Press the talk shortcut (Ctrl+Alt+T) and speak with PersonaPlex. It listens while it speaks: interrupt it anytime. Wear headphones so it doesn't hear itself.";
+    case "starting":
+      return `Starting PersonaPlex… ${phase.line}`.trim();
     case "connecting":
       return "Connecting to PersonaPlex…";
     case "live":
@@ -59,7 +94,7 @@ export function statusText(phase: Phase): string {
   }
 }
 
-/** Full-duplex speech-to-speech conversation with NVIDIA PersonaPlex, on a server the user runs. */
+/** Full-duplex speech-to-speech conversation with NVIDIA PersonaPlex, on this computer or an AI provider's server. */
 export const persona = definePlugin({
   id: "persona",
   label: "Conversation",
@@ -67,16 +102,20 @@ export const persona = definePlugin({
   icon: TALK,
   slots: ["glance", "tab"],
   options: {
-    // These are drawn by the settings panel: the engine (the server below, or an AI provider
-    // whose address and token it uses instead), and the server's address.
+    // Drawn by the settings panel: this computer, or an AI provider whose server and token it uses.
     ...engineOptions(),
-    server: { ...serverField, inPanel: true },
     voice: choice("Voice", DEFAULT_VOICE, VOICES.map((v) => [v, voiceName(v)] as const)),
     prompt: text("Persona", DEFAULT_PROMPT, {
       multiline: true,
       hint: "Who it plays: its role, its manner, what it knows. Taken at the start of each conversation; it uses dictation's microphone.",
       maxLength: 2000,
     }),
+    hfToken: secret("Hugging Face token", {
+      hint: "For PersonaPlex on this computer: its weights download once you accept their license on huggingface.co/nvidia/personaplex-7b-v1.",
+      placeholder: "hf_…",
+    }),
+    cpuOffload: toggle("Offload to the CPU", false, "For PersonaPlex on this computer, with a GPU short of 24 GB: part of the model runs on the CPU, slower."),
+    modelDir: folder("Model folder", "Default folder", "Where PersonaPlex on this computer is installed, with its weights."),
   },
   commands: [
     {
@@ -87,24 +126,15 @@ export const persona = definePlugin({
       surface: "action",
     },
   ],
-  settingsPanel(root, { providers }: { persona: PersonaPort; providers: ProvidersPort }, host) {
-    const input = h("input", { class: "path-input", type: "text", spellcheck: "false", placeholder: DEFAULT_SERVER, "aria-label": "PersonaPlex server" });
-    input.value = host.options().server;
-    const problem = h("p", { class: "field-hint" });
-    const hint = h("p", { class: "field-hint" }, SERVER_HINT);
-    const serverRow = row("PersonaPlex server", h("div", {}, input, problem, hint));
-    // Saved once it reads as an address; until then, what's wrong shows under it.
-    input.addEventListener("change", () => {
-      const value = (input.value = input.value.trim());
-      const wrong = textProblem(serverField, value);
-      problem.textContent = wrong ?? "";
-      problem.hidden = !wrong;
-      if (!wrong) host.setOptions({ server: value });
-    });
-    problem.hidden = true;
-    const engine = enginePanel(providers, host, "s2s", (local) => void (serverRow.hidden = !local), OWN_SERVER);
-    root.append(engine.el, serverRow);
-    return () => engine.stop();
+  settingsPanel(root, { persona: port, providers }: { persona: PersonaPort; providers: ProvidersPort }, host) {
+    const local = localRow(port);
+    const engine = enginePanel(providers, host, "s2s", (here) => void (local.el.hidden = !here), THIS_COMPUTER);
+    root.append(engine.el, local.el);
+    const watching = port.watchLocal(local.draw);
+    return () => {
+      engine.stop();
+      void watching.then((stop) => stop(), () => {});
+    };
   },
   setup({ persona: port }: { persona: PersonaPort }, host) {
     let phase: Phase = { phase: "idle" };
