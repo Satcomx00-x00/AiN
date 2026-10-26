@@ -215,7 +215,11 @@ export const persona = definePlugin({
       hint: "For PersonaPlex on this computer: its weights download once you accept their license on huggingface.co/nvidia/personaplex-7b-v1.",
       placeholder: "hf_…",
     }),
-    cpuOffload: toggle("Offload to the CPU", false, "For PersonaPlex on this computer, with a GPU short of 24 GB: part of the model runs on the CPU, slower."),
+    cpuOffload: toggle(
+      "Offload to the CPU",
+      false,
+      "PersonaPlex's own way to run on a GPU short of 24 GB, with part of the model in RAM. It doesn't work yet (PersonaPlex stops at its first step), and would be too slow to talk live anyway.",
+    ),
     modelDir: folder("Model folder", "Default folder", "Where PersonaPlex on this computer is installed, with its weights."),
   },
   commands: [

@@ -443,7 +443,13 @@ fn explained(why: String) -> String {
         ),
         (
             &["CUDA out of memory", "OutOfMemoryError"][..],
-            "The GPU ran out of memory: turn on Offload to the CPU, or close what else uses the GPU.",
+            "The GPU ran out of memory: PersonaPlex needs one with 24 GB. Close what else uses it, or talk through an AI provider's server.",
+        ),
+        // accelerate's offload leaves the layers in RAM empty outside their turn, and PersonaPlex makes
+        // its streaming state on its layers' device: empty too. Its --cpu-offload can't work.
+        (
+            &["Cannot copy out of meta tensor"][..],
+            "Offload to the CPU doesn't work with PersonaPlex: turn it off. It needs a GPU with 24 GB, or talk through an AI provider's server.",
         ),
         (
             &["Found no NVIDIA driver", "no CUDA GPUs are available"][..],
@@ -486,6 +492,8 @@ impl Server {
         let mut command = Command::new(program);
         // No web page to serve: the app is its client. Plain ws, since it only listens on localhost.
         command.args(["-m", "moshi.server", "--host", "127.0.0.1", "--port", &port.to_string(), "--static", "none"]);
+        // In its folder: what it writes beside itself (accelerate's offload folder) stays there.
+        command.current_dir(&place.0);
         if launch.cpu_offload {
             command.arg("--cpu-offload");
         }
@@ -797,6 +805,10 @@ mod tests {
         assert!(cuda.starts_with("Its PyTorch can't use the GPU: remove PersonaPlex"), "{cuda}");
         assert!(cuda.ends_with("AssertionError: Torch not compiled with CUDA enabled"), "the log stays: {cuda}");
         assert!(why("torch.OutOfMemoryError: CUDA out of memory").starts_with("The GPU ran out of memory"));
+        assert!(
+            why("NotImplementedError: Cannot copy out of meta tensor; no data!")
+                .starts_with("Offload to the CPU doesn't work with PersonaPlex")
+        );
         assert!(why("huggingface_hub.errors.GatedRepoError: 403 Client Error").starts_with("Hugging Face refused the model"));
         assert_eq!(why("ValueError: odd"), "PersonaPlex stopped (exit code: 1):\nTraceback (most recent call last):\nValueError: odd");
     }
