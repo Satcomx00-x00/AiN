@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "settings",
-  "description": "The settings window: read and write settings, toggle launch at login, try shortcuts, list or open the third-party plugins folder, browse and install from the community store, save plugins' secrets (without reading them back), test AI providers (list their models), and check for and install updates.",
+  "description": "The settings window: read and write settings, toggle launch at login, try shortcuts, list or open the third-party plugins folder, browse and install from the community store, save plugins' secrets (without reading them back), test AI providers (list their models), install or remove the local PersonaPlex server, and check for and install updates.",
   "windows": [
     "settings"
   ],
@@ -10,6 +10,7 @@
     "settings:default",
     "dictation:default",
     "tts:default",
+    "persona:default",
     "dialog:allow-open",
     "popup:allow-failures",
     "popup:allow-open",
