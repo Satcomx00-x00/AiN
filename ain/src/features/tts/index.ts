@@ -3,6 +3,8 @@ import { choice, folder, number } from "../../sdk/options";
 import { type Glance, definePlugin } from "../../sdk/plugin";
 import { type SelectOption, select } from "../../sdk/select";
 import { keepLoaded, fieldRow as row, modelCard, modelFiles } from "../model-files";
+import { engineOptions, enginePanel, remoteName, voiceOption } from "../engine";
+import type { AiProvider, ProvidersPort } from "../../shell/providers";
 import type { ModelInfo, Phase, TtsPort } from "./service";
 import { DEFAULT_MODEL, MODELS, modelById } from "./models";
 
@@ -60,15 +62,17 @@ export const modelOptions = (installed: readonly string[]): SelectOption[] =>
 /** The speakers of a model, by index; none for one-voice models. */
 export const voiceOptions = (model: string): SelectOption[] => modelById(model).voices.map((label, i) => ({ value: String(i), label }));
 
-/** Text to speech, on this computer: reads the selected text out loud. */
+/** Text to speech, on this computer or by an AI provider: reads the selected text out loud. */
 export const tts = definePlugin({
   id: "tts",
   label: "Read aloud",
-  description: "Text to speech, on this computer.",
+  description: "Text to speech, on this computer or by an AI provider.",
   icon: SPEAKER,
   slots: ["glance", "tab"],
   options: {
-    // These two are drawn by the settings panel, which knows the downloads and each model's voices.
+    // These are drawn by the settings panel, which knows the providers, the downloads and each model's voices.
+    ...engineOptions(),
+    remoteVoice: voiceOption(),
     model: { ...choice("Voice model", DEFAULT_MODEL, MODELS.map((m) => [m.id, m.name] as const)), inPanel: true },
     voice: { ...number("Voice", 0, { min: 0, max: 63 }), inPanel: true },
     speed: number("Speed", 1, { min: 0.5, max: 2, step: 0.05, unit: "×" }),
@@ -85,30 +89,46 @@ export const tts = definePlugin({
     },
   ],
   // Choosing the model and its voice, and downloading the model, happen here in Settings.
-  settingsPanel(root, { tts: port }: { tts: TtsPort }, host) {
+  settingsPanel(root, { tts: port, providers }: { tts: TtsPort; providers: ProvidersPort }, host) {
     const voice = String(host.options().voice);
     const picker = select(modelOptions([]), host.options().model, (id) => host.setOptions({ model: id, voice: 0 }), "Voice model");
     const voices = select(voiceOptions(host.options().model), voice, (v) => host.setOptions({ voice: Number(v) }), "Voice");
     const files = modelFiles(port);
     const sample = button("Try the voice", () => void port.speak(SAMPLE).catch(() => {}), { class: "secondary" });
     const voiceRow = row("Voice", voices.el);
-    root.append(row("Voice model", picker.el), voiceRow, files.el, h("div", { class: "field" }, h("div", {}, h("div", { class: "field-label" }, "Preview")), sample));
+    const modelRow = row("Voice model", picker.el);
+    let local = !host.options().engine;
+    let ready = false;
+    let voiceCount = 0;
+    const paint = () => {
+      for (const el of [modelRow, files.el]) el.hidden = !local;
+      voiceRow.hidden = !local || !voiceCount;
+      sample.disabled = local && !ready;
+    };
+    const engine = enginePanel(providers, host, "tts", (isLocal) => ((local = isLocal), paint()));
+    root.append(engine.el, modelRow, voiceRow, files.el, h("div", { class: "field" }, h("div", {}, h("div", { class: "field-label" }, "Preview")), sample));
     const watching = port.watchModel((model) => {
       picker.setOptions(modelOptions(model.installed));
       picker.set(model.model);
       const options = voiceOptions(model.model);
       voices.setOptions(options);
       voices.set(String(Math.min(host.options().voice, Math.max(options.length - 1, 0))));
-      voiceRow.hidden = !options.length;
-      sample.disabled = model.state !== "ready";
+      voiceCount = options.length;
+      ready = model.state === "ready";
       files.draw(model);
+      paint();
     });
-    return () => void watching.then((stop) => stop(), () => {});
+    paint();
+    return () => {
+      engine.stop();
+      void watching.then((stop) => stop(), () => {});
+    };
   },
-  setup({ tts: port }: { tts: TtsPort }, host) {
+  setup({ tts: port, providers: aiProviders }: { tts: TtsPort; providers: ProvidersPort }, host) {
     let phase: Phase = { phase: "idle" };
     let since = 0;
     let model: ModelInfo | null = null;
+    let providers: readonly AiProvider[] = [];
     let last = "";
 
     let mainIcon = SPEAKER;
@@ -127,10 +147,11 @@ export const tts = definePlugin({
       const markup = busy ? STOP : SPEAKER;
       if (markup !== mainIcon) main.replaceChildren(icon(markup));
       mainIcon = markup;
-      main.disabled = !busy && (!last || model?.state !== "ready");
+      const remote = remoteName(providers, host.options());
+      main.disabled = !busy && (!last || (!remote && model?.state !== "ready"));
       status.textContent = statusText(phase, last);
       status.classList.toggle("dict-quote", phase.phase === "speaking" || (phase.phase === "idle" && !!last));
-      if (model) card.draw(modelById(model.model).name, model);
+      if (model) card.draw(remote ?? modelById(model.model).name, remote ? { ...model, state: "ready" } : model);
     };
 
     void port.watch((next) => {
@@ -142,6 +163,11 @@ export const tts = definePlugin({
     });
     void port.watchModel((next) => {
       model = next;
+      draw();
+    });
+    // Follows the settings too: switching engines there redraws the card.
+    void aiProviders.watch((next) => {
+      providers = next;
       draw();
     });
 

@@ -8,6 +8,8 @@ import { type TtsPort, tauriTts } from "./tts/service";
 import { type VolumePort, tauriVolume } from "./volume/service";
 import type { PerPlugin } from "../shell/extensions";
 import { type OAuthPort, tauriOAuth } from "../shell/oauth";
+import { type ProvidersPort, settingsProviders } from "../shell/providers";
+import { tauriSettings } from "../shell/settings";
 
 /** Backend services plugins may ask for; each plugin's `setup` picks only the ones it needs. */
 export interface Services {
@@ -21,6 +23,8 @@ export interface Services {
   readonly tts: TtsPort;
   /** Signing in to online accounts; each plugin gets its own, bound to its id. */
   readonly oauth: PerPlugin<OAuthPort>;
+  /** The AI providers set up in Settings, which AI features may run on instead of their own model. */
+  readonly providers: ProvidersPort;
 }
 
 export const tauriServices: Services = {
@@ -33,4 +37,5 @@ export const tauriServices: Services = {
   dictation: tauriDictation,
   tts: tauriTts,
   oauth: tauriOAuth,
+  providers: settingsProviders(tauriSettings.watch),
 };
