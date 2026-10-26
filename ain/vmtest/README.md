@@ -66,6 +66,18 @@ The guest builds in the template's target folder (`~/dev/AiN/ain/src-tauri/targe
 holds the built dependencies. Rust is the template's: a revision needing a newer toolchain needs
 new templates.
 
+## The desktop
+
+Before the tests, the runner makes sure GNOME is in a state to be driven:
+
+- **The session on screen**: after a reboot, the seat can show GDM's greeter while the auto-login
+  session runs on unseen (its windows exist but aren't shown; input goes to the greeter). The
+  runner switches the seat back to the session.
+- **No banners**: notification banners appear at the top centre, over the island (GNOME 49's
+  "Support GNOME" reminder blocked every hover). Banners and that reminder are turned off; the
+  first time, the VM restarts so a banner already up goes away.
+- **No overview**: GNOME opens its overview at login; `start_app` leaves it.
+
 ## Writing a test
 
 A test is a bash file in [guest/tests](guest/tests), run in the desktop session in name order; it
@@ -86,8 +98,11 @@ fold_island
 - `look ID WHAT SHOT`: a result only a screenshot shows; listed in the summary to check.
 - `wait_for SECONDS CONDITION` rather than `sleep`: GNOME and the web view take their time,
   more on a busy host.
-- The pointer: `point X Y`, `click`, `under` (the X11 window under it); keys: `keys CODE...`
-  (Linux key codes, the same whatever the keyboard layout).
+- The pointer: `reach X Y` onto the island, `glide_to`/`hover_click` within it, `point X Y`
+  elsewhere, `under` (the X11 window under it); keys: `keys CODE...` (Linux key codes, the same
+  whatever the keyboard layout). Move as a hand does: XWayland sees the pointer only over X11
+  windows, so the island notices it leave only if it crosses its edge (`fold_island` glides out),
+  and the web view wants a little motion before a hover or a click counts.
 - Each file should stand alone (`ensure_app`, `open_island`/`fold_island`), so `--tests` can pick any.
 
 The island's tab positions (`TABS`, `TAB_X`, `TAB_DX10`) follow the default layout: update them

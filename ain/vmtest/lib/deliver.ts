@@ -11,17 +11,56 @@ const ENV = `
 export PATH=$HOME/.local/bin:$HOME/.cargo/bin:$HOME/.local/share/mise/shims:$PATH
 `;
 
-/** Waits for the auto-login GNOME session: the shell, its Wayland socket and XWayland's cookie. */
+/**
+ * Waits for the auto-login GNOME session (the shell, its Wayland socket, XWayland's cookie), and
+ * makes sure it's the one on screen: the seat can be on GDM's greeter instead (seen after a
+ * reboot), where the session runs on unseen, and the pointer and keys go to the greeter.
+ */
 export async function waitDesktop(guest: Guest): Promise<void> {
   await guest.ok(
     `for i in $(seq 1 90); do
-       pgrep -x gnome-shell >/dev/null && [ -S /run/user/$(id -u)/wayland-0 ] &&
-         ls /run/user/$(id -u)/.mutter-Xwaylandauth.* >/dev/null 2>&1 && exit 0
+       pgrep -u "$(id -u)" -x gnome-shell >/dev/null && [ -S /run/user/$(id -u)/wayland-0 ] &&
+         ls /run/user/$(id -u)/.mutter-Xwaylandauth.* >/dev/null 2>&1 && break
        sleep 2
      done
-     echo "no GNOME session after 180s"; exit 1`,
+     mine=$(loginctl list-sessions --no-legend | awk -v u="$(id -u)" '$2 == u && $4 == "seat0" { print $1; exit }')
+     [ -n "$mine" ] || { echo "no GNOME session on seat0 after 180s"; exit 1; }
+     for i in $(seq 1 10); do
+       [ "$(loginctl show-seat seat0 -p ActiveSession --value)" = "$mine" ] && exit 0
+       sudo loginctl activate "$mine"
+       sleep 2
+     done
+     echo "seat0 shows session $(loginctl show-seat seat0 -p ActiveSession --value), not ours ($mine)"; exit 1`,
     "waiting for the desktop",
   );
+}
+
+/**
+ * Keeps GNOME's own pop-ups off the screen: a notification banner sits at the top centre, over
+ * the island (GNOME 49's "Support GNOME" reminder did). Returns true if a setting changed: a banner
+ * already showing stays until the session restarts.
+ */
+export async function quietDesktop(guest: Guest): Promise<boolean> {
+  const out = await guest.ok(
+    `export XDG_RUNTIME_DIR=/run/user/$(id -u)
+     set_off() {
+       gsettings writable "$1" "$2" >/dev/null 2>&1 || return 0
+       [ "$(gsettings get "$1" "$2")" = false ] && return 0
+       gsettings set "$1" "$2" false && echo changed
+     }
+     set_off org.gnome.desktop.notifications show-banners
+     set_off org.gnome.settings-daemon.plugins.housekeeping donation-reminder-enabled`,
+    "turning GNOME's notifications off",
+  );
+  return out.includes("changed");
+}
+
+/** Restarts the guest and waits for its desktop again. */
+export async function reboot(guest: Guest): Promise<void> {
+  await guest.exec("sudo systemctl reboot");
+  await new Promise((r) => setTimeout(r, 15_000));
+  await guest.waitSsh();
+  await waitDesktop(guest);
 }
 
 /** The test scripts (vmtest/guest), replacing the previous run's. */

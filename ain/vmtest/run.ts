@@ -8,7 +8,7 @@ import { appendFileSync, mkdirSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
-import { build, ensureCmake, REMOTE, sendGuestScripts, sendSource, syncVendor, waitDesktop } from "./lib/deliver.ts";
+import { build, ensureCmake, quietDesktop, REMOTE, reboot, sendGuestScripts, sendSource, syncVendor, waitDesktop } from "./lib/deliver.ts";
 import { Guest } from "./lib/guest.ts";
 import { sleep } from "./lib/proc.ts";
 import { loadCa, loadToken, Pve } from "./lib/pve.ts";
@@ -110,6 +110,10 @@ async function runTarget(t: Target): Promise<TargetResult> {
     const guest = new Guest(ip, join(host.cache, `known_hosts-${t.name}`));
     await guest.waitSsh();
     await waitDesktop(guest);
+    if (await quietDesktop(guest)) {
+      log("GNOME's notification banners turned off: restarting the session");
+      await reboot(guest);
+    }
     await sendGuestScripts(guest, app);
     if (stage && vendor) {
       await ensureCmake(guest, host);
@@ -123,9 +127,6 @@ async function runTarget(t: Target): Promise<TargetResult> {
     } else {
       await guest.ok(`test -x ${REMOTE}/ain`, "no build on the VM yet (run once without --no-build)");
     }
-    // GNOME opens the overview at login: back to the desktop.
-    await pve.sendKey(t.vmid, "esc");
-    await sleep(1000);
     for (const file of tests) checks.push(...(await runTest(t, guest, file, dir, log)));
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);

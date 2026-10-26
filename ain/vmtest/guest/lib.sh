@@ -12,7 +12,7 @@
 
 XDG_RUNTIME_DIR=/run/user/$(id -u)
 XAUTHORITY=$(find "$XDG_RUNTIME_DIR" -maxdepth 1 -name ".mutter-Xwaylandauth.*" 2>/dev/null | head -1)
-export XDG_RUNTIME_DIR XAUTHORITY WAYLAND_DISPLAY=wayland-0 DISPLAY=:0
+export XDG_RUNTIME_DIR XAUTHORITY WAYLAND_DISPLAY=wayland-0 DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=$XDG_RUNTIME_DIR/bus
 BIN=~/vmtest/ain
 UNIT=vmtest-ain
 read -r SW SH < <(xdotool getdisplaygeometry)
@@ -56,12 +56,25 @@ island() {
   done
 }
 
-# Starts the app from its default settings (its stored data removed), and waits for the island.
+# GNOME opens its overview at login, over everything: back to the desktop.
+overview_active() {
+  gdbus call --session --dest org.gnome.Shell --object-path /org/gnome/Shell \
+    --method org.freedesktop.DBus.Properties.Get org.gnome.Shell OverviewActive 2>/dev/null | grep -q true
+}
+leave_overview() {
+  overview_active || return 0
+  ydotool key 1:1 1:0 >/dev/null # Esc
+  wait_for 5 '! overview_active'
+}
+
+# Starts the app from its default settings (its stored data removed), and waits for the island to
+# be laid out: folded to the pill (before the frontend runs, the window has a default size).
 start_app() {
+  leave_overview
   systemctl --user stop "$UNIT" 2>/dev/null
   rm -rf ~/.config/dev.satcom.ain ~/.local/share/dev.satcom.ain ~/.cache/dev.satcom.ain
   systemd-run --user --unit="$UNIT" --collect "$BIN" >/dev/null 2>&1
-  wait_for 40 '[ -n "$(island)" ]' && sleep 3
+  wait_for 60 'w=$(island) && [ -n "$w" ] && is_folded "$w"' && sleep 2
 }
 ensure_app() { { app_running && [ -n "$(island)" ]; } || start_app; }
 
@@ -77,12 +90,26 @@ point() {
   ydotool mousemove -x $(($1 - SW + 1)) -y $(($2 - SH + 1)) >/dev/null
 }
 click() { ydotool click 0xC0 >/dev/null; }
+# Where XWayland last saw the pointer: right while it's over an X11 window (the island), stale elsewhere.
+pointer() { xdotool getmouselocation | sed -E 's/^x:([0-9]+) y:([0-9]+).*/\1 \2/'; }
+# reach X Y: `point`, then corrected: relative moves can come up short (seen by 180 px). Only for
+# a target on an X11 window, where `pointer` is right.
+reach() {
+  local i px py
+  point "$1" "$2"
+  for i in 1 2 3; do
+    sleep 0.1
+    read -r px py < <(pointer)
+    [ "$px" = "$1" ] && [ "$py" = "$2" ] && return 0
+    ydotool mousemove -x $(($1 - px)) -y $(($2 - py)) >/dev/null
+  done
+}
 # glide_to X Y: from where the pointer is to X Y, in small steps, as a hand moves. Starts from an
 # X11 window (the island), where XWayland knows the pointer's position; within the island, it
 # never leaves it (`point` goes by the screen's corner, so the island would fold and reopen).
 glide_to() {
   local px py i n=10
-  read -r px py < <(xdotool getmouselocation | sed -E 's/^x:([0-9]+) y:([0-9]+).*/\1 \2/')
+  read -r px py < <(pointer)
   for ((i = 1; i <= n; i++)); do
     ydotool mousemove -x $((($1 - px) * i / n - ($1 - px) * (i - 1) / n)) -y $((($2 - py) * i / n - ($2 - py) * (i - 1) / n)) >/dev/null
     sleep 0.03
@@ -91,6 +118,10 @@ glide_to() {
 # hover_click X Y: onto X Y within the open island, a rest (the web view wants the hover), a click.
 hover_click() {
   glide_to "$1" "$2"
+  sleep 0.3
+  ydotool mousemove -x 1 -y 0 >/dev/null
+  sleep 0.05
+  ydotool mousemove -x -1 -y 0 >/dev/null
   sleep 0.5
   click
 }
@@ -103,7 +134,15 @@ open_island() {
   w=$(island)
   is_open "$w" && return 0
   geom "$w"
-  point $((X + WIDTH / 2)) $((Y + HEIGHT / 2))
+  reach $((X + WIDTH / 2)) $((Y + HEIGHT / 2))
+  # A hand never stops dead: a few small moves over the pill, which the web view's hover wants.
+  local i
+  for i in 1 2 3; do
+    ydotool mousemove -x 0 -y 4 >/dev/null
+    sleep 0.05
+    ydotool mousemove -x 0 -y -4 >/dev/null
+    sleep 0.05
+  done
   wait_for 5 "is_open $w"
 }
 # The pointer away, down out of the island as a hand would; true once the island has folded.
@@ -113,7 +152,7 @@ fold_island() {
   local w i
   w=$(island)
   geom "$w"
-  point $((X + WIDTH / 2)) $((Y + HEIGHT / 2))
+  reach $((X + WIDTH / 2)) $((Y + HEIGHT / 2))
   for i in $(seq 1 30); do
     ydotool mousemove -x 0 -y 12 >/dev/null
     sleep 0.03
