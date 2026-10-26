@@ -175,7 +175,7 @@ Download the latest build for your OS from [Releases](https://github.com/Satcomx
 | OS | Packages |
 | --- | --- |
 | Windows | `.msi`, NSIS `.exe` (per-user install) |
-| Linux | `.deb`, `.rpm`, `.AppImage` (requires `gtk-layer-shell`) |
+| Linux | `.deb`, `.rpm` (both install `gtk-layer-shell` with the app), `.AppImage` (carries it inside: nothing to install) |
 | macOS | `.dmg`, `.app` |
 
 Or with **npm**, where installers aren't an option: it installs the build for your system, with nothing to compile
