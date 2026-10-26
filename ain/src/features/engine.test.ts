@@ -99,6 +99,22 @@ describe("the engine panel", () => {
     expect(offered(model)).toContain("whisper-1");
   });
 
+  it("names the feature's own engine, and picks no model for a speech-to-speech server", async () => {
+    const port: ProvidersPort = { watch: memoryProviders([lab]).watch, models: vi.fn(async () => ["m"]) };
+    const onLocal = vi.fn();
+    const host = hostWith();
+    const panel = enginePanel(port, host, "s2s", onLocal, { label: "My server", detail: "Set below" });
+    document.body.replaceChildren(panel.el);
+    await tick();
+    expect(engineChoices([lab], "", { label: "My server", detail: "Set below" })[0]).toEqual({ value: "", label: "My server", detail: "Set below" });
+    choose(panel.el, "Lab");
+    expect(host.setOptions).toHaveBeenLastCalledWith({ engine: "lab" });
+    const [, modelRow, voiceRow] = panel.el.querySelectorAll<HTMLElement>(".field");
+    expect([modelRow!.hidden, voiceRow!.hidden, port.models]).toEqual([true, true, port.models]);
+    expect(port.models).not.toHaveBeenCalled();
+    expect(onLocal).toHaveBeenLastCalledWith(false);
+  });
+
   it("says when the chosen provider was removed", async () => {
     const { hint, engine } = mount(memoryProviders([lab]), hostWith({ engine: "gone", remoteModel: "m" }));
     await tick();

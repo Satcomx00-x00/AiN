@@ -82,6 +82,11 @@ fn read(vault: &dyn Vault, plugin: &str, key: &str) -> Res<Option<String>> {
     vault.get(&account(plugin, key)?)
 }
 
+/// A plugin's secret, read from the system's credential store by a feature's backend.
+pub fn secret(plugin: &str, key: &str) -> Res<Option<String>> {
+    read(&System, plugin, key)
+}
+
 /// Saves `value`, or removes the secret when it is empty.
 fn write(vault: &dyn Vault, plugin: &str, key: &str, value: &str) -> Res<()> {
     let account = account(plugin, key)?;

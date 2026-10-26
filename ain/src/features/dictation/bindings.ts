@@ -36,9 +36,9 @@ export type Delivery =
 /**  Put on the clipboard, to paste. */
 "copied";
 
-/**  A microphone dictation can listen to. */
+/**  A microphone the user can pick. */
 export type Microphone = {
-	/**  Stable across runs and reboots: what the "microphone" option stores. */
+	/**  Stable across runs and reboots: what a "microphone" option stores. */
 	id: string,
 	name: string,
 };

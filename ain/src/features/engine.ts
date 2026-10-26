@@ -25,11 +25,19 @@ export interface EngineValues {
   readonly remoteVoice?: string;
 }
 
-/** The engines to choose from: this computer first, then the providers, and the chosen one even if it was removed. */
-export function engineChoices(providers: readonly AiProvider[], chosen: string): SelectOption[] {
+/** How a feature's own engine (the "" choice) is named. */
+export interface OwnEngine {
+  readonly label: string;
+  readonly detail: string;
+}
+
+export const ON_THIS_COMPUTER: OwnEngine = { label: "On this computer", detail: "The model downloaded below; nothing leaves the computer" };
+
+/** The engines to choose from: the feature's own first, then the providers, and the chosen one even if it was removed. */
+export function engineChoices(providers: readonly AiProvider[], chosen: string, own = ON_THIS_COMPUTER): SelectOption[] {
   const known = !chosen || providers.some((p) => p.id === chosen);
   return [
-    { value: "", label: "On this computer", detail: "The model downloaded below; nothing leaves the computer" },
+    { value: "", ...own },
     ...providers.map((p) => ({ value: p.id, label: p.name, detail: p.baseUrl, badge: presetById(p.preset).id === "custom" ? "Custom" : undefined })),
     ...(known ? [] : [{ value: chosen, label: "Removed provider", detail: "Choose another, or add it again in AI providers" }]),
   ];
@@ -56,22 +64,25 @@ function suggestBox(value: string, label: string, placeholder: string, onChange:
 }
 
 /**
- * Settings' engine picker for a feature's card: this computer or a provider, then the provider's
- * model (and voice). `onLocal` tells the card whether its own model's controls apply.
+ * Settings' engine picker for a feature's card: its own engine (`own`, this computer by default) or a
+ * provider, then the provider's model (and voice); a speech-to-speech server has no model to pick.
+ * `onLocal` tells the card whether its own engine's controls apply.
  */
 export function enginePanel(
   port: ProvidersPort,
   host: SettingsHost<EngineValues>,
   capability: Capability,
   onLocal: (local: boolean) => void,
+  own = ON_THIS_COMPUTER,
 ): { readonly el: HTMLElement; stop(): void } {
+  const picksModel = capability !== "s2s";
   let providers: readonly AiProvider[] = [];
   const chosen = () => providers.find((p) => p.id === host.options().engine);
   const model = suggestBox(host.options().remoteModel, "Provider model", capability === "stt" ? "whisper-1" : "tts-1", (v) => host.setOptions({ remoteModel: v }));
   const voice = suggestBox(host.options().remoteVoice ?? "", "Provider voice", "The provider's default", (v) => host.setOptions({ remoteVoice: v }));
   const hint = h("p", { class: "field-hint" });
-  const picker = select(engineChoices([], host.options().engine), host.options().engine, (id) => {
-    const p = providers.find((q) => q.id === id);
+  const picker = select(engineChoices([], host.options().engine, own), host.options().engine, (id) => {
+    const p = picksModel ? providers.find((q) => q.id === id) : undefined;
     // A new provider starts on its first suggested model (and voice), when it has one.
     const first = (list: readonly string[]) => list[0] ?? "";
     const patch = p ? { engine: id, remoteModel: first(suggestions(p, capability)), ...(capability === "tts" ? { remoteVoice: first(presetById(p.preset).voices) } : {}) } : { engine: id };
@@ -95,7 +106,7 @@ export function enginePanel(
   const paint = () => {
     const p = chosen();
     const local = !host.options().engine;
-    modelRow.hidden = local;
+    modelRow.hidden = local || !picksModel;
     voiceRow.hidden = local || capability !== "tts";
     hint.textContent = local
       ? providers.length
@@ -105,7 +116,7 @@ export function enginePanel(
         ? `Sent to ${p.baseUrl}`
         : "This provider was removed: choose another engine.";
     hint.hidden = !hint.textContent;
-    if (p) {
+    if (p && picksModel) {
       model.offer(suggestions(p, capability));
       voice.offer(presetById(p.preset).voices);
       list(p);
@@ -115,7 +126,7 @@ export function enginePanel(
 
   const watching = port.watch((next) => {
     providers = next;
-    picker.setOptions(engineChoices(providers, host.options().engine));
+    picker.setOptions(engineChoices(providers, host.options().engine, own));
     picker.set(host.options().engine);
     paint();
   });

@@ -15,6 +15,7 @@
     "privacy:default",
     "dictation:default",
     "tts:default",
+    "persona:default",
     "settings:allow-get",
     "settings:allow-open",
     "settings:allow-set",

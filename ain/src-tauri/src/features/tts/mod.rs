@@ -10,10 +10,9 @@
 mod engine;
 mod model;
 mod selection;
-mod speakers;
 
 use std::{
-    sync::{Arc, Mutex, atomic::AtomicU64},
+    sync::{Arc, atomic::AtomicU64},
     time::Duration,
 };
 
@@ -24,6 +23,7 @@ use tauri_specta::Event;
 
 use super::{
     live::Live,
+    lock,
     models::{ModelInfo, ModelStore},
     worker::Worker,
 };
@@ -113,10 +113,6 @@ impl Shared {
 struct Tts {
     shared: Arc<Shared>,
     worker: Worker<Request>,
-}
-
-fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
-    m.lock().unwrap_or_else(|e| e.into_inner())
 }
 
 #[tauri::command]

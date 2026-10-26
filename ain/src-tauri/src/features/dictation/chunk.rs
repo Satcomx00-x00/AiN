@@ -1,7 +1,7 @@
 //! Audio shaping for the recognizer: mono 16 kHz, decoded in bounded chunks while the user talks.
 //! Same approach as Orca's offline dictation.
 
-pub use crate::features::audio::resample;
+pub use crate::features::audio::{level, resample};
 
 /// The rate Parakeet expects.
 pub const RATE: u32 = 16_000;
@@ -9,21 +9,6 @@ pub const RATE: u32 = 16_000;
 /// last seconds. The window is pause-sized: shorter ones find quiet inside words (plosives).
 const SEARCH_SECONDS: f32 = 5.0;
 const WINDOW_SECONDS: f32 = 0.1;
-
-/// Averages interleaved frames down to one channel.
-pub fn mono<T: Copy>(data: &[T], channels: usize, to_f32: impl Fn(T) -> f32) -> impl Iterator<Item = f32> {
-    let channels = channels.max(1);
-    data.chunks(channels).map(move |frame| frame.iter().map(|&s| to_f32(s)).sum::<f32>() / frame.len() as f32)
-}
-
-/// Loudness of a stretch of audio in 0–1, on a decibel scale from -50 dB (silence) to -10 dB.
-pub fn level(samples: &[f32]) -> f32 {
-    if samples.is_empty() {
-        return 0.0;
-    }
-    let rms = (samples.iter().map(|s| s * s).sum::<f32>() / samples.len() as f32).sqrt();
-    ((20.0 * rms.max(1e-6).log10() + 50.0) / 40.0).clamp(0.0, 1.0)
-}
 
 /// Buffers 16 kHz audio and hands out chunks ready to decode.
 pub struct Chunker {
@@ -87,13 +72,6 @@ pub fn join(parts: &[String]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn averages_channels() {
-        let stereo = [0.5_f32, -0.5, 1.0, 0.0];
-        assert_eq!(mono(&stereo, 2, |s| s).collect::<Vec<_>>(), [0.0, 0.5]);
-        assert_eq!(mono(&[i16::MAX], 1, |s| f32::from(s) / 32768.0).count(), 1);
-    }
 
     #[test]
     fn measures_loudness() {
