@@ -75,6 +75,34 @@ describe("odometer", () => {
     odometer(el, "10:00");
     expect([texts(el), el.children.length, animate.mock.calls.length]).toEqual(["10:00", 5, 0]);
   });
+
+  it("keeps one leaving character per cell when changes come faster than they roll", () => {
+    motion(true);
+    const el = h("span");
+    odometer(el, "1");
+    odometer(el, "2");
+    odometer(el, "3");
+    const cell = el.children[0]!;
+    expect([...cell.children].map((c) => [c.textContent, c.className])).toEqual([
+      ["2", "odo-out"],
+      ["3", ""],
+    ]);
+  });
+
+  it("removes the leaving character once it has rolled out, and keeps it if its animation is cancelled", async () => {
+    vi.spyOn(window, "matchMedia").mockReturnValue({ matches: false } as MediaQueryList);
+    let finished: Promise<void> = Promise.resolve();
+    vi.spyOn(Element.prototype, "animate").mockImplementation(() => ({ finished }) as unknown as Animation);
+    const el = h("span");
+    odometer(el, "1");
+    odometer(el, "2");
+    await Promise.resolve();
+    expect([...el.children[0]!.children].map((c) => c.textContent)).toEqual(["2"]);
+    finished = Promise.reject(new DOMException("cancelled", "AbortError"));
+    odometer(el, "3");
+    await Promise.resolve();
+    expect([...el.children[0]!.children].map((c) => c.textContent)).toEqual(["2", "3"]);
+  });
 });
 
 describe("roll", () => {
@@ -115,6 +143,30 @@ describe("tween", () => {
     expect(mid).toBeLessThan(20);
     frame(start + 600);
     expect(el.textContent).toBe("20");
+  });
+
+  it("stops at the value once the time is up", () => {
+    motion(true);
+    const frames: FrameRequestCallback[] = [];
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => (frames.push(cb), frames.length));
+    const el = h("span");
+    tween(el, 0, String, 100);
+    tween(el, 8, String, 100);
+    frames[0]!(performance.now() + 1000);
+    expect([el.textContent, frames.length]).toEqual(["8", 1]);
+  });
+
+  it("drops the frames of a count that a newer one replaced", () => {
+    motion(true);
+    const frames: FrameRequestCallback[] = [];
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => (frames.push(cb), frames.length));
+    const el = h("span");
+    tween(el, 0, String, 100);
+    tween(el, 10, String, 100);
+    tween(el, 20, String, 100);
+    el.textContent = "untouched";
+    frames[0]!(performance.now() + 50);
+    expect([el.textContent, frames.length]).toEqual(["untouched", 2]);
   });
 
   it("jumps straight to the value under reduced motion", () => {

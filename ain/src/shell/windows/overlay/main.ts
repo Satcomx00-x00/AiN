@@ -61,11 +61,8 @@ async function demo(mode: string) {
   };
   const key = (code: string) => document.dispatchEvent(new KeyboardEvent("keydown", { code, key: code.replace(/^Key|^Digit/, "").toLowerCase() }));
   const draw = (points: [number, number][], release = true) => {
-    const [first, ...rest] = points;
-    if (!first) return;
-    at(first, "pointerdown");
-    for (const p of rest) at(p, "pointermove");
-    if (release) at(rest[rest.length - 1] ?? first, "pointerup");
+    points.forEach((p, i) => at(p, i ? "pointermove" : "pointerdown"));
+    if (release) at(points[points.length - 1]!, "pointerup");
   };
   if (mode === "select") return draw([[0.16, 0.26], [0.5, 0.5], [0.71, 0.76]], false);
   draw([[0.16, 0.26], [0.5, 0.5], [0.71, 0.76]]);

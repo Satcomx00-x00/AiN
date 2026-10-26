@@ -3,6 +3,16 @@
 All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.9.0](https://github.com/Satcomx00-x00/AiN/compare/v0.8.0..v0.9.0) - 2026-10-23
+
+### Features
+
+- **models:** Keep several models loaded, and larger French voices ([#29](https://github.com/Satcomx00-x00/AiN/pull/29)) ([82e8364](https://github.com/Satcomx00-x00/AiN/commit/82e8364fc454a1f9031d87fa6d42762513dde54e))
+## [0.8.0](https://github.com/Satcomx00-x00/AiN/compare/v0.7.0..v0.8.0) - 2026-10-23
+
+### Features
+
+- **tts:** Read aloud, and test on Windows 11, Ubuntu, Fedora 44 and macOS ([#26](https://github.com/Satcomx00-x00/AiN/pull/26)) ([d232d7a](https://github.com/Satcomx00-x00/AiN/commit/d232d7a76769384b8d42e395efa3abf4ad6b2bd6))
 ## [0.7.0](https://github.com/Satcomx00-x00/AiN/compare/v0.6.0..v0.7.0) - 2026-10-18
 
 ### Features

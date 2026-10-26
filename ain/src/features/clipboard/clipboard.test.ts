@@ -134,6 +134,44 @@ describe("the clipboard popup", () => {
     await vi.advanceTimersByTimeAsync(0);
     expect([p.search.value, p.rows().length]).toEqual(["", 2]);
   });
+
+  it("gives a quick key to the first nine clips only", async () => {
+    const p = await open(Array.from({ length: 10 }, (_, i) => clip(`clip ${i}`)));
+    expect(p.rows().map((r) => r.querySelector(".pk-num")?.textContent ?? null)).toEqual([...Array.from({ length: 9 }, (_, i) => `Alt ${i + 1}`), null]);
+  });
+
+  it("follows the mouse with the selection", async () => {
+    const p = await open([clip("a"), clip("b"), clip("c")]);
+    p.rows()[2]?.dispatchEvent(new MouseEvent("mousemove"));
+    expect(p.selected()).toBe(2);
+    p.rows()[2]?.dispatchEvent(new MouseEvent("mousemove"));
+    expect([p.selected(), p.search.getAttribute("aria-activedescendant")]).toEqual([2, "pk-2"]);
+  });
+
+  it("leaves other keys to the search field", async () => {
+    const p = await open([clip("a")]);
+    expect(p.key({ key: "a" })).toBe(true);
+    expect(p.key({ key: "ArrowDown" })).toBe(false);
+    expect(p.clipboard.copied).toEqual([]);
+  });
+
+  it("ignores a pick with nothing there", async () => {
+    const p = await open([clip("a")]);
+    p.key({ code: "Digit5", altKey: true });
+    p.search.value = "zzz";
+    p.search.dispatchEvent(new Event("input"));
+    p.key({ key: "Enter" });
+    await vi.advanceTimersByTimeAsync(0);
+    expect([p.clipboard.copied, p.ctx.paste.mock.calls.length, p.ctx.close.mock.calls.length]).toEqual([[], 0, 0]);
+  });
+
+  it("still pastes when copying failed, leaving what was on the clipboard", async () => {
+    const p = await open([clip("a")]);
+    p.clipboard.copy = async () => Promise.reject(new Error("busy"));
+    p.key({ key: "Enter" });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(p.ctx.paste).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("the clipboard tab", () => {
@@ -188,5 +226,41 @@ describe("the clipboard tab", () => {
     await t.widget.tick?.({ now: NOW, visible: true });
     expect(t.rows().map((r) => r.querySelector(".clip-text")?.textContent)).toEqual(["c", "b", "a"]);
     expect(t.rows()[2]).toBe(kept);
+  });
+  it("keeps saying a clip was copied while the history refreshes", async () => {
+    const t = await tab([clip("hello")]);
+    t.rows()[0]?.click();
+    await vi.advanceTimersByTimeAsync(0);
+    await t.widget.tick?.({ now: NOW, visible: true });
+    expect(t.rows()[0]?.querySelector(".clip-meta")?.textContent).toBe("Copied");
+  });
+
+  it("doesn't read the history while the tab is hidden", async () => {
+    const t = await tab([clip("hello")]);
+    const history = vi.spyOn(t.port, "history");
+    expect(t.widget.tick?.({ now: NOW, visible: false })).toBeUndefined();
+    expect(history).not.toHaveBeenCalled();
+  });
+
+  it("slides new clips in and moved ones to their new place", async () => {
+    vi.mocked(window.matchMedia).mockReturnValue({ matches: false } as MediaQueryList);
+    // Rows are 30px tall, stacked in list order.
+    vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element) {
+      return { top: [...(this.parentElement?.children ?? [])].indexOf(this) * 30 } as DOMRect;
+    });
+    const animate = vi.spyOn(Element.prototype, "animate").mockReturnValue({} as Animation);
+    const t = await tab([clip("b"), clip("a")]);
+    expect(animate.mock.calls.map(([, o]) => (o as KeyframeAnimationOptions).delay)).toEqual([0, 35]);
+
+    animate.mockClear();
+    t.port.history = async () => [clip("c"), clip("b"), clip("a")];
+    await t.widget.tick?.({ now: NOW, visible: true });
+    const moves = animate.mock.calls.map(([frames]) => (frames as Keyframe[])[0]?.transform);
+    expect(moves).toEqual(["translateY(-6px) scale(0.98)", "translateY(-30px)", "translateY(-30px)"]);
+
+    animate.mockClear();
+    t.port.history = async () => [clip("c"), clip("b")];
+    await t.widget.tick?.({ now: NOW, visible: true });
+    expect(animate).not.toHaveBeenCalled();
   });
 });

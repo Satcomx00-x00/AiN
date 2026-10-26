@@ -1,8 +1,8 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 
-const { check, checkGreeting, checkStyle, confine, confineGreeting, confineStyle, fileRows, idOf, isolate, loadExtensions, storeFields } = await import("./extensions");
+const { check, checkGreeting, checkStyle, confine, confineGreeting, confineStyle, fileRows, idOf, importSource, isolate, loadExtensions, storeFields } = await import("./extensions");
 const { sdk } = await import("../sdk");
 
 const rules = { taken: new Set(["clock", "media"]), services: ["media", "stats"] };
@@ -80,6 +80,8 @@ describe("check", () => {
     ["a secret with a default", { s: { kind: "secret", label: "S", default: "hunter2" } }, "default that doesn't fit"],
     ["a secret whose key can't name a credential", { "a b": sdk.options.secret("S") }, "letters, digits, _ or -"],
     ["a color that isn't #rrggbb", { k: { kind: "color", label: "K", default: "red" } }, "default that doesn't fit"],
+    ["a required that isn't true or false", { t: { kind: "text", label: "T", default: "", required: "yes" } }, "required that isn't true or false"],
+    ["something other than an object of fields", "fields", "options must be an object of fields"],
   ])("refuses options with %s", (_, options, problem) => {
     expect(check({ ...valid(), options }, rules)).toContain(problem);
   });
@@ -104,6 +106,7 @@ describe("storeFields", () => {
   it("says why options can't be drawn, and gives none when there are none", () => {
     expect(storeFields({ units: { kind: "choice", label: "Units", default: "metric", choices: [] } })).toContain("choices that include its default");
     expect(storeFields(["a"])).toBe("options must be an object of fields");
+    expect(storeFields({ city: "Paris" })).toBe(`option "city" needs a label`);
     expect(storeFields(null)).toBeNull();
   });
 });
@@ -125,6 +128,9 @@ describe("loadExtensions", () => {
   it("reports why each unusable file was refused, and keeps going", async () => {
     const found = [
       file("unreadable.js", null, "larger than 1024 KB"),
+      file("vanished.js", null),
+      file("text.js", "text"),
+      file("bad-greeting.js", "badgreeting"),
       file("broken.js", "broken"),
       file("no-default.js", "nodefault"),
       file("throws.js", "throws"),
@@ -135,6 +141,8 @@ describe("loadExtensions", () => {
       rules,
       modules({
         nodefault: { notDefault: () => valid() },
+        text: "export default 1",
+        badgreeting: { default: () => ({ id: "wave", label: "Wave", play: "later" }) },
         throws: {
           default: () => {
             throw new Error("boom");
@@ -145,12 +153,22 @@ describe("loadExtensions", () => {
     );
     expect(out.map((e) => [e.file, e.problem])).toEqual([
       ["unreadable.js", "larger than 1024 KB"],
+      ["vanished.js", "couldn't be read"],
+      ["text.js", "must default-export a function that receives the island SDK"],
+      ["bad-greeting.js", "play must be a function"],
       ["broken.js", "failed to load: SyntaxError: can't parse broken"],
       ["no-default.js", "must default-export a function that receives the island SDK"],
       ["throws.js", "failed to load: Error: boom"],
       ["ok.js", null],
     ]);
-    expect(out[4]?.plugin?.id).toBe("pomodoro");
+    expect(out.at(-1)?.plugin?.id).toBe("pomodoro");
+    expect(out.slice(0, -1).map(idOf)).toEqual(Array(out.length - 1).fill(null));
+  });
+
+  it("takes the default export of a module that is itself a function", async () => {
+    const factory = Object.assign(() => ({}), { default: () => valid() });
+    const out = await loadExtensions([file("fn.js", "fn")], rules, modules({ fn: factory }));
+    expect(out[0]).toMatchObject({ problem: null, plugin: { id: "pomodoro" } });
   });
 
   it("keeps the first of two plugins with the same id", async () => {
@@ -449,5 +467,33 @@ describe("confineStyle", () => {
     const style = confineStyle({ id: "a", label: "A", size: (p) => ({ width: p.width / 2, height: 6 }), mount: () => view }, vi.fn());
     expect(style.size?.(pill, {})).toEqual({ width: 100, height: 6 });
     expect(style.mount({} as HTMLElement, { options: () => ({}) })).toBe(view);
+  });
+});
+
+describe("importSource", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  /** Serves each object URL as a data URL of `source`, recording the blobs made and the URLs revoked. */
+  function objectUrls(source: string) {
+    const blobs: Blob[] = [];
+    const url = `data:text/javascript,${encodeURIComponent(source)}`;
+    vi.spyOn(URL, "createObjectURL").mockImplementation((blob) => (blobs.push(blob as Blob), url));
+    const revoke = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+    return { blobs, url, revoke };
+  }
+
+  it("loads a module from its source text as JavaScript, then frees its URL", async () => {
+    const source = "export default (api) => api.version;";
+    const { blobs, url, revoke } = objectUrls(source);
+    const module = (await importSource(source)) as { default: (api: { version: string }) => string };
+    expect(module.default({ version: "1" })).toBe("1");
+    expect([blobs.length, blobs[0]?.type, await blobs[0]?.text()]).toEqual([1, "text/javascript", source]);
+    expect(revoke).toHaveBeenCalledExactlyOnceWith(url);
+  });
+
+  it("frees the URL of a module that doesn't load too", async () => {
+    const { url, revoke } = objectUrls("export default (;");
+    await expect(importSource("export default (;")).rejects.toThrow();
+    expect(revoke).toHaveBeenCalledExactlyOnceWith(url);
   });
 });

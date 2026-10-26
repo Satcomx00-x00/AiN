@@ -141,6 +141,29 @@ describe("the popup and overlay windows", () => {
     expect(popup.port.hidden).toBe(2);
   });
 
+  it("let a command's view close the window or paste, and give options to a plugin that has none", async () => {
+    const a = withCommand("a");
+    const bare = { ...a.plugin, options: undefined } as unknown as AnyPlugin;
+    const { popup } = await host(bare);
+    const pasted = vi.spyOn(popup.port, "paste");
+    popup.show("a.go");
+    const ctx = a.built[0] as { close: () => void; paste: () => Promise<void>; options: () => unknown };
+    expect(ctx.options()).toEqual({});
+    ctx.close();
+    await ctx.paste();
+    expect([popup.port.hidden, pasted.mock.calls.length]).toEqual([1, 1]);
+  });
+
+  it("ease the view in when motion is allowed", async () => {
+    vi.spyOn(window, "matchMedia").mockReturnValue({ matches: false } as MediaQueryList);
+    const animate = vi.spyOn(Element.prototype, "animate").mockImplementation(() => ({}) as Animation);
+    const { container, popup } = await host(withCommand("a").plugin);
+    popup.show("a.go");
+    expect(animate).toHaveBeenCalledOnce();
+    expect(animate.mock.contexts[0]).toBe(container);
+    expect(animate.mock.calls[0]?.[1]).toMatchObject({ duration: 200 });
+  });
+
   it("show the command in the address on their first appearance", async () => {
     const a = withCommand("a");
     history.replaceState(null, "", "/popup.html#a.go");

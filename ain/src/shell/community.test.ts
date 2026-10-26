@@ -27,7 +27,10 @@ describe("the community store", () => {
   });
 
   it("isn't there outside the app", async () => {
+    invoke.mockClear();
     await expect(noCommunity.catalog()).rejects.toThrow("only available in the app");
     await expect(noCommunity.install("orbit-clock")).rejects.toThrow("only available in the app");
+    expect(await noCommunity.openRepo("orbit-clock")).toBeUndefined();
+    expect(invoke).not.toHaveBeenCalled();
   });
 });

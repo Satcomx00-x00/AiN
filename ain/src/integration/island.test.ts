@@ -94,6 +94,7 @@ describe("opening and closing", () => {
       "tab-stats",
       "tab-privacy",
       "tab-dictation",
+      "tab-tts",
     ]);
     await island.leave();
     expect(island.el.dataset.open).toBe("false");
@@ -148,5 +149,23 @@ describe("dictation", () => {
     expect(island.glances()[1]).toBe("Typed");
     await advance(5000);
     expect(island.glances()[1]).toBe("42%");
+  });
+});
+
+describe("read aloud", () => {
+  it("shows on the pill while reading, then reads the text again from its tab", async () => {
+    environment();
+    const sys = system();
+    const island = await startIsland(sys);
+    sys.push.reading({ phase: "speaking", text: "Hello there" });
+    await advance(1000);
+    expect([island.glances()[1], island.marks()[1], island.el.dataset.wide]).toEqual(["Reading aloud", "eq", "true"]);
+    sys.push.reading({ phase: "idle" });
+    await advance(1000);
+    expect(island.glances()[1]).toBe("42%");
+    await island.hover();
+    island.el.querySelector<HTMLElement>("#tab-tts")?.click();
+    island.el.querySelector<HTMLButtonElement>("#panel-tts .dict-main")?.click();
+    expect(sys.recorded.spoken).toEqual(["Hello there"]);
   });
 });

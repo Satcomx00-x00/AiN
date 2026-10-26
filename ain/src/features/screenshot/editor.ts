@@ -16,7 +16,8 @@ export interface Stroke {
   readonly color: string;
   /** In image pixels. */
   readonly width: number;
-  readonly points: Point[];
+  /** Never empty: a stroke starts where the pointer went down. */
+  readonly points: [Point, ...Point[]];
 }
 
 const isShape = (tool: Tool): tool is "rect" | "ellipse" => tool === "rect" || tool === "ellipse";
@@ -39,7 +40,11 @@ export const CRAYONS = [
   ["Black", "#1c1c1e"],
 ] as const;
 /** Pen widths in CSS pixels; the highlighter draws 3× wider and translucent. */
-const SIZES = [3, 6, 12] as const;
+const SIZES = [
+  ["Thin", 3],
+  ["Medium", 6],
+  ["Thick", 12],
+] as const;
 const MARKER_ALPHA = 0.35;
 const MARKER_SCALE = 3;
 /** Shapes smaller than this (image pixels) are a click, not a drag, and are dropped. */
@@ -83,9 +88,7 @@ export function fileName(d: Date): string {
 }
 
 /** Outlines a rectangle or ellipse between the stroke's first and last point. */
-function outline(ctx: CanvasRenderingContext2D, s: Stroke) {
-  const [a, b] = [s.points[0], s.points[s.points.length - 1]];
-  if (!a || !b) return;
+function outline(ctx: CanvasRenderingContext2D, s: Stroke, a: Point, b: Point) {
   const [x, y, w, h] = [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.abs(b[0] - a[0]), Math.abs(b[1] - a[1])];
   ctx.beginPath();
   if (s.tool === "ellipse") ctx.ellipse(x + w / 2, y + h / 2, w / 2, h / 2, 0, 0, Math.PI * 2);
@@ -96,11 +99,10 @@ function outline(ctx: CanvasRenderingContext2D, s: Stroke) {
 /** Draws a stroke: shapes as outlines, paths smoothly through their points (quadratic curves via midpoints). */
 function trace(ctx: CanvasRenderingContext2D, s: Stroke) {
   const [first, ...rest] = s.points;
-  if (!first) return;
   ctx.globalAlpha = s.tool === "marker" ? MARKER_ALPHA : 1;
   ctx.strokeStyle = ctx.fillStyle = s.color;
   ctx.lineWidth = s.width;
-  if (isShape(s.tool)) return outline(ctx, s);
+  if (isShape(s.tool)) return outline(ctx, s, first, rest.at(-1) ?? first);
   if (!rest.length) {
     // A tap leaves a dot.
     ctx.beginPath();
@@ -110,12 +112,9 @@ function trace(ctx: CanvasRenderingContext2D, s: Stroke) {
   }
   ctx.beginPath();
   ctx.moveTo(first[0], first[1]);
-  for (let i = 0; i < rest.length - 1; i++) {
-    const [p, q] = [rest[i], rest[i + 1]];
-    if (p && q) ctx.quadraticCurveTo(p[0], p[1], (p[0] + q[0]) / 2, (p[1] + q[1]) / 2);
-  }
-  const last = rest[rest.length - 1];
-  if (last) ctx.lineTo(last[0], last[1]);
+  // Each point bends the line on its way to the midpoint of the next; the line ends on the last point.
+  const last = rest.reduce((p, q) => (ctx.quadraticCurveTo(p[0], p[1], (p[0] + q[0]) / 2, (p[1] + q[1]) / 2), q));
+  ctx.lineTo(last[0], last[1]);
   ctx.stroke();
 }
 
@@ -143,7 +142,7 @@ export function editor(root: HTMLElement, ctx: Ctx): PopupView {
   let full: ImageData | null = null;
   let tool: Tool = "pen";
   let color: string = CRAYONS[0][1];
-  let size: number = SIZES[1];
+  let size: number = SIZES[1][1];
   let strokes: Stroke[] = [];
   let drawing: Stroke | null = null;
   let area: Rect | null = null;
@@ -155,7 +154,8 @@ export function editor(root: HTMLElement, ctx: Ctx): PopupView {
   const ink = h("canvas", { class: "ed-ink" });
   const sheet = h("div", { class: "ed-sheet" }, base, ink);
   const dim = h("div", { class: "ed-dim", "aria-hidden": "true" });
-  const selection = h("div", { class: "ed-area", hidden: "" }, h("span", { class: "ed-area-size" }));
+  const areaSize = h("span", { class: "ed-area-size" });
+  const selection = h("div", { class: "ed-area", hidden: "" }, areaSize);
   const hint = h("div", { class: "ed-hint", role: "status" }, "Drag to capture an area · Click for the whole screen · Esc to cancel");
   const stage = h("div", { class: "ed-stage", "data-phase": phase }, sheet, dim, selection, hint);
   const toast = h("div", { class: "ed-toast", role: "status", "aria-live": "polite" });
@@ -185,8 +185,7 @@ export function editor(root: HTMLElement, ctx: Ctx): PopupView {
     if (!area || selection.hidden) return;
     const k = scale();
     Object.assign(selection.style, { left: `${area.x / k}px`, top: `${area.y / k}px`, width: `${area.w / k}px`, height: `${area.h / k}px` });
-    const label = selection.firstElementChild;
-    if (label) label.textContent = `${area.w} × ${area.h}`;
+    areaSize.textContent = `${area.w} × ${area.h}`;
   };
 
   const say = (text: string) => {
@@ -305,8 +304,8 @@ export function editor(root: HTMLElement, ctx: Ctx): PopupView {
     b.style.setProperty("--c", value);
     return b;
   });
-  const sizeButtons = SIZES.map((s, i) => {
-    const b = button(h("i"), () => setSize(s), { class: "ed-size", "aria-label": ["Thin", "Medium", "Thick"][i] ?? "Size" });
+  const sizeButtons = SIZES.map(([name, s]) => {
+    const b = button(h("i"), () => setSize(s), { class: "ed-size", "aria-label": name });
     b.style.setProperty("--s", `${s + 2}px`);
     return b;
   });
@@ -315,7 +314,7 @@ export function editor(root: HTMLElement, ctx: Ctx): PopupView {
     stage.dataset.tool = tool;
     for (const b of toolButtons) b.setAttribute("aria-pressed", String(b.dataset.tool === tool));
     swatches.forEach((b, i) => b.setAttribute("aria-pressed", String(CRAYONS[i]?.[1] === color)));
-    sizeButtons.forEach((b, i) => b.setAttribute("aria-pressed", String(SIZES[i] === size)));
+    sizeButtons.forEach((b, i) => b.setAttribute("aria-pressed", String(SIZES[i]?.[1] === size)));
   };
   const setTool = (t: Tool) => {
     tool = t;
@@ -374,8 +373,7 @@ export function editor(root: HTMLElement, ctx: Ctx): PopupView {
       area = rectFrom(anchor, toImage(e), base.width, base.height);
       showArea();
     } else if (drawing && isShape(drawing.tool)) {
-      const from = drawing.points[0];
-      if (from) drawing.points.splice(1, Infinity, shapeEnd(from, toImage(e), e.shiftKey));
+      drawing.points.splice(1, Infinity, shapeEnd(drawing.points[0], toImage(e), e.shiftKey));
       schedule();
     } else if (drawing) {
       // Coalesced events keep fast strokes smooth, but the list can be empty: fall back to the event.
@@ -409,7 +407,7 @@ export function editor(root: HTMLElement, ctx: Ctx): PopupView {
     "keydown",
     (e) => {
       const mod = e.ctrlKey || e.metaKey;
-      const digit = /^Digit([1-8])$/.exec(e.code)?.[1];
+      const crayon = CRAYONS[Number(/^Digit([1-8])$/.exec(e.code)?.[1]) - 1];
       if (phase === "select") {
         if (e.key === "Enter") startEdit(null);
         else if (e.key === "Escape" && anchor) {
@@ -425,7 +423,7 @@ export function editor(root: HTMLElement, ctx: Ctx): PopupView {
       else if (!mod && e.code === "KeyR") setTool("rect");
       else if (!mod && e.code === "KeyO") setTool("ellipse");
       else if (!mod && e.code === "KeyN") startSelect();
-      else if (!mod && digit) setColor(CRAYONS[Number(digit) - 1]?.[1] ?? color);
+      else if (!mod && crayon) setColor(crayon[1]);
       else return;
       e.preventDefault();
     },

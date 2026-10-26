@@ -661,7 +661,7 @@ function declaredRows(id: string, fields: Fields): Node[] {
 
 /** "orbit-clock/index.js" → "Orbit clock": a name for a file whose code hasn't run yet. */
 const nameOfFile = (file: string) => {
-  const base = file.replace(/\/index\.js$|\.js$/, "").split("/").pop() ?? file;
+  const base = file.replace(/\/index\.js$|\.js$/, "").replace(/^.*\//, "");
   const words = base.replace(/[-_]+/g, " ").trim();
   return words ? words[0]!.toUpperCase() + words.slice(1) : file;
 };

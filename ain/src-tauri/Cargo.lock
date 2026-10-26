@@ -36,11 +36,12 @@ dependencies = [
 
 [[package]]
 name = "ain"
-version = "0.7.0"
+version = "0.9.0"
 dependencies = [
  "arboard",
  "auto-launch",
  "base64 0.23.1",
+ "bzip2 0.5.2",
  "clipboard-win",
  "cpal",
  "dbus",
@@ -60,6 +61,7 @@ dependencies = [
  "specta",
  "specta-typescript",
  "sysinfo",
+ "tar",
  "tauri",
  "tauri-build",
  "tauri-plugin-autostart",
@@ -563,6 +565,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "49ecfb22d906f800d4fe833b6282cf4dc1c298f5057ca0b5445e5c209735ca47"
 dependencies = [
  "bzip2-sys",
+ "libbz2-rs-sys",
 ]
 
 [[package]]
@@ -2823,6 +2826,12 @@ dependencies = [
  "libloading 0.7.4",
  "once_cell",
 ]
+
+[[package]]
+name = "libbz2-rs-sys"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0864a00c8d019e36216b69c2c4ce50b83b7bd966add3cf5ba554ec44f8bebcf5"
 
 [[package]]
 name = "libc"

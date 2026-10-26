@@ -7,17 +7,18 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 
-const { dictation } = await import(".");
-import type { DictationPort, ModelInfo } from "./service";
+const { dictation, dictationGlance, statusText } = await import(".");
+import type { DictationPort, ModelInfo, Phase } from "./service";
 
 const at = { model: "whisper-small", dir: "D:/Models/whisper-small-int8", installed: [] };
 
 /** A dictation backend whose model status can be pushed by the test. */
 function fakePort() {
   let push: (info: ModelInfo) => void = () => {};
+  let pushPhase: (phase: Phase) => void = () => {};
   const stop = vi.fn();
   const port = {
-    watch: vi.fn(async (onChange: (p: never) => void) => (onChange({ phase: "idle" } as never), () => {})),
+    watch: vi.fn(async (onChange: (p: Phase) => void) => ((pushPhase = onChange), onChange({ phase: "idle" }), () => {})),
     watchModel: vi.fn(async (onChange: (info: ModelInfo) => void) => {
       push = onChange;
       return stop;
@@ -31,7 +32,7 @@ function fakePort() {
     download: vi.fn(async () => {}),
     remove: vi.fn(async () => {}),
   } satisfies DictationPort;
-  return { port, stop, model: (info: ModelInfo) => push(info) };
+  return { port, stop, model: (info: ModelInfo) => push(info), phase: (p: Phase) => pushPhase(p) };
 }
 
 const tick = () => new Promise((r) => setTimeout(r));
@@ -74,6 +75,67 @@ describe("in the island", () => {
     expect(named(root, "Set up in Settings")?.hidden).toBe(true);
     expect(root.querySelector(".dict-model")?.textContent).toContain("Whisper small");
     expect(root.querySelector<HTMLButtonElement>(".dict-main")?.disabled).toBe(false);
+  });
+});
+
+describe("while dictating", () => {
+  const mount = () => {
+    const fake = fakePort();
+    const clipboard = { copy: vi.fn(async (_: string) => {}) };
+    const host = { refresh: vi.fn(), options: () => ({}) as never, setOptions: vi.fn(), secret: async () => "", openSettings: vi.fn(), openPage: vi.fn(), appearance: () => ({ style: "pill", size: "normal", theme: "island", tone: "dark", notch: false }) as const };
+    const widget = dictation.setup({ dictation: fake.port, clipboard } as never, host);
+    const root = document.createElement("section");
+    widget.panel?.(root);
+    fake.model({ ...at, state: "ready" });
+    const main = root.querySelector<HTMLButtonElement>(".dict-main")!;
+    return { ...fake, clipboard, host, widget, root, main, status: () => root.querySelector(".dict-status")?.textContent };
+  };
+
+  it("starts and stops from the main button, even when the backend refuses", async () => {
+    const { port, phase, main, widget, status } = mount();
+    port.control.mockRejectedValueOnce(new Error("no microphone"));
+    main.click();
+    await tick();
+    expect(port.control).toHaveBeenCalledWith("toggle");
+    phase({ phase: "listening", level: 0.3, seconds: 4 });
+    expect([main.getAttribute("aria-label"), main.dataset.state, status()]).toEqual(["Stop dictating", "rec", "Listening… press the shortcut again to finish."]);
+    expect(widget.ambient?.()).toBe("#ff453a");
+    phase({ phase: "transcribing" });
+    expect([main.disabled, status()]).toEqual([true, "Transcribing…"]);
+    expect(widget.ambient?.()).toBeNull();
+  });
+
+  it("copies the last text from the Copy button, quietly when the clipboard is busy", async () => {
+    const { clipboard, phase, root, status } = mount();
+    phase({ phase: "done", text: "Hello there", delivery: "typed" });
+    const copy = named(root, "Copy")!;
+    expect([copy.hidden, status()]).toEqual([false, "“Hello there”"]);
+    clipboard.copy.mockRejectedValueOnce(new Error("busy"));
+    copy.click();
+    await tick();
+    copy.click();
+    expect(clipboard.copy.mock.calls).toEqual([["Hello there"], ["Hello there"]]);
+  });
+
+  it("says what went wrong, or that nothing was heard", () => {
+    const { phase, root, status } = mount();
+    phase({ phase: "done", text: "", delivery: null });
+    expect([status(), named(root, "Copy")?.hidden]).toEqual(["Nothing heard. Try again a little closer to the mic.", true]);
+    phase({ phase: "needsModel" });
+    expect(status()).toBe("Choose and download a speech model in Settings to start dictating.");
+    phase({ phase: "error", message: "The microphone is in use" });
+    expect(status()).toBe("The microphone is in use");
+  });
+});
+
+describe("on the pill", () => {
+  it("shows transcribing for as long as it lasts, and problems briefly", () => {
+    expect(dictationGlance({ phase: "transcribing" }, 0, 99_000)).toEqual({ text: "Transcribing…", mark: "eq", wide: true });
+    expect(dictationGlance({ phase: "needsModel" }, 1000, 2000)).toEqual({ text: "Get the model first", tone: "alert", wide: true });
+    expect(dictationGlance({ phase: "needsModel" }, 1000, 6000)).toBeNull();
+    expect(dictationGlance({ phase: "error", message: "x" }, 1000, 2000)).toEqual({ text: "Dictation failed", tone: "alert" });
+    expect(dictationGlance({ phase: "error", message: "x" }, 1000, 6000)).toBeNull();
+    expect(statusText({ phase: "idle" })).toContain("Ctrl+Alt+D");
   });
 });
 
@@ -145,6 +207,26 @@ describe("in Settings", () => {
     expect(root.querySelector(".field-hint")?.getAttribute("title")).toBe("D:/Models/whisper-small-int8");
   });
 
+  it("keeps the microphones it has when they can't be listed", async () => {
+    const { root, port } = mount();
+    await tick();
+    port.microphones.mockRejectedValueOnce(new Error("audio service restarting"));
+    window.dispatchEvent(new Event("focus"));
+    await tick();
+    const [mics] = root.querySelectorAll<HTMLElement>(".ui-select");
+    mics!.querySelector<HTMLButtonElement>(".ui-select-trigger")!.click();
+    expect([...mics!.querySelectorAll("[role=option] .ui-select-label")].map((o) => o.textContent)).toEqual(["System default", "Headset", "Webcam mic"]);
+  });
+
+  it("has nothing to stop when the model couldn't be watched", async () => {
+    const { port } = fakePort();
+    port.watchModel.mockRejectedValueOnce(new Error("backend gone"));
+    const host = { options: () => ({ model: "whisper-small", microphone: "" }) as never, setOptions: vi.fn(), openPage: vi.fn() };
+    const cleanup = dictation.settingsPanel?.(document.createElement("div"), { dictation: port } as never, host);
+    expect(() => (cleanup as () => void)()).not.toThrow();
+    await tick();
+  });
+
   it("shows the model folder", async () => {
     const { root, port } = mount();
     named(root, "Show folder")?.click();
@@ -169,5 +251,6 @@ describe("its settings", () => {
     expect(dictation.options?.microphone.inPanel).toBe(true);
     expect(dictation.options?.microphone.default).toBe("");
     expect(dictation.options?.modelDir.kind).toBe("folder");
+    expect(dictation.options?.keepLoaded).toMatchObject({ kind: "toggle", default: false });
   });
 });

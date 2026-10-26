@@ -5,6 +5,7 @@ import { type PalettePort, tauriPalette } from "./palette/service";
 import { type PrivacyPort, tauriPrivacy } from "./privacy/service";
 import { type CapturePort, tauriCapture } from "./screenshot/service";
 import { type StatsPort, tauriStats } from "./stats/service";
+import { type TtsPort, tauriTts } from "./tts/service";
 import { type VolumePort, tauriVolume } from "./volume/service";
 import { type ZonesPort, tauriZones } from "./zones/service";
 import type { PerPlugin } from "../shell/extensions";
@@ -23,6 +24,7 @@ export interface Services {
   readonly palette: PalettePort;
   /** Windows snapped into zones: the layout preview and the overlay. */
   readonly zones: ZonesPort;
+  readonly tts: TtsPort;
   /** Signing in to online accounts; each plugin gets its own, bound to its id. */
   readonly oauth: PerPlugin<OAuthPort>;
 }
@@ -37,5 +39,6 @@ export const tauriServices: Services = {
   dictation: tauriDictation,
   palette: tauriPalette,
   zones: tauriZones,
+  tts: tauriTts,
   oauth: tauriOAuth,
 };

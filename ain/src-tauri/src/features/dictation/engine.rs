@@ -1,6 +1,7 @@
 //! The microphone and the recognizer.
 
 use std::{
+    path::Path,
     sync::{
         Arc, Mutex,
         atomic::Ordering,
@@ -86,16 +87,9 @@ fn open_mic(chosen: Option<&str>, captured: Arc<Mutex<Vec<f32>>>) -> Result<(cpa
     Ok((stream, rate))
 }
 
-/// The recognizer, loading it if needed (a caller waits while another thread loads it).
-fn recognizer(shared: &Shared) -> Result<Arc<sherpa_onnx::OfflineRecognizer>, String> {
-    let mut slot = lock(&shared.recognizer);
-    *lock(&shared.last_used) = Instant::now();
-    if let Some(r) = &*slot {
-        return Ok(Arc::clone(r));
-    }
-    let place = shared.place();
-    let (model, dir) = (place.model(), place.dir());
-    let path = |i| Some(model.path(&dir, i));
+/// Loads the recognizer of `model`, stored in `dir`.
+pub fn load(model: &'static model::Model, dir: &Path) -> Result<sherpa_onnx::OfflineRecognizer, String> {
+    let path = |i| Some(model.path(dir, i));
     let mut config = sherpa_onnx::OfflineRecognizerConfig::default();
     config.feat_config.sample_rate = chunk::RATE as i32;
     config.feat_config.feature_dim = 80;
@@ -129,10 +123,8 @@ fn recognizer(shared: &Shared) -> Result<Arc<sherpa_onnx::OfflineRecognizer>, St
     config.model_config.num_threads = 2;
     config.model_config.provider = Some("cpu".into());
     config.decoding_method = Some("greedy_search".into());
-    let r = sherpa_onnx::OfflineRecognizer::create(&config).ok_or("The speech model couldn't be loaded; try downloading it again")?;
-    let r = Arc::new(r);
-    *slot = Some(Arc::clone(&r));
-    Ok(r)
+    sherpa_onnx::OfflineRecognizer::create(&config)
+        .ok_or_else(|| "The speech model couldn't be loaded; try downloading it again".to_string())
 }
 
 fn decode(recognizer: &sherpa_onnx::OfflineRecognizer, samples: &[f32]) -> String {
@@ -146,7 +138,7 @@ fn decode(recognizer: &sherpa_onnx::OfflineRecognizer, samples: &[f32]) -> Strin
 /// Decodes chunks as they come; once the session finishes, delivers the text (unless cancelled meanwhile).
 fn decoder(app: AppHandle, shared: Arc<Shared>, id: u64, chunks: Receiver<Vec<f32>>, finished: Receiver<()>) {
     let current = || shared.session.load(Ordering::SeqCst) == id;
-    let recognizer = match recognizer(&shared) {
+    let recognizer = match shared.models.engine() {
         Ok(r) => r,
         Err(message) => {
             return if current() {
@@ -161,7 +153,7 @@ fn decoder(app: AppHandle, shared: Arc<Shared>, id: u64, chunks: Receiver<Vec<f3
         }
         parts.push(decode(&recognizer, &samples));
     }
-    *lock(&shared.last_used) = Instant::now();
+    shared.models.touch();
     // The chunk channel also closes on cancel; only a finished session gets delivered.
     if finished.try_recv().is_err() || !current() {
         return;
@@ -187,8 +179,7 @@ impl Mic {
     }
 
     fn start(&mut self, app: &AppHandle, shared: &Arc<Shared>) {
-        let place = shared.place();
-        if !place.model().installed(&place.dir()) {
+        if !shared.models.ready() {
             return shared.publish(app, Phase::NeedsModel);
         }
         if matches!(shared.phase.get(), Phase::Transcribing) {
@@ -210,7 +201,7 @@ impl Mic {
         if let Err(e) = spawned {
             return shared.publish(app, Phase::Error { message: e.to_string() });
         }
-        let chunker = chunk::Chunker::new(chunk::RATE, place.model().chunk_seconds);
+        let chunker = chunk::Chunker::new(chunk::RATE, shared.models.chosen().0.chunk_seconds);
         self.session = Some(Session { stream, captured, rate, chunker, chunks, finished, started: Instant::now() });
         shared.publish(app, Phase::Listening { level: 0.0, seconds: 0.0 });
     }
@@ -218,8 +209,8 @@ impl Mic {
     /// Moves captured audio along to the decoder and reports the level; when idle, lets a cold model go.
     fn pump(&mut self, app: &AppHandle, shared: &Arc<Shared>) {
         let Some(session) = &mut self.session else {
-            if lock(&shared.last_used).elapsed() > KEEP_WARM && !matches!(shared.phase.get(), Phase::Transcribing) {
-                lock(&shared.recognizer).take();
+            if !matches!(shared.phase.get(), Phase::Transcribing) {
+                shared.models.let_cold_go(KEEP_WARM);
             }
             return;
         };
