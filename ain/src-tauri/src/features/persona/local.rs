@@ -31,6 +31,11 @@ pub const WHEEL: &str = "moshi_personaplex-0.1.0-py3-none-any.whl";
 /// An install records it, and one of another build is redone.
 const PACKAGE: &str =
     "moshi-personaplex @ git+https://github.com/NVIDIA/personaplex.git@3428dfd95309a7f3c84fd93259ded0f810d1ff91#subdirectory=moshi";
+/// PyTorch built for NVIDIA GPUs (CUDA 12.4), at the newest version the package allows (< 2.5),
+/// installed before it from PyTorch's own index: PyPI's is built for the CPU alone on Windows. macOS
+/// has no CUDA, so PyPI's is all there is.
+const TORCH: &str = "torch==2.4.1";
+const TORCH_INDEX: Option<&str> = if cfg!(target_os = "macos") { None } else { Some("https://download.pytorch.org/whl/cu124") };
 /// What `--cpu-offload` needs besides.
 const EXTRAS: &[&str] = &["accelerate"];
 /// The Python its pinned torch supports; uv fetches it when the computer has none.
@@ -157,9 +162,9 @@ impl Place {
         self.0.join("server.log")
     }
 
-    /// Installed, and with the package this app speaks to.
+    /// Installed, with the package this app speaks to and the PyTorch it needs.
     pub fn installed(&self) -> bool {
-        fs::read_to_string(self.marker()).is_ok_and(|m| m.trim() == PACKAGE) && self.python().is_file()
+        fs::read_to_string(self.marker()).is_ok_and(|m| m.trim() == build()) && self.python().is_file()
     }
 
     /// Every file the server needs is in a snapshot of the cache (wherever it was downloaded from).
@@ -178,6 +183,12 @@ fn find_uv() -> Option<PathBuf> {
     let path = std::env::var_os("PATH").map(|p| std::env::split_paths(&p).collect::<Vec<_>>()).unwrap_or_default();
     let usual = home.into_iter().flat_map(|h| [h.join(".local").join("bin"), h.join(".cargo").join("bin")]);
     path.into_iter().chain(usual).map(|dir| dir.join(exe)).find(|p| p.is_file())
+}
+
+/// What an install records: the package, and the PyTorch build under it. An install made otherwise
+/// (an older package, or PyTorch for the CPU alone) is redone.
+fn build() -> String {
+    format!("{PACKAGE}\n{TORCH} from {}", TORCH_INDEX.unwrap_or("PyPI"))
 }
 
 /// A Python that can make PersonaPlex's environment when uv is missing: how to start it, and its
@@ -342,6 +353,12 @@ fn install(place: &Place, wheel: &Path, cancel: &AtomicBool, report: &mut dyn Fn
             let mut venv = Command::new(&uv);
             venv.args(["venv", "--python", PYTHON]).arg(place.venv());
             run(venv, "uv", cancel, report)?;
+            if let Some(index) = TORCH_INDEX {
+                report("Installing PyTorch for NVIDIA GPUs (about 2.5 GB)…");
+                let mut torch = Command::new(&uv);
+                torch.args(["pip", "install", "--python"]).arg(place.python()).args([TORCH, "--index-url", index]);
+                run(torch, "uv", cancel, report)?;
+            }
             let mut pip = Command::new(&uv);
             pip.args(["pip", "install", "--python"]).arg(place.python()).arg(wheel).args(EXTRAS);
             run(pip, "uv", cancel, report)?;
@@ -351,12 +368,20 @@ fn install(place: &Place, wheel: &Path, cancel: &AtomicBool, report: &mut dyn Fn
             let mut venv = python.command();
             venv.args(["-m", "venv"]).arg(place.venv());
             run(venv, "Python", cancel, report)?;
+            if let Some(index) = TORCH_INDEX {
+                report("Installing PyTorch for NVIDIA GPUs (about 2.5 GB)…");
+                let mut torch = Command::new(place.python());
+                torch
+                    .args(["-m", "pip", "install", "--disable-pip-version-check", TORCH, "--index-url", index])
+                    .env("PYTHONUNBUFFERED", "1");
+                run(torch, "pip", cancel, report)?;
+            }
             let mut pip = Command::new(place.python());
             pip.args(["-m", "pip", "install", "--disable-pip-version-check"]).arg(wheel).args(EXTRAS).env("PYTHONUNBUFFERED", "1");
             run(pip, "pip", cancel, report)?;
         }
     }
-    fs::write(place.marker(), PACKAGE).map_err(|e| e.to_string())
+    fs::write(place.marker(), build()).map_err(|e| e.to_string())
 }
 
 /// Bytes received and in all, from a `progress <received> <total>` line of `FETCH`.
@@ -383,6 +408,32 @@ fn fetch_weights(place: &Place, token: Option<&str>, cancel: &AtomicBool, report
     fetch.env("HF_HUB_DISABLE_SYMLINKS_WARNING", "1");
     run(fetch, "the download", cancel, report)?;
     if place.downloaded() { Ok(()) } else { Err("the download ended without every file.".into()) }
+}
+
+/// Why a server stopped, with what to do first when its cause is a known one.
+fn explained(why: String) -> String {
+    let hints = [
+        (
+            &["Torch not compiled with CUDA enabled"][..],
+            "Its PyTorch can't use the GPU: remove PersonaPlex in Settings, then install it again.",
+        ),
+        (
+            &["CUDA out of memory", "OutOfMemoryError"][..],
+            "The GPU ran out of memory: turn on Offload to the CPU, or close what else uses the GPU.",
+        ),
+        (
+            &["Found no NVIDIA driver", "no CUDA GPUs are available"][..],
+            "No NVIDIA GPU could be used: PersonaPlex needs one, with its driver installed.",
+        ),
+        (
+            &["GatedRepoError", "401 Client Error", "403 Client Error"][..],
+            "Hugging Face refused the model: accept its license on huggingface.co/nvidia/personaplex-7b-v1, then check the token.",
+        ),
+    ];
+    match hints.iter().find(|(causes, _)| causes.iter().any(|c| why.contains(c))) {
+        Some((_, hint)) => format!("{hint}\n\n{why}"),
+        None => why,
+    }
 }
 
 /// A port on localhost that nothing listens on now.
@@ -437,17 +488,17 @@ impl Server {
                 return Ok(());
             }
             if let Some(status) = self.child.try_wait().map_err(|e| e.to_string())? {
-                return Err(format!("PersonaPlex stopped ({status}):\n{}", last_lines(&end_of(log), WHY_LINES)));
+                return Err(explained(format!("PersonaPlex stopped ({status}):\n{}", last_lines(&end_of(log), WHY_LINES))));
             }
             if !go_on() {
                 return Err("cancelled".into());
             }
             if start.elapsed() > within {
-                return Err(format!(
+                return Err(explained(format!(
                     "PersonaPlex didn't start within {} minutes:\n{}",
                     within.as_secs() / 60,
                     last_lines(&end_of(log), WHY_LINES)
-                ));
+                )));
             }
             report(&tail(log));
             thread::sleep(POLL);
@@ -696,7 +747,32 @@ mod tests {
     fn fake_install(place: &Place) {
         fs::create_dir_all(place.python().parent().unwrap()).unwrap();
         fs::write(place.python(), "").unwrap();
+        fs::write(place.marker(), build()).unwrap();
+    }
+
+    #[test]
+    fn redoes_an_install_without_the_pytorch_it_needs() {
+        let place = temp("torch");
+        fake_install(&place);
+        assert!(place.installed());
+        // Before PyTorch came from its own index: the package alone, PyPI's PyTorch under it.
         fs::write(place.marker(), PACKAGE).unwrap();
+        assert!(!place.installed());
+        assert!(build().starts_with(PACKAGE) && build().contains(TORCH));
+        if cfg!(windows) {
+            assert!(build().contains("download.pytorch.org/whl/cu124"), "{}", build());
+        }
+    }
+
+    #[test]
+    fn says_what_to_do_about_a_known_cause() {
+        let why = |last: &str| explained(format!("PersonaPlex stopped (exit code: 1):\nTraceback (most recent call last):\n{last}"));
+        let cuda = why("AssertionError: Torch not compiled with CUDA enabled");
+        assert!(cuda.starts_with("Its PyTorch can't use the GPU: remove PersonaPlex"), "{cuda}");
+        assert!(cuda.ends_with("AssertionError: Torch not compiled with CUDA enabled"), "the log stays: {cuda}");
+        assert!(why("torch.OutOfMemoryError: CUDA out of memory").starts_with("The GPU ran out of memory"));
+        assert!(why("huggingface_hub.errors.GatedRepoError: 403 Client Error").starts_with("Hugging Face refused the model"));
+        assert_eq!(why("ValueError: odd"), "PersonaPlex stopped (exit code: 1):\nTraceback (most recent call last):\nValueError: odd");
     }
 
     #[test]
