@@ -8,7 +8,7 @@ import { appendFileSync, mkdirSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
-import { build, ensureCmake, quietDesktop, REMOTE, reboot, sendGuestScripts, sendSource, syncVendor, waitDesktop } from "./lib/deliver.ts";
+import { build, ensureCmake, framesHelperDied, quietDesktop, REMOTE, reboot, sendGuestScripts, sendSource, syncVendor, waitDesktop } from "./lib/deliver.ts";
 import { Guest } from "./lib/guest.ts";
 import { sleep } from "./lib/proc.ts";
 import { loadCa, loadToken, Pve } from "./lib/pve.ts";
@@ -112,6 +112,9 @@ async function runTarget(t: Target): Promise<TargetResult> {
     await waitDesktop(guest);
     if (await quietDesktop(guest)) {
       log("GNOME's notification banners turned off: restarting the session");
+      await reboot(guest);
+    } else if (await framesHelperDied(guest)) {
+      log("GNOME's X11 title-bar helper died in this session: restarting it");
       await reboot(guest);
     }
     await sendGuestScripts(guest, app);

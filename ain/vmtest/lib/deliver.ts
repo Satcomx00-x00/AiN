@@ -55,6 +55,16 @@ export async function quietDesktop(guest: Guest): Promise<boolean> {
   return out.includes("changed");
 }
 
+/**
+ * Whether GNOME's helper that draws X11 windows' title bars (mutter-x11-frames) quit in this
+ * session: it does on an X error (a window destroyed under it), isn't started again, and GNOME then
+ * keeps every decorated X11 window hidden ("Iconic"). Only a new session brings it back.
+ */
+export async function framesHelperDied(guest: Guest): Promise<boolean> {
+  const r = await guest.sh(`journalctl --user -b --no-pager -o cat SYSLOG_IDENTIFIER=mutter-x11-frames 2>/dev/null | grep -q "X Window System error"`);
+  return r.code === 0;
+}
+
 /** Restarts the guest and waits for its desktop again. */
 export async function reboot(guest: Guest): Promise<void> {
   await guest.exec("sudo systemctl reboot");
@@ -121,6 +131,8 @@ cargo build --release --locked --offline --features tauri/custom-protocol \\
   --config "source.vendored.directory=\\"$HOME/vmtest/vendor\\"" 2>&1 | grep -vE '^\\s+(Compiling|Downloaded|Checking) '
 status=\${PIPESTATUS[0]}
 [ "$status" = 0 ] && install -m755 "$target/release/ain" ${REMOTE}/ain
+# The bundle's resources beside the binary, where Tauri looks for them when it isn't installed.
+[ "$status" = 0 ] && [ -d resources ] && cp -r resources/. ${REMOTE}/
 exit "$status"`;
   for (let attempt = 1; ; attempt++) {
     const r = await guest.sh(script);

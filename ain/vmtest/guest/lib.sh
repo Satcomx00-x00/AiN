@@ -67,12 +67,14 @@ leave_overview() {
   wait_for 5 '! overview_active'
 }
 
-# Starts the app from its default settings (its stored data removed), and waits for the island to
+# Starts the app from its default settings (its stored data removed, models kept), and waits for the island to
 # be laid out: folded to the pill (before the frontend runs, the window has a default size).
 start_app() {
   leave_overview
   systemctl --user stop "$UNIT" 2>/dev/null
-  rm -rf ~/.config/dev.satcom.ain ~/.local/share/dev.satcom.ain ~/.cache/dev.satcom.ain
+  rm -rf ~/.config/dev.satcom.ain ~/.cache/dev.satcom.ain
+  # Its data too, but for the downloaded models: they're big, and sent from the host (no internet).
+  find ~/.local/share/dev.satcom.ain -mindepth 1 -maxdepth 1 ! -name models -exec rm -rf {} + 2>/dev/null
   systemd-run --user --unit="$UNIT" --collect "$BIN" >/dev/null 2>&1
   wait_for 60 'w=$(island) && [ -n "$w" ] && is_folded "$w"' && sleep 2
 }
@@ -145,6 +147,9 @@ open_island() {
   done
   wait_for 5 "is_open $w"
 }
+# The island open, a second hover if the first didn't take: on a busy host the web view can miss
+# the first one. A test's clicks then land on the island, never on the desktop behind it.
+open_island_sure() { open_island || { fold_island; open_island; }; }
 # The pointer away, down out of the island as a hand would; true once the island has folded.
 # Not a jump: XWayland only sees the pointer over X11 windows, so the island must see it cross its
 # window's lower edge (its transparent margin) to know it left.
@@ -173,11 +178,24 @@ tab() {
   local i w
   for i in "${!TABS[@]}"; do [ "${TABS[$i]}" = "$1" ] && break; done
   [ "${TABS[$i]}" = "$1" ] || { echo "no tab $1 in TABS" >&2; return 1; }
-  open_island || return 1
+  open_island_sure || return 1
   w=$(island)
   geom "$w"
   hover_click $((X + TAB_X + i * TAB_DX10 / 10)) $((Y + BAR_Y))
   sleep 1
+}
+
+# ---------- the settings window ----------
+
+settings_shown() { xdotool search --onlyvisible --name "^AiN settings$" >/dev/null 2>&1; }
+# Closes the settings windows as their close button does (WM_DELETE_WINDOW), and waits until they're
+# gone. Not `xdotool windowclose`: it destroys the X window under the app, and GNOME's helper that
+# draws X11 title bars (mutter-x11-frames) quits on the X error that follows, for the rest of the
+# session; GNOME then shows no decorated X11 window at all.
+settings_close() {
+  local s
+  for s in $(xdotool search --name "^AiN settings$" 2>/dev/null); do xdotool windowquit "$s" 2>/dev/null; done
+  wait_for 10 '! xdotool search --name "^AiN settings$" >/dev/null 2>&1'
 }
 
 # ---------- other apps ----------
