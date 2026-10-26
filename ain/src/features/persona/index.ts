@@ -3,7 +3,7 @@ import { choice, folder, secret, text, toggle } from "../../sdk/options";
 import { type Glance, definePlugin } from "../../sdk/plugin";
 import type { ProvidersPort } from "../../shell/providers";
 import { type OwnEngine, engineOptions, enginePanel } from "../engine";
-import { type CardLine, downloading, modelCard, progressOf } from "../model-files";
+import { type CardLine, downloading, modelCard, progressOf, speedometer } from "../model-files";
 import type { LocalInfo, Phase, PersonaPort } from "./service";
 import { DEFAULT_PROMPT, DEFAULT_VOICE, VOICES, voiceName } from "./voices";
 
@@ -74,7 +74,7 @@ export function localLine(info: LocalInfo): CardLine | null {
     case "missing":
       return line("Model not downloaded yet", "missing");
     case "downloading":
-      return line(downloading(info.model.received, info.model.total), "downloading", progressOf(info.model.received, info.model.total));
+      return { ...line(downloading(info.model.received, info.model.total), "downloading", progressOf(info.model.received, info.model.total)), received: info.model.received };
     case "error":
       return line(`Download failed: ${info.model.message}`, "error");
     case "ready":
@@ -102,11 +102,14 @@ function localRow(port: PersonaPort): { readonly el: HTMLElement; draw(info: Loc
   bar.hidden = true;
   const el = h("div", { class: "field" }, h("div", {}, h("div", { class: "field-label" }, "PersonaPlex"), detail, bar), h("div", { class: "recorder" }, folder, action, model));
   const fail = (e: unknown) => void (detail.textContent = `Couldn't check PersonaPlex on this computer: ${e instanceof Error ? e.message : String(e)}`);
+  const speed = speedometer();
   const draw = (info: LocalInfo) => {
     current = info;
     const setup = localSetup(info);
     const weights = modelSetup(info);
-    detail.textContent = weights?.detail ?? setup.detail;
+    const received = info.state === "ready" && info.model.state === "downloading" ? info.model.received : null;
+    const fast = speed(received);
+    detail.textContent = weights ? weights.detail + fast : setup.detail;
     detail.title = info.dir;
     bar.hidden = weights?.progress == null;
     bar.style.setProperty("--p", String(weights?.progress ?? 0));

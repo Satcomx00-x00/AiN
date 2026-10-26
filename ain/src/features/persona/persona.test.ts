@@ -188,6 +188,7 @@ describe("its settings", () => {
       progress: 0.25,
       state: "downloading",
       dir: "/m",
+      received: 4e9,
     });
     expect(localLine({ ...at, model: { state: "error", message: "403 gated" }, state: "ready" })).toMatchObject({ detail: "Download failed: 403 gated", state: "error" });
     expect(localLine({ ...at, model: { state: "ready" }, state: "ready" })).toBeNull();
@@ -246,6 +247,10 @@ describe("in Settings", () => {
     local({ dir: "/m/personaplex", running: false, model: { state: "downloading", received: 6.8e9, total: 17e9 }, state: "ready" });
     expect(localRow.textContent).toContain("Downloading… 6.8 GB of 17.0 GB");
     expect([model().textContent, action().hidden, bar.hidden, bar.style.getPropertyValue("--p")]).toEqual(["Stop", true, false, "0.4"]);
+    // Two seconds and 72 MB later: 36 MB/s.
+    vi.spyOn(Date, "now").mockReturnValueOnce(Date.now() + 2000);
+    local({ dir: "/m/personaplex", running: false, model: { state: "downloading", received: 6.8e9 + 72e6, total: 17e9 }, state: "ready" });
+    expect(localRow.textContent).toMatch(/Downloading… 6\.9 GB of 17\.0 GB · 3\d\.\d MB\/s/);
     model().click();
     expect(port.cancelDownload).toHaveBeenCalledOnce();
     port.download.mockRejectedValueOnce("worker gone");
