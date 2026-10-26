@@ -298,8 +298,12 @@ mod tests {
         let (url, request) = server(vec![vec![HANDSHAKE]]);
         let ends = ends();
         let phases = Mutex::new(Vec::new());
+        // The voice came back with its words, and the user's level was reported.
         let heard = || {
-            !lock(&ends.speakers).is_empty() && lock(&phases).iter().any(|p| matches!(p, Phase::Live { said, .. } if said.contains("hi")))
+            let phases = lock(&phases);
+            let said = phases.iter().any(|p| matches!(p, Phase::Live { said, .. } if said.contains("hi")));
+            let loud = phases.iter().any(|p| matches!(p, Phase::Live { level, .. } if *level > 0.5));
+            said && loud && !lock(&ends.speakers).is_empty()
         };
         let report = |phase: Phase| {
             // Once live, the user speaks for a second.
@@ -310,10 +314,9 @@ mod tests {
         };
         let start = Instant::now();
         run(&url, &ends, || !heard() && start.elapsed() < Duration::from_secs(10), report).unwrap();
-        assert!(heard(), "the voice came back, with its words: {:?}", lock(&phases));
+        assert!(heard(), "the voice came back with its words, and the level showed: {:?}", lock(&phases));
         assert!(request.recv().unwrap().ends_with("voice_prompt=NATF2.pt&text_prompt=You%20are%20a%20calm%20%26%20kind%20tutor."));
         assert_eq!(lock(&phases)[0], Phase::Connecting);
-        assert!(lock(&phases).iter().any(|p| matches!(p, Phase::Live { level, .. } if *level > 0.5)), "the user's level shows");
     }
 
     #[test]
