@@ -173,14 +173,18 @@ jobs:
           - name: Linux x64
             os: ubuntu-24.04
             target: x86_64-unknown-linux-gnu
+            # Line coverage floors, about 2 points under what each OS measures: a drop fails the job.
+            min_lines: 52
           # GitHub has no hosted Windows 11 x64 runner: Server 2025 is built from the same release
           # (24H2, build 26100), the same kernel, Win32, WinRT, Core Audio and WebView2.
           - name: Windows 11 x64
             os: windows-2025
             target: x86_64-pc-windows-msvc
+            min_lines: 48
           - name: macOS x64
             os: macos-15-intel
             target: x86_64-apple-darwin
+            min_lines: 48
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -229,6 +233,7 @@ jobs:
             cat coverage-summary.txt
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+          cargo llvm-cov report --target ${{ matrix.target }} --summary-only --fail-under-lines ${{ matrix.min_lines }} > /dev/null
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: rust-coverage-${{ matrix.target }}
