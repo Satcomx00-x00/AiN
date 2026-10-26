@@ -65,7 +65,7 @@ export type PhaseChanged = Phase;
 
 /**  Whether PersonaPlex is installed in its folder. */
 export type Setup = { state: "missing" } | 
-/**  uv at work: its last line of output. */
+/**  uv, or pip, at work: its last line of output. */
 { state: "installing"; line: string } | { state: "ready" } | { state: "error"; message: string };
 
 /**  Whether the model's weights are in its folder. */

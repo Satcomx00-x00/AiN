@@ -348,7 +348,9 @@ pub fn init() -> TauriPlugin<Wry> {
         .builder(|app| {
             let models = app.path().app_data_dir()?.join("models");
             let handle = app.clone();
-            let local = Arc::new(Local::new(&place(&settings::current(app), &models), move |info| drop(LocalChanged(info).emit(&handle))));
+            let wheel = app.path().resource_dir()?.join("personaplex").join(local::WHEEL);
+            let local =
+                Arc::new(Local::new(&place(&settings::current(app), &models), wheel, move |info| drop(LocalChanged(info).emit(&handle))));
             let shared = Arc::new(Shared { phase: Live::new(Phase::Idle), session: AtomicU64::new(0), local, models });
             let (handle, stepped) = (app.clone(), Arc::clone(&shared));
             let worker = super::worker::spawn("persona", TICK, Line::default, move |line, command| line.step(&handle, &stepped, command))?;

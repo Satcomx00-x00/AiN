@@ -1,5 +1,5 @@
 //! PersonaPlex on this computer, run by the app: installed on request into its folder (a Python
-//! environment that uv makes, with NVIDIA's `moshi` package), its model's weights (about 17 GB,
+//! environment that uv makes, or Python's venv and pip without uv, with NVIDIA's `moshi` package), its model's weights (about 17 GB,
 //! with the user's Hugging Face token) downloaded on request or else by the first start, its server
 //! started on localhost when a conversation needs it, and stopped once unused for a while.
 
@@ -7,6 +7,7 @@ use std::{
     fs,
     io::{self, BufReader, Read, Seek, SeekFrom},
     net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream},
+    ops::RangeInclusive,
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
     sync::{
@@ -23,13 +24,19 @@ use specta::Type;
 use super::super::{download, live::Live, lock};
 use crate::platform;
 
-/// NVIDIA's package, at the commit whose protocol `link.rs` speaks.
+/// NVIDIA's package, bundled with the app as a wheel (made by `scripts/personaplex-wheel.py`), so
+/// installing it clones nothing; only its dependencies come from PyPI.
+pub const WHEEL: &str = "moshi_personaplex-0.1.0-py3-none-any.whl";
+/// What the wheel was made from: NVIDIA's package at the commit whose protocol `link.rs` speaks.
+/// An install records it, and one of another build is redone.
 const PACKAGE: &str =
     "moshi-personaplex @ git+https://github.com/NVIDIA/personaplex.git@3428dfd95309a7f3c84fd93259ded0f810d1ff91#subdirectory=moshi";
 /// What `--cpu-offload` needs besides.
 const EXTRAS: &[&str] = &["accelerate"];
 /// The Python its pinned torch supports; uv fetches it when the computer has none.
 const PYTHON: &str = "3.12";
+/// The Python 3 minor versions its pinned torch (< 2.5) has wheels for, which pip needs installed.
+const PYTHONS: RangeInclusive<u32> = 10..=12;
 const UV_HELP: &str = "https://docs.astral.sh/uv/getting-started/installation/";
 /// The model's repository on Hugging Face, and the files its server fetches from it (all but the
 /// web page, which the app doesn't serve).
@@ -51,7 +58,7 @@ const TAIL: u64 = 4096;
 pub enum Setup {
     #[default]
     Missing,
-    /// uv at work: its last line of output.
+    /// uv, or pip, at work: its last line of output.
     Installing {
         line: String,
     },
@@ -137,6 +144,69 @@ fn find_uv() -> Option<PathBuf> {
     path.into_iter().chain(usual).map(|dir| dir.join(exe)).find(|p| p.is_file())
 }
 
+/// A Python that can make PersonaPlex's environment when uv is missing: how to start it, and its
+/// version.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Python {
+    program: &'static str,
+    args: &'static [&'static str],
+    version: (u32, u32),
+}
+
+impl Python {
+    fn command(&self) -> Command {
+        let mut command = Command::new(self.program);
+        command.args(self.args);
+        command
+    }
+}
+
+/// `major minor`, as `print(*sys.version_info[:2])` prints them.
+fn parse_version(text: &str) -> Option<(u32, u32)> {
+    let mut numbers = text.split_whitespace().map(str::parse);
+    match (numbers.next(), numbers.next()) {
+        (Some(Ok(major)), Some(Ok(minor))) => Some((major, minor)),
+        _ => None,
+    }
+}
+
+/// A Python of a version its torch supports: the Windows launcher's newest, or one on the PATH.
+fn find_python() -> Option<Python> {
+    let candidates: &[(&'static str, &'static [&'static str])] = if cfg!(windows) {
+        &[("py", &["-3.12"]), ("py", &["-3.11"]), ("py", &["-3.10"]), ("python", &[]), ("python3", &[])]
+    } else {
+        &[("python3.12", &[]), ("python3.11", &[]), ("python3.10", &[]), ("python3", &[]), ("python", &[])]
+    };
+    candidates.iter().find_map(|&(program, args)| {
+        let mut probe = Command::new(program);
+        probe.args(args).args(["-c", "import sys; print(*sys.version_info[:2])"]).stdin(Stdio::null()).stderr(Stdio::null());
+        platform::tie_to_app(&mut probe);
+        let out = probe.output().ok().filter(|o| o.status.success())?;
+        let version = parse_version(&String::from_utf8_lossy(&out.stdout))?;
+        (version.0 == 3 && PYTHONS.contains(&version.1)).then_some(Python { program, args, version })
+    })
+}
+
+/// What makes PersonaPlex's environment: uv, or else pip with a Python already installed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Installer {
+    Uv(PathBuf),
+    Pip(Python),
+}
+
+fn installer() -> Result<Installer, String> {
+    if let Some(uv) = find_uv() {
+        return Ok(Installer::Uv(uv));
+    }
+    find_python().map(Installer::Pip).ok_or_else(|| {
+        format!(
+            "PersonaPlex is installed with uv, or with pip and Python 3.{}–3.{}; this computer has neither: install uv ({UV_HELP}), then try again.",
+            PYTHONS.start(),
+            PYTHONS.end()
+        )
+    })
+}
+
 /// The last line in `text` with something on it: progress bars redraw theirs with `\r`.
 fn last_line(text: &str) -> &str {
     text.rsplit(['\n', '\r']).map(str::trim).find(|l| !l.is_empty()).unwrap_or("")
@@ -155,30 +225,34 @@ fn tail(path: &Path) -> String {
     read().unwrap_or_default()
 }
 
-/// Runs `what` (uv, or Python), reporting its last line of output, until it ends or is cancelled.
+/// Keeps `line` on the last line `stream` wrote: lines end with `\n`, or `\r` where a progress
+/// bar redraws its own.
+fn follow(stream: impl Read + Send + 'static, line: &Arc<Mutex<String>>) -> thread::JoinHandle<()> {
+    let line = Arc::clone(line);
+    thread::spawn(move || {
+        let mut piece = Vec::new();
+        for byte in BufReader::new(stream).bytes().map_while(Result::ok) {
+            if byte != b'\n' && byte != b'\r' {
+                piece.push(byte);
+                continue;
+            }
+            let text = String::from_utf8_lossy(&piece);
+            if !text.trim().is_empty() {
+                *lock(&line) = text.trim().to_string();
+            }
+            piece.clear();
+        }
+    })
+}
+
+/// Runs `what` (uv, pip or Python), reporting its last line of output (pip writes its progress to
+/// stdout, the others to stderr), until it ends or is cancelled.
 fn run(mut command: Command, what: &str, cancel: &AtomicBool, report: &mut dyn FnMut(&str)) -> Result<(), String> {
-    command.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::piped());
+    command.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
     platform::tie_to_app(&mut command);
     let mut child = command.spawn().map_err(|e| format!("couldn't start {what}: {e}"))?;
     let line = Arc::new(Mutex::new(String::new()));
-    let reader = child.stderr.take().map(|stderr| {
-        let line = Arc::clone(&line);
-        thread::spawn(move || {
-            // Lines end with `\n`, or `\r` where a progress bar redraws its own.
-            let mut piece = Vec::new();
-            for byte in BufReader::new(stderr).bytes().map_while(Result::ok) {
-                if byte != b'\n' && byte != b'\r' {
-                    piece.push(byte);
-                    continue;
-                }
-                let text = String::from_utf8_lossy(&piece);
-                if !text.trim().is_empty() {
-                    *lock(&line) = text.trim().to_string();
-                }
-                piece.clear();
-            }
-        })
-    });
+    let readers = [child.stdout.take().map(|s| follow(s, &line)), child.stderr.take().map(|s| follow(s, &line))];
     let mut shown = String::new();
     let mut show = |shown: &mut String| {
         let now = lock(&line).clone();
@@ -200,26 +274,41 @@ fn run(mut command: Command, what: &str, cancel: &AtomicBool, report: &mut dyn F
         }
     };
     // Its last words, once all read.
-    if let Some(reader) = reader {
+    for reader in readers.into_iter().flatten() {
         let _ = reader.join();
     }
     show(&mut shown);
     if status.success() { Ok(()) } else { Err(format!("{what} failed ({status}): {shown}")) }
 }
 
-/// Installs PersonaPlex into `place`, from scratch.
-fn install(place: &Place, cancel: &AtomicBool, report: &mut dyn FnMut(&str)) -> Result<(), String> {
-    let uv = find_uv()
-        .ok_or_else(|| format!("PersonaPlex is installed with uv, which this computer lacks: install it ({UV_HELP}), then try again."))?;
+/// Installs PersonaPlex into `place`, from scratch, from the bundled `wheel`: with uv, or else with pip.
+fn install(place: &Place, wheel: &Path, cancel: &AtomicBool, report: &mut dyn FnMut(&str)) -> Result<(), String> {
+    if !wheel.is_file() {
+        return Err(format!("PersonaPlex's package is missing from the app ({}): reinstall the app.", wheel.display()));
+    }
+    let installer = installer()?;
     let _ = fs::remove_file(place.marker());
     download::remove(&place.venv()).map_err(|e| e.to_string())?;
     fs::create_dir_all(&place.0).map_err(|e| e.to_string())?;
-    let mut venv = Command::new(&uv);
-    venv.args(["venv", "--python", PYTHON]).arg(place.venv());
-    run(venv, "uv", cancel, report)?;
-    let mut pip = Command::new(&uv);
-    pip.args(["pip", "install", "--python"]).arg(place.python()).arg(PACKAGE).args(EXTRAS);
-    run(pip, "uv", cancel, report)?;
+    match installer {
+        Installer::Uv(uv) => {
+            let mut venv = Command::new(&uv);
+            venv.args(["venv", "--python", PYTHON]).arg(place.venv());
+            run(venv, "uv", cancel, report)?;
+            let mut pip = Command::new(&uv);
+            pip.args(["pip", "install", "--python"]).arg(place.python()).arg(wheel).args(EXTRAS);
+            run(pip, "uv", cancel, report)?;
+        }
+        Installer::Pip(python) => {
+            report(&format!("No uv here: installing with pip, on Python {}.{}…", python.version.0, python.version.1));
+            let mut venv = python.command();
+            venv.args(["-m", "venv"]).arg(place.venv());
+            run(venv, "Python", cancel, report)?;
+            let mut pip = Command::new(place.python());
+            pip.args(["-m", "pip", "install", "--disable-pip-version-check"]).arg(wheel).args(EXTRAS).env("PYTHONUNBUFFERED", "1");
+            run(pip, "pip", cancel, report)?;
+        }
+    }
     fs::write(place.marker(), PACKAGE).map_err(|e| e.to_string())
 }
 
@@ -313,6 +402,8 @@ impl Drop for Server {
 
 /// PersonaPlex on this computer: its install, and its server while in use.
 pub struct Local {
+    /// The bundled package it is installed from.
+    wheel: PathBuf,
     setup: Live<Setup>,
     server: Mutex<Option<Server>>,
     /// One start at a time; held while the server loads, apart from `server` so that checking on
@@ -330,8 +421,9 @@ pub struct Local {
 }
 
 impl Local {
-    pub fn new(place: &Place, changed: impl Fn(LocalInfo) + Send + Sync + 'static) -> Self {
+    pub fn new(place: &Place, wheel: PathBuf, changed: impl Fn(LocalInfo) + Send + Sync + 'static) -> Self {
         Self {
+            wheel,
             setup: Live::new(if place.installed() { Setup::Ready } else { Setup::Missing }),
             server: Mutex::new(None),
             starting: Mutex::new(()),
@@ -391,7 +483,7 @@ impl Local {
         let this = Arc::clone(self);
         let work = move || {
             this.set(&place, Setup::Installing { line: "Getting ready…".into() });
-            let result = install(&place, &this.cancel, &mut |line| this.set(&place, Setup::Installing { line: line.into() }));
+            let result = install(&place, &this.wheel, &this.cancel, &mut |line| this.set(&place, Setup::Installing { line: line.into() }));
             this.installing.store(false, Ordering::SeqCst);
             this.set(
                 &place,
@@ -554,7 +646,7 @@ mod tests {
     #[test]
     fn is_installed_only_with_the_package_it_speaks_to() {
         let place = temp("installed");
-        let local = Local::new(&place, |_| {});
+        let local = Local::new(&place, PathBuf::new(), |_| {});
         assert_eq!(local.info(&place).setup, Setup::Missing);
         fake_install(&place);
         assert!(place.installed());
@@ -568,7 +660,7 @@ mod tests {
     #[test]
     fn says_what_is_missing_before_starting() {
         let place = temp("missing");
-        let local = Local::new(&place, |_| {});
+        let local = Local::new(&place, PathBuf::new(), |_| {});
         let error = local.serve(&place, &Launch::default(), &|| true, &mut |_| {}).unwrap_err();
         assert!(error.contains("install it in Settings"), "{error}");
     }
@@ -579,7 +671,7 @@ mod tests {
         fake_install(&place);
         let seen = Arc::new(Mutex::new(Vec::new()));
         let log = Arc::clone(&seen);
-        let local = Local::new(&place, move |info| lock(&log).push(info.setup));
+        let local = Local::new(&place, PathBuf::new(), move |info| lock(&log).push(info.setup));
         local.remove(&place).unwrap();
         assert!(!place.0.exists());
         assert_eq!(lock(&seen).last(), Some(&Setup::Missing));
@@ -606,7 +698,7 @@ mod tests {
         let place = temp("crash");
         fake_install(&place);
         let program = fake_server(&place, "echo 'downloading 10%'; echo \"token=$HF_TOKEN offload=$*\" >&2; exit 3");
-        let local = Local::new(&place, |_| {});
+        let local = Local::new(&place, PathBuf::new(), |_| {});
         let launch = Launch { token: Some("hf_abc".into()), cpu_offload: true };
         let error = local.serve_with(&program, &place, &launch, &|| true, &mut |_| {}).unwrap_err();
         assert!(error.contains("token=hf_abc") && error.contains("--cpu-offload"), "{error}");
@@ -622,7 +714,7 @@ mod tests {
         let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
         let port = listener.local_addr().unwrap().port();
         let program = fake_server(&place, "echo loading; sleep 30");
-        let local = Local::new(&place, |_| {});
+        let local = Local::new(&place, PathBuf::new(), |_| {});
         let mut server = Server::start(&program, &place, &Launch::default()).unwrap();
         server.port = port;
         server.wait_ready(&place.log(), Duration::from_secs(5), &|| true, &mut |_| {}).unwrap();
@@ -672,6 +764,55 @@ mod tests {
         assert!(lines.contains(&"Resolved 40 packages".to_string()));
     }
 
+    #[test]
+    fn bundles_the_package_it_installs() {
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let wheel = dir.join("resources").join("personaplex").join(WHEEL);
+        assert!(wheel.is_file(), "missing {}: run `python -I scripts/personaplex-wheel.py`", wheel.display());
+        let config: serde_json::Value = serde_json::from_str(&fs::read_to_string(dir.join("tauri.conf.json")).unwrap()).unwrap();
+        let bundled = &config["bundle"]["resources"][format!("resources/personaplex/{WHEEL}")];
+        assert_eq!(bundled, &serde_json::json!(format!("personaplex/{WHEEL}")), "where `init` looks for it");
+    }
+
+    #[test]
+    fn says_when_the_app_lacks_its_package() {
+        let place = temp("no-wheel");
+        let error = install(&place, &place.0.join(WHEEL), &AtomicBool::new(false), &mut |_| {}).unwrap_err();
+        assert!(error.contains("reinstall the app"), "{error}");
+        assert!(!place.venv().exists(), "nothing was made");
+    }
+
+    #[test]
+    fn reads_the_version_python_prints() {
+        assert_eq!(parse_version("3 12\r\n"), Some((3, 12)));
+        assert_eq!(parse_version("3"), None);
+        assert_eq!(parse_version("Python was not found; run without arguments to install from the Microsoft Store"), None);
+    }
+
+    #[test]
+    fn falls_back_to_pip_only_with_a_python_torch_supports() {
+        match installer() {
+            Ok(Installer::Uv(uv)) => assert!(uv.is_file()),
+            Ok(Installer::Pip(python)) => {
+                assert_eq!(python.version.0, 3);
+                assert!(PYTHONS.contains(&python.version.1), "{python:?}");
+            }
+            Err(message) => assert!(message.contains("uv") && message.contains("pip"), "{message}"),
+        }
+        assert!(!PYTHONS.contains(&13), "torch < 2.5 has no wheels for Python 3.13");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn reports_what_pip_writes_to_stdout() {
+        let cancel = AtomicBool::new(false);
+        let mut lines = Vec::new();
+        let mut pip = Command::new("sh");
+        pip.args(["-c", "echo 'Collecting torch<2.5'; sleep 0.3; echo 'Downloading torch-2.4.1.whl (797 MB)'"]);
+        run(pip, "pip", &cancel, &mut |l| lines.push(l.to_string())).unwrap();
+        assert_eq!(lines.last().map(String::as_str), Some("Downloading torch-2.4.1.whl (797 MB)"));
+    }
+
     fn fake_weights(place: &Place) {
         let snapshot = place.hf().join("hub").join("models--nvidia--personaplex-7b-v1").join("snapshots").join("abc123");
         fs::create_dir_all(&snapshot).unwrap();
@@ -683,7 +824,7 @@ mod tests {
     #[test]
     fn has_the_model_only_with_every_file_the_server_needs() {
         let place = temp("weights");
-        let local = Local::new(&place, |_| {});
+        let local = Local::new(&place, PathBuf::new(), |_| {});
         assert_eq!(local.info(&place).model, Weights::Missing);
         fake_weights(&place);
         assert!(place.downloaded());
@@ -712,7 +853,7 @@ mod tests {
         let place = temp("download");
         let seen = Arc::new(Mutex::new(Vec::new()));
         let log = Arc::clone(&seen);
-        let local = Arc::new(Local::new(&place, move |info| lock(&log).push(info.model)));
+        let local = Arc::new(Local::new(&place, PathBuf::new(), move |info| lock(&log).push(info.model)));
         local.download(place.clone(), None).unwrap();
         let start = Instant::now();
         while !matches!(local.info(&place).model, Weights::Error { .. }) {

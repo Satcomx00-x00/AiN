@@ -24,7 +24,7 @@ export function localSetup(info: LocalInfo): { detail: string; action: "install"
   switch (info.state) {
     case "missing":
       return {
-        detail: "Not installed. Installing takes about 5 GB (Python and PyTorch, with uv); then download the model, about 17 GB.",
+        detail: "Not installed. Installing takes about 5 GB (Python and PyTorch, with uv, or pip without it); then download the model, about 17 GB.",
         action: "install",
         label: "Install",
       };

@@ -43,6 +43,9 @@
     "shortDescription": "A dynamic-island style widget bar for the desktop",
     "copyright": "Copyright (c) 2026 Satcom",
     "license": "MIT",
+    "resources": {
+      "resources/personaplex/moshi_personaplex-0.1.0-py3-none-any.whl": "personaplex/moshi_personaplex-0.1.0-py3-none-any.whl"
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
