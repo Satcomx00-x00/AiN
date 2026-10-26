@@ -130,12 +130,16 @@ fn connect(target: &Target) -> Result<Socket, String> {
     let uri = request.uri().clone();
     let unreachable = || format!("Couldn't reach the PersonaPlex server at {}", uri.authority().map_or("", |a| a.as_str()));
     let tcp = addresses(&uri)?.iter().find_map(|a| TcpStream::connect_timeout(a, CONNECT_TIMEOUT).ok()).ok_or_else(unreachable)?;
-    // The clone shares the socket: it sets timeouts once TLS and the WebSocket wrap the original.
-    let control = tcp.try_clone().map_err(|e| e.to_string())?;
-    control.set_read_timeout(Some(CONNECT_TIMEOUT)).map_err(|e| e.to_string())?;
-    let _ = control.set_nodelay(true);
-    let (socket, _) = tungstenite::client_tls(request, tcp).map_err(|e| format!("The server refused the conversation: {e}"))?;
-    control.set_read_timeout(Some(POLL)).map_err(|e| e.to_string())?;
+    tcp.set_read_timeout(Some(CONNECT_TIMEOUT)).map_err(|e| e.to_string())?;
+    let _ = tcp.set_nodelay(true);
+    let (mut socket, _) = tungstenite::client_tls(request, tcp).map_err(|e| format!("The server refused the conversation: {e}"))?;
+    // Set on the socket itself, under TLS: a clone's timeout doesn't reach it on Windows.
+    let tcp = match socket.get_mut() {
+        MaybeTlsStream::Plain(tcp) => tcp,
+        MaybeTlsStream::Rustls(tls) => tls.get_mut(),
+        _ => return Err("The server's connection is of an unknown kind".into()),
+    };
+    tcp.set_read_timeout(Some(POLL)).map_err(|e| e.to_string())?;
     Ok(socket)
 }
 
