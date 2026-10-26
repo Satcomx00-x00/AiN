@@ -8,7 +8,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 
-const { persona, personaGlance, statusText, talking, voiceName, localSetup, modelSetup, downloadLine } = await import(".");
+const { persona, personaGlance, statusText, talking, voiceName, localSetup, modelSetup, localLine } = await import(".");
 const { VOICES } = await import("./voices");
 const { bindings } = await import("../../shell/commands");
 const { catalogue } = await import("..");
@@ -99,6 +99,27 @@ describe("in the island", () => {
     expect(host.openSettings).toHaveBeenCalledOnce();
   });
 
+  it("shows PersonaPlex's download on its card, until it is ready", async () => {
+    const { local, root, host } = mount();
+    await new Promise((r) => setTimeout(r));
+    const card = root.querySelector<HTMLElement>(".dict-model")!;
+    expect([card.hidden, card.textContent]).toEqual([false, "PersonaPlexNot installedSet up in Settings"]);
+    local({ dir: "/m/personaplex", running: false, model: { state: "downloading", received: 8.5e9, total: 17e9 }, state: "ready" });
+    const bar = card.querySelector<HTMLElement>(".bar")!;
+    expect([card.textContent?.includes("Downloading… 8.5 GB of 17.0 GB"), bar.hidden, bar.style.getPropertyValue("--p")]).toEqual([true, false, "0.5"]);
+    card.querySelector<HTMLButtonElement>(".chip")!.click();
+    expect(host.openSettings).toHaveBeenCalled();
+    local({ dir: "/m/personaplex", running: false, model: { state: "ready" }, state: "ready" });
+    expect(card.hidden).toBe(true);
+  });
+
+  it("shows no card while an AI provider's server talks instead", async () => {
+    const { local, root, host } = mount();
+    host.options = () => ({ engine: "gpu" }) as never;
+    local({ dir: "/m/personaplex", running: false, model: { state: "missing" }, state: "missing" });
+    expect(root.querySelector<HTMLElement>(".dict-model")!.hidden).toBe(true);
+  });
+
   it("stays put when the backend refuses", async () => {
     const { port, main } = mount();
     port.control.mockRejectedValueOnce(new Error("worker gone"));
@@ -148,21 +169,28 @@ describe("its settings", () => {
     expect(modelSetup({ ...at, model: { state: "missing" }, state: "missing" })).toBeNull();
     expect(modelSetup({ ...at, model: { state: "missing" }, state: "ready" })).toMatchObject({ action: "download", label: "Download · 17 GB", progress: null });
     expect(modelSetup({ ...at, model: { state: "missing" }, state: "ready" })?.detail).toContain("Hugging Face token");
-    expect(modelSetup({ ...at, model: { state: "downloading", line: "Getting ready…" }, state: "ready" })).toEqual({
-      detail: "Downloading the model… Getting ready…",
-      action: "stop",
-      label: "Stop",
-      progress: null,
-    });
+    expect(modelSetup({ ...at, model: { state: "downloading", received: 0, total: 0 }, state: "ready" })).toEqual({ detail: "Downloading…", action: "stop", label: "Stop", progress: 0 });
+    const halfway = modelSetup({ ...at, model: { state: "downloading", received: 6.9e9, total: 16.7e9 }, state: "ready" });
+    expect(halfway?.detail).toBe("Downloading… 6.9 GB of 16.7 GB");
+    expect(halfway?.progress).toBeCloseTo(0.413, 3);
     expect(modelSetup({ ...at, model: { state: "error", message: "403 gated" }, state: "ready" })).toEqual({ detail: "Download failed: 403 gated", action: "download", label: "Retry", progress: null });
     expect(modelSetup({ ...at, model: { state: "ready" }, state: "ready" })).toBeNull();
   });
 
-  it("reads Hugging Face's progress bars as words and a fraction", () => {
-    expect(downloadLine("model.safetensors:  42%|████▏     | 6.9G/16.7G [03:12<04:30, 36.1MB/s]")).toEqual({ text: "model.safetensors · 6.9G/16.7G · 04:30 left", progress: 0.42 });
-    expect(downloadLine("voices.tgz: 100%|██████████| 6.10M/6.10M [00:01<00:00, 5.2MB/s]")).toEqual({ text: "voices.tgz · 6.10M/6.10M · 00:00 left", progress: 1 });
-    expect(downloadLine("config.json: 0%|          | 0.00/1.2k [00:00<?, ?B/s]")).toEqual({ text: "config.json · 0.00/1.2k", progress: 0 });
-    expect(downloadLine(" Fetching 5 files ")).toEqual({ text: "Fetching 5 files", progress: null });
+  it("shows on the island what PersonaPlex lacks, and how far it is, until it is ready", () => {
+    const at = { dir: "/m", running: false };
+    expect(localLine({ ...at, model: { state: "missing" }, state: "missing" })).toMatchObject({ title: "PersonaPlex", detail: "Not installed", state: "missing", progress: null });
+    expect(localLine({ ...at, model: { state: "missing" }, state: "installing", line: "Resolved 40 packages" })).toMatchObject({ detail: "Installing…", state: "downloading" });
+    expect(localLine({ ...at, model: { state: "missing" }, state: "ready" })).toMatchObject({ detail: "Model not downloaded yet", state: "missing" });
+    expect(localLine({ ...at, model: { state: "downloading", received: 4e9, total: 16e9 }, state: "ready" })).toEqual({
+      title: "PersonaPlex",
+      detail: "Downloading… 4.0 GB of 16.0 GB",
+      progress: 0.25,
+      state: "downloading",
+      dir: "/m",
+    });
+    expect(localLine({ ...at, model: { state: "error", message: "403 gated" }, state: "ready" })).toMatchObject({ detail: "Download failed: 403 gated", state: "error" });
+    expect(localLine({ ...at, model: { state: "ready" }, state: "ready" })).toBeNull();
   });
 });
 
@@ -215,8 +243,8 @@ describe("in Settings", () => {
     expect(localRow.textContent).toContain("isn't downloaded yet");
     model().click();
     expect(port.download).toHaveBeenCalledOnce();
-    local({ dir: "/m/personaplex", running: false, model: { state: "downloading", line: "model.safetensors:  40%|████      | 6.7G/16.7G [03:00<04:30, 36MB/s]" }, state: "ready" });
-    expect(localRow.textContent).toContain("Downloading the model… model.safetensors · 6.7G/16.7G · 04:30 left");
+    local({ dir: "/m/personaplex", running: false, model: { state: "downloading", received: 6.8e9, total: 17e9 }, state: "ready" });
+    expect(localRow.textContent).toContain("Downloading… 6.8 GB of 17.0 GB");
     expect([model().textContent, action().hidden, bar.hidden, bar.style.getPropertyValue("--p")]).toEqual(["Stop", true, false, "0.4"]);
     model().click();
     expect(port.cancelDownload).toHaveBeenCalledOnce();

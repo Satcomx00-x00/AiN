@@ -24,7 +24,14 @@ export interface ModelFilesPort {
 
 export const mb = (bytes: number): string => `${Math.round(bytes / 1e6)} MB`;
 
-const progressOf = (received: number, total: number) => (total ? received / total : 0);
+/** A download's size: in MB, or GB from 1 GB on (the conversation model is about 17). */
+export const size = (bytes: number): string => (bytes >= 1e9 ? `${(bytes / 1e9).toFixed(1)} GB` : mb(bytes));
+
+/** How far a download is (0–1), from what was received of the total; 0 while the total is unknown. */
+export const progressOf = (received: number, total: number): number => (total ? Math.min(received / total, 1) : 0);
+
+/** What a download says: how much was received of how much, once the total is known. */
+export const downloading = (received: number, total: number): string => (total ? `Downloading… ${size(received)} of ${size(total)}` : "Downloading…");
 
 /** What the island's tab says about the chosen model (`name`): read-only, since it is managed in Settings. */
 export function modelLine(name: string, info: ModelState): { title: string; detail: string; progress: number | null } {
@@ -32,7 +39,7 @@ export function modelLine(name: string, info: ModelState): { title: string; deta
     case "missing":
       return { title: name, detail: "Not downloaded yet", progress: null };
     case "downloading":
-      return { title: name, detail: `Downloading… ${mb(info.received)} of ${mb(info.total)}`, progress: progressOf(info.received, info.total) };
+      return { title: name, detail: downloading(info.received, info.total), progress: progressOf(info.received, info.total) };
     case "ready":
       return { title: name, detail: "Ready", progress: null };
     case "error":
@@ -44,9 +51,9 @@ export function modelLine(name: string, info: ModelState): { title: string; deta
 export function modelSetup(info: ModelState): { detail: string; action: "download" | "stop" | "remove"; label: string; progress: number | null } {
   switch (info.state) {
     case "missing":
-      return { detail: "Not downloaded", action: "download", label: `Download · ${mb(info.size)}`, progress: null };
+      return { detail: "Not downloaded", action: "download", label: `Download · ${size(info.size)}`, progress: null };
     case "downloading":
-      return { detail: `Downloading… ${mb(info.received)} of ${mb(info.total)}`, action: "stop", label: "Stop", progress: progressOf(info.received, info.total) };
+      return { detail: downloading(info.received, info.total), action: "stop", label: "Stop", progress: progressOf(info.received, info.total) };
     case "ready":
       return { detail: "Downloaded", action: "remove", label: "Remove", progress: null };
     case "error":
@@ -83,24 +90,27 @@ export function modelFiles(port: ModelFilesPort): { readonly el: HTMLElement; dr
   return { el, draw };
 }
 
-/** The island's card for the chosen model, read-only, with a way to Settings until it is ready. */
-export function modelCard(openSettings: () => void): { readonly el: HTMLElement; draw(name: string, info: ModelInfo): void } {
+/** A line of the island's model card, and the state it is in: ready (nothing to set up), downloading (Settings can stop it), or another. */
+export type CardLine = { title: string; detail: string; progress: number | null; state: string; dir: string };
+
+/** The island's card for the chosen model, read-only, with a way to Settings until it is ready; `show` draws any line on it. */
+export function modelCard(openSettings: () => void): { readonly el: HTMLElement; draw(name: string, info: ModelInfo): void; show(line: CardLine): void } {
   const title = h("strong");
   const detail = h("span", { class: "muted" });
   const bar = h("div", { class: "bar thin" }, h("i"));
   const setUp = button("Set up in Settings", openSettings, { class: "chip" });
   const el = h("div", { class: "dict-model" }, h("div", { class: "dict-model-text" }, title, detail, bar), setUp);
-  const draw = (name: string, info: ModelInfo) => {
-    const line = modelLine(name, info);
+  const show = (line: CardLine) => {
     title.textContent = line.title;
     detail.textContent = line.detail;
-    detail.title = info.dir;
+    detail.title = line.dir;
     bar.hidden = line.progress === null;
     bar.style.setProperty("--p", String(line.progress ?? 0));
-    el.dataset.state = info.state;
+    el.dataset.state = line.state;
     // Ready, there's nothing to set up; while downloading, Settings is where it can be stopped.
-    setUp.hidden = info.state === "ready";
-    setUp.textContent = info.state === "downloading" ? "Settings" : "Set up in Settings";
+    setUp.hidden = line.state === "ready";
+    setUp.textContent = line.state === "downloading" ? "Settings" : "Set up in Settings";
   };
-  return { el, draw };
+  const draw = (name: string, info: ModelInfo) => show({ ...modelLine(name, info), state: info.state, dir: info.dir });
+  return { el, draw, show };
 }

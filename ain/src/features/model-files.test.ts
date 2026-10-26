@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 /** The model rows shared by dictation and read aloud: Settings' "Model files" row and the island's card. */
 import { describe, expect, it, vi } from "vitest";
-import { type ModelInfo, modelCard, modelFiles, modelLine } from "./model-files";
+import { type ModelInfo, downloading, modelCard, modelFiles, modelLine, progressOf, size } from "./model-files";
 
 const at = { model: "m", dir: "D:/Models/m", installed: [] };
 const tick = () => new Promise((r) => setTimeout(r));
@@ -61,5 +61,16 @@ describe("the island's model card", () => {
     expect(card.el.querySelector<HTMLElement>(".bar")?.style.getPropertyValue("--p")).toBe("0.5");
     setUp.click();
     expect(openSettings).toHaveBeenCalledOnce();
+  });
+});
+
+describe("download sizes", () => {
+  it("are in MB, then GB from 1 GB on", () => {
+    expect([size(0), size(670e6), size(999e6), size(1e9), size(16.7e9)]).toEqual(["0 MB", "670 MB", "999 MB", "1.0 GB", "16.7 GB"]);
+  });
+
+  it("say how far a download is once its total is known", () => {
+    expect([downloading(0, 0), downloading(335e6, 670e6), downloading(6.9e9, 16.7e9)]).toEqual(["Downloading…", "Downloading… 335 MB of 670 MB", "Downloading… 6.9 GB of 16.7 GB"]);
+    expect([progressOf(5, 0), progressOf(1, 4), progressOf(9, 4)]).toEqual([0, 0.25, 1]);
   });
 });

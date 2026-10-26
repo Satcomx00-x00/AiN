@@ -43,9 +43,42 @@ const UV_HELP: &str = "https://docs.astral.sh/uv/getting-started/installation/";
 const REPO: &str = "nvidia/personaplex-7b-v1";
 const FILES: &[&str] =
     &["config.json", "tokenizer-e351c8d8-checkpoint125.safetensors", "tokenizer_spm_32k_3.model", "model.safetensors", "voices.tgz"];
-/// Fetches the files named after the repository into Hugging Face's cache, as the server would.
-const FETCH: &str =
-    "import sys\nfrom huggingface_hub import hf_hub_download\nfor name in sys.argv[2:]:\n    hf_hub_download(sys.argv[1], name)";
+/// Fetches the files named after the repository into Hugging Face's cache, as the server would,
+/// printing `progress <received> <total>` (bytes) as it goes: the total from the files' sizes on the
+/// Hub, what was received from the files in the cache on disk. Those are in `blobs` (finished, or
+/// still `.incomplete`), with links to them in `snapshots`; where Windows can't link, a finished
+/// file moves to `snapshots` instead, so real files there count too, and links don't.
+const FETCH: &str = r#"import os, sys, threading, time
+from huggingface_hub import get_hf_file_metadata, hf_hub_download, hf_hub_url
+from huggingface_hub.constants import HF_HUB_CACHE
+repo, names = sys.argv[1], sys.argv[2:]
+total = sum(get_hf_file_metadata(hf_hub_url(repo, name)).size or 0 for name in names)
+cache = os.path.join(HF_HUB_CACHE, "models--" + repo.replace("/", "--"))
+def received():
+    size = 0
+    for folder in ("blobs", "snapshots"):
+        for root, _, files in os.walk(os.path.join(cache, folder)):
+            for name in files:
+                path = os.path.join(root, name)
+                try:
+                    size += 0 if os.path.islink(path) else os.path.getsize(path)
+                except OSError:
+                    pass
+    return min(size, total)
+def report():
+    shown = None
+    while True:
+        now = received()
+        if now != shown:
+            print(f"progress {now} {total}", flush=True)
+            shown = now
+        time.sleep(0.5)
+print(f"progress {received()} {total}", flush=True)
+threading.Thread(target=report, daemon=True).start()
+for name in names:
+    hf_hub_download(repo, name)
+print(f"progress {total} {total}", flush=True)
+"#;
 /// Long enough for the first start, which downloads the weights.
 const READY_WITHIN: Duration = Duration::from_secs(2 * 60 * 60);
 const POLL: Duration = Duration::from_millis(250);
@@ -74,9 +107,10 @@ pub enum Setup {
 pub enum Weights {
     #[default]
     Missing,
-    /// Hugging Face's download at work: its last line of output.
+    /// Hugging Face's download at work: bytes received of the total (0 until the Hub tells it).
     Downloading {
-        line: String,
+        received: u64,
+        total: u64,
     },
     Ready,
     Error {
@@ -312,8 +346,17 @@ fn install(place: &Place, wheel: &Path, cancel: &AtomicBool, report: &mut dyn Fn
     fs::write(place.marker(), PACKAGE).map_err(|e| e.to_string())
 }
 
-/// Downloads the model's weights into `place`'s cache, with PersonaPlex's own Python; an
-/// interrupted download resumes where it stopped.
+/// Bytes received and in all, from a `progress <received> <total>` line of `FETCH`.
+fn progress_of(line: &str) -> Option<(u64, u64)> {
+    let mut words = line.strip_prefix("progress ")?.split_whitespace().map(str::parse);
+    match (words.next(), words.next()) {
+        (Some(Ok(received)), Some(Ok(total))) => Some((received, total)),
+        _ => None,
+    }
+}
+
+/// Downloads the model's weights into `place`'s cache, with PersonaPlex's own Python, reporting
+/// `FETCH`'s lines; an interrupted download resumes where it stopped.
 fn fetch_weights(place: &Place, token: Option<&str>, cancel: &AtomicBool, report: &mut dyn FnMut(&str)) -> Result<(), String> {
     if !place.installed() {
         return Err("PersonaPlex isn't installed: install it first.".into());
@@ -323,6 +366,8 @@ fn fetch_weights(place: &Place, token: Option<&str>, cancel: &AtomicBool, report
     })?;
     let mut fetch = Command::new(place.python());
     fetch.args(["-c", FETCH, REPO]).args(FILES).env("HF_HOME", place.hf()).env("HF_TOKEN", token).env("PYTHONUNBUFFERED", "1");
+    // Without links (Windows without developer mode), the cache only copies: nothing to warn about.
+    fetch.env("HF_HUB_DISABLE_SYMLINKS_WARNING", "1");
     run(fetch, "the download", cancel, report)?;
     if place.downloaded() { Ok(()) } else { Err("the download ended without every file.".into()) }
 }
@@ -516,8 +561,12 @@ impl Local {
         self.stop_download.store(false, Ordering::SeqCst);
         let this = Arc::clone(self);
         let work = move || {
-            this.set_weights(&place, Weights::Downloading { line: "Getting ready…".into() });
-            let mut report = |line: &str| this.set_weights(&place, Weights::Downloading { line: line.into() });
+            this.set_weights(&place, Weights::Downloading { received: 0, total: 0 });
+            let mut report = |line: &str| {
+                if let Some((received, total)) = progress_of(line) {
+                    this.set_weights(&place, Weights::Downloading { received, total });
+                }
+            };
             let result = fetch_weights(&place, token.as_deref(), &this.stop_download, &mut report);
             this.downloading.store(false, Ordering::SeqCst);
             this.set_weights(
@@ -780,6 +829,15 @@ mod tests {
         let error = install(&place, &place.0.join(WHEEL), &AtomicBool::new(false), &mut |_| {}).unwrap_err();
         assert!(error.contains("reinstall the app"), "{error}");
         assert!(!place.venv().exists(), "nothing was made");
+    }
+
+    #[test]
+    fn reads_the_download_s_progress() {
+        assert_eq!(progress_of("progress 6900000000 16700000000"), Some((6_900_000_000, 16_700_000_000)));
+        assert_eq!(progress_of("progress 0 0"), Some((0, 0)));
+        assert_eq!(progress_of("huggingface_hub.errors.GatedRepoError: 403 Client Error"), None);
+        assert_eq!(progress_of("progress soon"), None);
+        assert!(FETCH.contains("progress {now} {total}"), "what progress_of reads");
     }
 
     #[test]

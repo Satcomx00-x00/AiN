@@ -70,8 +70,8 @@ export type Setup = { state: "missing" } |
 
 /**  Whether the model's weights are in its folder. */
 export type Weights = { state: "missing" } | 
-/**  Hugging Face's download at work: its last line of output. */
-{ state: "downloading"; line: string } | { state: "ready" } | { state: "error"; message: string };
+/**  Hugging Face's download at work: bytes received of the total (0 until the Hub tells it). */
+{ state: "downloading"; received: number; total: number } | { state: "ready" } | { state: "error"; message: string };
 
 /* Tauri Specta runtime */
 type EventEmit<T> = [T] extends [null] ? () => Promise<void> : (payload: T) => Promise<void>;

@@ -3,6 +3,7 @@ import { choice, folder, secret, text, toggle } from "../../sdk/options";
 import { type Glance, definePlugin } from "../../sdk/plugin";
 import type { ProvidersPort } from "../../shell/providers";
 import { type OwnEngine, engineOptions, enginePanel } from "../engine";
+import { type CardLine, downloading, modelCard, progressOf } from "../model-files";
 import type { LocalInfo, Phase, PersonaPort } from "./service";
 import { DEFAULT_PROMPT, DEFAULT_VOICE, VOICES, voiceName } from "./voices";
 
@@ -41,29 +42,43 @@ export function localSetup(info: LocalInfo): { detail: string; action: "install"
   }
 }
 
-/** A Hugging Face progress bar's line (`model.safetensors:  42%|████▏ | 6.9G/16.7G [03:12<04:30, 36.1MB/s]`) as words and a fraction; other lines as they are. */
-export function downloadLine(line: string): { text: string; progress: number | null } {
-  const bar = /^(.*?):\s*(\d+)%\|[^|]*\|\s*(\S+)(?:\s*\[[^<\]]*<([^,\]]+))?/.exec(line.trim());
-  if (!bar) return { text: line.trim(), progress: null };
-  const [, file, percent, size, left] = bar;
-  const eta = left && left !== "?" ? ` · ${left} left` : "";
-  return { text: `${file} · ${size}${eta}`, progress: Number(percent) / 100 };
-}
-
 /** Once installed, what Settings says about the model's weights while they are not all there, and what its button does; null once downloaded. */
 export function modelSetup(info: LocalInfo): { detail: string; action: "download" | "stop"; label: string; progress: number | null } | null {
   if (info.state !== "ready") return null;
   switch (info.model.state) {
     case "missing":
       return { detail: "Installed. Its model isn't downloaded yet; it needs your Hugging Face token.", action: "download", label: "Download · 17 GB", progress: null };
-    case "downloading": {
-      const line = downloadLine(info.model.line);
-      return { detail: `Downloading the model… ${line.text}`.trim(), action: "stop", label: "Stop", progress: line.progress };
-    }
+    case "downloading":
+      return { detail: downloading(info.model.received, info.model.total), action: "stop", label: "Stop", progress: progressOf(info.model.received, info.model.total) };
     case "ready":
       return null;
     case "error":
       return { detail: `Download failed: ${info.model.message}`, action: "download", label: "Retry", progress: null };
+  }
+}
+
+/** The island's card while PersonaPlex on this computer isn't ready to talk: what it lacks, and how far its install or download is; null once ready. */
+export function localLine(info: LocalInfo): CardLine | null {
+  const line = (detail: string, state: string, progress: number | null = null): CardLine => ({ title: "PersonaPlex", detail, progress, state, dir: info.dir });
+  switch (info.state) {
+    case "missing":
+      return line("Not installed", "missing");
+    case "installing":
+      return line("Installing…", "downloading");
+    case "error":
+      return line(`Install failed: ${info.message}`, "error");
+    case "ready":
+      break;
+  }
+  switch (info.model.state) {
+    case "missing":
+      return line("Model not downloaded yet", "missing");
+    case "downloading":
+      return line(downloading(info.model.received, info.model.total), "downloading", progressOf(info.model.received, info.model.total));
+    case "error":
+      return line(`Download failed: ${info.model.message}`, "error");
+    case "ready":
+      return null;
   }
 }
 
@@ -189,6 +204,15 @@ export const persona = definePlugin({
     const status = h("p", { class: "dict-status" });
     const level = h("div", { class: "bar thin dict-level" }, h("i"));
     const settings = button("Settings", () => host.openSettings(), { class: "chip" });
+    // PersonaPlex on this computer, read-only, until it is installed and downloaded: Settings does both.
+    const card = modelCard(() => host.openSettings());
+    card.el.hidden = true;
+    const drawLocal = (info: LocalInfo) => {
+      const line = host.options().engine ? null : localLine(info);
+      card.el.hidden = !line;
+      if (line) card.show(line);
+      host.refresh();
+    };
 
     const draw = () => {
       const busy = talking(phase);
@@ -210,9 +234,11 @@ export const persona = definePlugin({
       draw();
       host.refresh();
     });
+    // The backend says again when the settings change, so switching engines redraws the card.
+    void port.watchLocal(drawLocal).catch(() => {});
 
     return {
-      panel: (root) => root.append(h("div", { class: "dictation" }, h("div", { class: "dict-head" }, main, h("div", { class: "dict-now" }, status, level), settings))),
+      panel: (root) => root.append(h("div", { class: "dictation" }, h("div", { class: "dict-head" }, main, h("div", { class: "dict-now" }, status, level), settings), card.el)),
       glance: (now) => personaGlance(phase, since, now),
     };
   },
