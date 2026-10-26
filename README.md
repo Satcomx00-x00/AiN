@@ -128,7 +128,7 @@ Each widget can show on the pill, in its own tab, or both.
 | **Clipboard** | Your recently copied text, one click to copy it again; kept in memory only, never written to disk | ✅ | ✅ | ✅ |
 | **Dictation** | Speak, and the words are typed where your cursor is. Recognized on your computer by one of 7 models you download once (Parakeet, Whisper, SenseVoice, Moonshine) | ✅ | ⚠️ typing needs Accessibility access | ⚠️ typing needs `xdotool` (X11), `wtype` or `ydotool` (Wayland) |
 | **Read aloud** | Select text in any app, press the shortcut, and it is read out loud. Spoken on your computer by one of 6 voice models you download once (Kokoro, Kitten, Piper in English, French, German and Spanish), with a choice of voice and speed | ✅ | ⚠️ reading the selection needs Accessibility access | ✅ |
-| **Conversation** | Talk with NVIDIA [PersonaPlex](https://github.com/NVIDIA/personaplex), a full-duplex speech-to-speech model: it listens while it speaks, so you can interrupt it. Pick one of its 18 voices and the persona it plays. The model runs on a PersonaPlex server you run (`python -m moshi.server`, a 24 GB GPU), on this computer or another one | ✅ | ✅ | ✅ |
+| **Conversation** | Talk with NVIDIA [PersonaPlex](https://github.com/NVIDIA/personaplex), a full-duplex speech-to-speech model: it listens while it speaks, so you can interrupt it. Pick one of its 18 voices and the persona it plays. The model runs on a PersonaPlex server you run (`python -m moshi.server`, a 24 GB GPU), on this computer or another one, or behind one of your AI providers, which brings its token | ✅ | ✅ | ✅ |
 
 Where typing isn't allowed, dictated text is copied for you to paste (see [permissions](#permissions-and-helper-tools)).
 

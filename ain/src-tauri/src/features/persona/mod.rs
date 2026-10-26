@@ -1,7 +1,8 @@
 //! Conversation: talk with NVIDIA PersonaPlex, a full-duplex speech-to-speech model, as with a
 //! person. It listens while it speaks, so the user can interrupt it, and it backchannels. The model
 //! (7B, a GPU with 24 GB) runs on a PersonaPlex server, on this machine or another one the user
-//! sets in Settings, along with the voice it speaks with and the role it plays.
+//! sets in Settings (or one of the AI providers, which also brings its token), along with the voice
+//! it speaks with and the role it plays.
 //!
 //! A worker thread owns the microphone and the speakers; each conversation gets a thread that holds
 //! the server's WebSocket (`link.rs`), carrying Ogg Opus audio both ways (`codec.rs`, `ogg.rs`).
@@ -29,7 +30,7 @@ use crate::{
     Res,
     shell::{
         popup::{self, ActionKind},
-        settings,
+        providers, settings,
     },
 };
 
@@ -93,15 +94,20 @@ impl Shared {
     }
 }
 
-/// The server and the persona the settings ask for.
-fn wanted(settings: &Value) -> Result<String, String> {
+/// The server and the persona the settings ask for: the server set here, or the AI provider the
+/// "engine" option picks, with its token.
+fn wanted(settings: &Value) -> Result<link::Target, String> {
     let text = |key, default: &str| {
         let value = settings::option(settings, FEATURE, key).and_then(Value::as_str).map_or("", str::trim);
         if value.is_empty() { default.to_string() } else { value.to_string() }
     };
     let voice = text("voice", DEFAULT_VOICE);
     let voice = if VOICES.contains(&voice.as_str()) { voice } else { DEFAULT_VOICE.to_string() };
-    link::address(&text("server", DEFAULT_SERVER), &link::Persona { voice, prompt: text("prompt", DEFAULT_PROMPT) })
+    let persona = link::Persona { voice, prompt: text("prompt", DEFAULT_PROMPT) };
+    match providers::provider(settings, FEATURE)? {
+        Some(provider) => Ok(link::Target { url: link::address(&provider.base_url, &persona)?, token: provider.auth.token()? }),
+        None => Ok(link::Target { url: link::address(&text("server", DEFAULT_SERVER), &persona)?, token: None }),
+    }
 }
 
 /// A conversation going on: its devices, open until it ends.
@@ -136,8 +142,8 @@ impl Line {
     fn dial(&mut self, app: &AppHandle, shared: &Arc<Shared>) {
         let fail = |message| shared.publish(app, Phase::Error { message });
         let current = settings::current(app);
-        let url = match wanted(&current) {
-            Ok(url) => url,
+        let target = match wanted(&current) {
+            Ok(target) => target,
             Err(message) => return fail(message),
         };
         let mic = microphone::Captured::default();
@@ -156,7 +162,7 @@ impl Line {
         let (app2, shared2, running2) = (app.clone(), Arc::clone(shared), Arc::clone(&running));
         let talk = move || {
             let current = || shared2.session.load(Ordering::SeqCst) == id;
-            let result = link::run(&url, &ends, current, |phase| {
+            let result = link::run(&target, &ends, current, |phase| {
                 if current() {
                     shared2.publish(&app2, phase);
                 }
@@ -246,11 +252,40 @@ mod tests {
     fn talks_to_the_server_and_persona_set() {
         let with = |options: Value| wanted(&json!({ "options": { "persona": options } }));
         let set = with(json!({ "server": "wss://gpu.lan:8998", "voice": "VARM3", "prompt": "Be brief." })).unwrap();
-        assert_eq!(set, "wss://gpu.lan:8998/api/chat?voice_prompt=VARM3.pt&text_prompt=Be%20brief.");
+        assert_eq!(set.url, "wss://gpu.lan:8998/api/chat?voice_prompt=VARM3.pt&text_prompt=Be%20brief.");
+        assert_eq!(set.token, None);
         let defaults = with(json!({ "server": " ", "voice": "nobody", "prompt": "" })).unwrap();
-        assert!(defaults.starts_with("ws://localhost:8998/api/chat?voice_prompt=NATF2.pt&text_prompt=You%20are%20a%20wise"));
+        assert!(defaults.url.starts_with("ws://localhost:8998/api/chat?voice_prompt=NATF2.pt&text_prompt=You%20are%20a%20wise"));
         assert_eq!(wanted(&json!({})).unwrap(), defaults);
         assert!(with(json!({ "server": "ftp://x" })).is_err());
+    }
+
+    #[test]
+    fn talks_to_the_ai_provider_chosen_with_its_token() {
+        let settings = |engine: &str| {
+            json!({
+                "providers": [
+                    { "id": "gpu", "name": "GPU box", "baseUrl": "https://gpu.example.com/", "auth": { "kind": "env", "name": "AIN_TEST_PERSONAPLEX_TOKEN" } },
+                    { "id": "lab", "name": "Lab", "baseUrl": "http://10.0.0.2:8998" }
+                ],
+                "options": { "persona": { "engine": engine, "server": "ws://ignored:1", "voice": "NATM1", "prompt": "Hi" } }
+            })
+        };
+        let lab = wanted(&settings("lab")).unwrap();
+        assert_eq!((lab.url.as_str(), lab.token), ("ws://10.0.0.2:8998/api/chat?voice_prompt=NATM1.pt&text_prompt=Hi", None));
+        // SAFETY: no other test reads or writes this variable.
+        unsafe { std::env::remove_var("AIN_TEST_PERSONAPLEX_TOKEN") };
+        assert!(
+            wanted(&settings("gpu")).unwrap_err().contains("AIN_TEST_PERSONAPLEX_TOKEN"),
+            "a missing token says where it was looked for"
+        );
+        unsafe { std::env::set_var("AIN_TEST_PERSONAPLEX_TOKEN", "abc") };
+        let gpu = wanted(&settings("gpu")).unwrap();
+        assert_eq!(
+            (gpu.url.as_str(), gpu.token.as_deref()),
+            ("wss://gpu.example.com/api/chat?voice_prompt=NATM1.pt&text_prompt=Hi", Some("abc"))
+        );
+        assert!(wanted(&settings("gone")).unwrap_err().contains("is gone"));
     }
 
     #[test]

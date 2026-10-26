@@ -66,15 +66,27 @@ pub enum Engine {
     Remote(Remote),
 }
 
-/// The engine `feature`'s options pick; why it can't run when they point at nothing usable.
-pub fn chosen(settings: &Value, feature: &str) -> Result<Engine, String> {
-    let text = |key| settings::option(settings, feature, key).and_then(Value::as_str).map(str::trim).filter(|s| !s.is_empty());
-    let Some(id) = text("engine") else { return Ok(Engine::Local) };
+/// `feature`'s option `key`, trimmed; none when unset or blank.
+fn text<'a>(settings: &'a Value, feature: &str, key: &str) -> Option<&'a str> {
+    settings::option(settings, feature, key).and_then(Value::as_str).map(str::trim).filter(|s| !s.is_empty())
+}
+
+/// The provider `feature`'s "engine" option picks, none for its own engine; why it can't be used
+/// when it is gone or misconfigured.
+pub fn provider(settings: &Value, feature: &str) -> Result<Option<Provider>, String> {
+    let Some(id) = text(settings, feature, "engine") else { return Ok(None) };
     let provider = all(settings)
         .into_iter()
         .find(|p| p.id == id)
         .ok_or_else(|| format!("The AI provider “{id}” is gone; choose another in Settings"))?;
     provider.check()?;
+    Ok(Some(provider))
+}
+
+/// The engine `feature`'s options pick; why it can't run when they point at nothing usable.
+pub fn chosen(settings: &Value, feature: &str) -> Result<Engine, String> {
+    let text = |key| text(settings, feature, key);
+    let Some(provider) = provider(settings, feature)? else { return Ok(Engine::Local) };
     let model = text("remoteModel").ok_or_else(|| format!("Choose the {} model to use in Settings", provider.name))?.to_string();
     Ok(Engine::Remote(Remote { provider, model, voice: text("remoteVoice").map(str::to_string) }))
 }
@@ -188,6 +200,13 @@ mod tests {
         );
         assert_eq!(chosen(&settings(json!({ "engine": "openai" })), "tts").unwrap_err(), "Choose the OpenAI model to use in Settings");
         assert!(chosen(&settings(json!({ "engine": "ftp", "remoteModel": "m" })), "tts").unwrap_err().contains("https://"));
+    }
+
+    #[test]
+    fn finds_the_provider_alone_for_features_without_models() {
+        assert_eq!(provider(&settings(json!({})), "tts"), Ok(None));
+        assert_eq!(provider(&settings(json!({ "engine": "lab" })), "tts").unwrap().map(|p| p.id).as_deref(), Some("lab"));
+        assert!(provider(&settings(json!({ "engine": "gone" })), "tts").is_err());
     }
 
     #[test]

@@ -1,6 +1,9 @@
 import { button, h, icon } from "../../sdk/dom";
-import { choice, text } from "../../sdk/options";
+import { choice, text, textProblem } from "../../sdk/options";
 import { type Glance, definePlugin } from "../../sdk/plugin";
+import type { ProvidersPort } from "../../shell/providers";
+import { type OwnEngine, engineOptions, enginePanel } from "../engine";
+import { fieldRow as row } from "../model-files";
 import type { Phase, PersonaPort } from "./service";
 import { DEFAULT_PROMPT, DEFAULT_SERVER, DEFAULT_VOICE, VOICES, voiceName } from "./voices";
 
@@ -10,6 +13,20 @@ const TALK = `<path d="M2.75 4.25a1.5 1.5 0 0 1 1.5-1.5h7.5a1.5 1.5 0 0 1 1.5 1.
 const STOP = `<rect x="4.5" y="4.5" width="7" height="7" rx="1.5" fill="currentColor" stroke="none"/>`;
 /** How long a problem stays on the pill. */
 const SHOW_PROBLEM_MS = 5000;
+
+/** The feature's own engine: the PersonaPlex server whose address is set on its card. */
+export const OWN_SERVER: OwnEngine = { label: "PersonaPlex server", detail: "The address below, with no sign-in" };
+
+const SERVER_HINT = "Where PersonaPlex's server (python -m moshi.server) runs: this computer, or one with a 24 GB GPU; wss:// for a server behind a certificate.";
+
+/** The server's address, as typed and checked. */
+const serverField = text("PersonaPlex server", DEFAULT_SERVER, {
+  placeholder: DEFAULT_SERVER,
+  hint: SERVER_HINT,
+  required: true,
+  pattern: "((wss?|https?)://)?[^\\s/]+(:\\d+)?/?",
+  invalid: "a server address, like ws://localhost:8998",
+});
 
 /** Connecting or talking: the main button ends it. */
 export const talking = (phase: Phase): boolean => phase.phase === "connecting" || phase.phase === "live";
@@ -50,13 +67,10 @@ export const persona = definePlugin({
   icon: TALK,
   slots: ["glance", "tab"],
   options: {
-    server: text("PersonaPlex server", DEFAULT_SERVER, {
-      placeholder: DEFAULT_SERVER,
-      hint: "Where PersonaPlex's server (python -m moshi.server) runs: this computer, or one with a 24 GB GPU; wss:// for a server behind a certificate.",
-      required: true,
-      pattern: "((wss?|https?)://)?[^\\s/]+(:\\d+)?/?",
-      invalid: "a server address, like ws://localhost:8998",
-    }),
+    // These are drawn by the settings panel: the engine (the server below, or an AI provider
+    // whose address and token it uses instead), and the server's address.
+    ...engineOptions(),
+    server: { ...serverField, inPanel: true },
     voice: choice("Voice", DEFAULT_VOICE, VOICES.map((v) => [v, voiceName(v)] as const)),
     prompt: text("Persona", DEFAULT_PROMPT, {
       multiline: true,
@@ -73,6 +87,25 @@ export const persona = definePlugin({
       surface: "action",
     },
   ],
+  settingsPanel(root, { providers }: { persona: PersonaPort; providers: ProvidersPort }, host) {
+    const input = h("input", { class: "path-input", type: "text", spellcheck: "false", placeholder: DEFAULT_SERVER, "aria-label": "PersonaPlex server" });
+    input.value = host.options().server;
+    const problem = h("p", { class: "field-hint" });
+    const hint = h("p", { class: "field-hint" }, SERVER_HINT);
+    const serverRow = row("PersonaPlex server", h("div", {}, input, problem, hint));
+    // Saved once it reads as an address; until then, what's wrong shows under it.
+    input.addEventListener("change", () => {
+      const value = (input.value = input.value.trim());
+      const wrong = textProblem(serverField, value);
+      problem.textContent = wrong ?? "";
+      problem.hidden = !wrong;
+      if (!wrong) host.setOptions({ server: value });
+    });
+    problem.hidden = true;
+    const engine = enginePanel(providers, host, "s2s", (local) => void (serverRow.hidden = !local), OWN_SERVER);
+    root.append(engine.el, serverRow);
+    return () => engine.stop();
+  },
   setup({ persona: port }: { persona: PersonaPort }, host) {
     let phase: Phase = { phase: "idle" };
     let since = 0;

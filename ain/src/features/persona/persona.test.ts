@@ -12,6 +12,8 @@ const { VOICES } = await import("./voices");
 const { bindings } = await import("../../shell/commands");
 const { catalogue } = await import("..");
 const { textProblem } = await import("../../sdk/options");
+const { memoryProviders } = await import("../../shell/providers");
+import type { AiProvider } from "../../shell/providers";
 import type { Phase, PersonaPort } from "./service";
 
 const live = (said = "", speaking = false): Phase => ({ phase: "live", level: 0.5, speaking, said });
@@ -104,6 +106,11 @@ describe("its settings", () => {
     expect([voiceName("NATF2"), voiceName("VARM0"), voiceName("odd")]).toEqual(["Natural, female 3", "Varied, male 1", "odd"]);
   });
 
+  it("keeps the engine and the server for the panel", () => {
+    expect(persona.options?.engine).toMatchObject({ kind: "text", default: "", inPanel: true });
+    expect(persona.options?.server).toMatchObject({ default: "ws://localhost:8998", inPanel: true });
+  });
+
   it("checks the server's address", () => {
     const server = persona.options!.server;
     expect(["ws://localhost:8998", "wss://gpu.example.com", "10.0.0.2:8998", "https://host/"].map((v) => textProblem(server, v))).toEqual([null, null, null, null]);
@@ -115,5 +122,52 @@ describe("its settings", () => {
     expect(statusText({ phase: "idle" })).toContain("Ctrl+Alt+T");
     expect(statusText({ phase: "connecting" })).toBe("Connecting to PersonaPlex…");
     expect(talking({ phase: "live", level: 0, speaking: false, said: "" }) && !talking({ phase: "idle" })).toBe(true);
+  });
+});
+
+describe("in Settings", () => {
+  const gpu: AiProvider = { id: "gpu", name: "GPU box", preset: "custom", baseUrl: "https://gpu.example.com", auth: { kind: "env", name: "PERSONAPLEX_TOKEN" } };
+  const tick = () => new Promise((r) => setTimeout(r));
+
+  const mount = (engine = "") => {
+    let values = { engine, remoteModel: "", server: "ws://localhost:8998", voice: "NATF2", prompt: "" };
+    const host = { options: () => values, setOptions: vi.fn((patch: Partial<typeof values>) => void (values = { ...values, ...patch })), openPage: vi.fn() };
+    const models = vi.fn(async () => []);
+    const root = document.createElement("div");
+    document.body.replaceChildren(root);
+    const cleanup = persona.settingsPanel?.(root, { providers: { ...memoryProviders([gpu]), models } } as never, host as never);
+    const [engineRow, , , serverRow] = root.querySelectorAll<HTMLElement>(".field");
+    const input = root.querySelector<HTMLInputElement>("input[aria-label='PersonaPlex server']")!;
+    return { root, host, models, cleanup: cleanup as () => void, engineRow: engineRow!, serverRow: serverRow!, input };
+  };
+
+  const type = (input: HTMLInputElement, value: string) => {
+    input.value = value;
+    input.dispatchEvent(new Event("change"));
+  };
+
+  it("talks to the server set here, saved once it reads as an address", async () => {
+    const { host, serverRow, input, root } = mount();
+    await tick();
+    expect(serverRow.hidden).toBe(false);
+    expect(root.querySelector(".ui-select-trigger")?.textContent).toContain("PersonaPlex server");
+    type(input, "not an address");
+    expect(host.setOptions).not.toHaveBeenCalled();
+    expect(serverRow.textContent).toContain("Expected a server address");
+    type(input, " wss://gpu.lan:8998 ");
+    expect(host.setOptions).toHaveBeenLastCalledWith({ server: "wss://gpu.lan:8998" });
+    expect(input.value).toBe("wss://gpu.lan:8998");
+  });
+
+  it("or to an AI provider's, with no model to pick", async () => {
+    const { host, serverRow, root, models, cleanup } = mount();
+    await tick();
+    root.querySelector<HTMLButtonElement>(".ui-select-trigger")!.click();
+    [...root.querySelectorAll<HTMLElement>("[role=option]")].find((o) => o.textContent?.startsWith("GPU box"))!.click();
+    expect(host.setOptions).toHaveBeenLastCalledWith({ engine: "gpu" });
+    expect(serverRow.hidden).toBe(true);
+    expect(root.textContent).toContain("Sent to https://gpu.example.com");
+    expect(models).not.toHaveBeenCalled();
+    cleanup();
   });
 });

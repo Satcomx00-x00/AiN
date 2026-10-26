@@ -10,7 +10,12 @@ use std::{
     time::{Duration, Instant},
 };
 
-use tungstenite::{Message, WebSocket, http::Uri, stream::MaybeTlsStream};
+use tungstenite::{
+    Message, WebSocket,
+    client::IntoClientRequest,
+    http::{HeaderValue, Uri, header::AUTHORIZATION},
+    stream::MaybeTlsStream,
+};
 
 use super::{
     Phase,
@@ -91,6 +96,14 @@ pub fn address(server: &str, persona: &Persona) -> Result<String, String> {
     Ok(url)
 }
 
+/// The server to talk to: the conversation's address, and the bearer token an AI provider's
+/// server wants (none for an open one).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Target {
+    pub url: String,
+    pub token: Option<String>,
+}
+
 /// Where the conversation's audio comes from and goes to.
 pub struct Ends {
     pub mic: Captured,
@@ -108,15 +121,20 @@ fn addresses(uri: &Uri) -> Result<Vec<SocketAddr>, String> {
 }
 
 /// Opens the WebSocket; its reads then give up after `POLL`, so one thread can listen and talk.
-fn connect(url: &str) -> Result<Socket, String> {
-    let uri: Uri = url.parse().map_err(|_| "The server's address isn't valid".to_string())?;
+fn connect(target: &Target) -> Result<Socket, String> {
+    let mut request = target.url.as_str().into_client_request().map_err(|_| "The server's address isn't valid".to_string())?;
+    if let Some(token) = &target.token {
+        let bearer = HeaderValue::from_str(&format!("Bearer {token}")).map_err(|_| "The provider's token can't be sent".to_string())?;
+        request.headers_mut().insert(AUTHORIZATION, bearer);
+    }
+    let uri = request.uri().clone();
     let unreachable = || format!("Couldn't reach the PersonaPlex server at {}", uri.authority().map_or("", |a| a.as_str()));
     let tcp = addresses(&uri)?.iter().find_map(|a| TcpStream::connect_timeout(a, CONNECT_TIMEOUT).ok()).ok_or_else(unreachable)?;
     // The clone shares the socket: it sets timeouts once TLS and the WebSocket wrap the original.
     let control = tcp.try_clone().map_err(|e| e.to_string())?;
     control.set_read_timeout(Some(CONNECT_TIMEOUT)).map_err(|e| e.to_string())?;
     let _ = control.set_nodelay(true);
-    let (socket, _) = tungstenite::client_tls(url, tcp).map_err(|e| format!("The server refused the conversation: {e}"))?;
+    let (socket, _) = tungstenite::client_tls(request, tcp).map_err(|e| format!("The server refused the conversation: {e}"))?;
     control.set_read_timeout(Some(POLL)).map_err(|e| e.to_string())?;
     Ok(socket)
 }
@@ -154,9 +172,9 @@ impl Said {
 }
 
 /// Holds the conversation until `current` turns false (Ok) or it fails (Err), reporting its phase.
-pub fn run(url: &str, ends: &Ends, current: impl Fn() -> bool, mut report: impl FnMut(Phase)) -> Result<(), String> {
+pub fn run(target: &Target, ends: &Ends, current: impl Fn() -> bool, mut report: impl FnMut(Phase)) -> Result<(), String> {
     report(Phase::Connecting);
-    let mut socket = connect(url)?;
+    let mut socket = connect(target)?;
     let asked = Instant::now();
     loop {
         if !current() {
@@ -262,6 +280,11 @@ mod tests {
         assert_eq!(said.text(), "é".repeat(SAID_CHARS));
     }
 
+    /// The conversation on an open server at `server`.
+    fn open(server: &str) -> Target {
+        Target { url: address(server, &persona()).unwrap(), token: None }
+    }
+
     fn ends() -> Ends {
         Ends { mic: Arc::new(Mutex::new(Vec::new())), mic_rate: codec::RATE, speakers: Queue::default(), speaker_rate: codec::RATE }
     }
@@ -269,14 +292,15 @@ mod tests {
     /// A PersonaPlex server on this machine for one conversation: it answers with `script` after
     /// the request, then echoes the audio it hears with a word. Returns its address and the request.
     #[allow(clippy::result_large_err, reason = "tungstenite's callback type")]
-    fn server(script: Vec<Vec<u8>>) -> (String, mpsc::Receiver<String>) {
+    fn server(script: Vec<Vec<u8>>) -> (Target, mpsc::Receiver<(String, Option<String>)>) {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let at = listener.local_addr().unwrap();
         let (tx, rx) = mpsc::channel();
         thread::spawn(move || {
             let (tcp, _) = listener.accept().unwrap();
             let mut socket = tungstenite::accept_hdr(tcp, |req: &tungstenite::handshake::server::Request, res| {
-                let _ = tx.send(req.uri().to_string());
+                let auth = req.headers().get("authorization").and_then(|v| v.to_str().ok()).map(str::to_string);
+                let _ = tx.send((req.uri().to_string(), auth));
                 Ok(res)
             })
             .unwrap();
@@ -290,7 +314,7 @@ mod tests {
                 }
             }
         });
-        (address(&format!("127.0.0.1:{}", at.port()), &persona()).unwrap(), rx)
+        (open(&format!("127.0.0.1:{}", at.port())), rx)
     }
 
     #[test]
@@ -315,7 +339,9 @@ mod tests {
         let start = Instant::now();
         run(&url, &ends, || !heard() && start.elapsed() < Duration::from_secs(10), report).unwrap();
         assert!(heard(), "the voice came back with its words, and the level showed: {:?}", lock(&phases));
-        assert!(request.recv().unwrap().ends_with("voice_prompt=NATF2.pt&text_prompt=You%20are%20a%20calm%20%26%20kind%20tutor."));
+        let (uri, auth) = request.recv().unwrap();
+        assert_eq!(auth, None, "an open server gets no token");
+        assert!(uri.ends_with("voice_prompt=NATF2.pt&text_prompt=You%20are%20a%20calm%20%26%20kind%20tutor."));
         assert_eq!(lock(&phases)[0], Phase::Connecting);
     }
 
@@ -336,6 +362,16 @@ mod tests {
     }
 
     #[test]
+    fn sends_the_provider_s_token() {
+        let (target, request) = server(vec![b"\x05bye".to_vec()]);
+        let target = Target { token: Some("s3cret".into()), ..target };
+        assert_eq!(run(&target, &ends(), || true, |_| {}).unwrap_err(), "bye");
+        assert_eq!(request.recv().unwrap().1.as_deref(), Some("Bearer s3cret"));
+        let bad = Target { token: Some("line\nbreak".into()), ..target };
+        assert_eq!(run(&bad, &ends(), || true, |_| {}).unwrap_err(), "The provider's token can't be sent");
+    }
+
+    #[test]
     fn says_when_the_server_hangs_up() {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let port = listener.local_addr().unwrap().port();
@@ -345,14 +381,14 @@ mod tests {
             socket.close(None).unwrap();
             while socket.read().is_ok() {}
         });
-        let url = address(&format!("127.0.0.1:{port}"), &persona()).unwrap();
+        let url = open(&format!("127.0.0.1:{port}"));
         assert_eq!(run(&url, &ends(), || true, |_| {}).unwrap_err(), "The server ended the conversation");
     }
 
     #[test]
     fn says_when_no_server_answers() {
         let port = TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
-        let url = address(&format!("127.0.0.1:{port}"), &persona()).unwrap();
+        let url = open(&format!("127.0.0.1:{port}"));
         assert!(run(&url, &ends(), || true, |_| {}).unwrap_err().starts_with("Couldn't reach the PersonaPlex server"));
     }
 }
