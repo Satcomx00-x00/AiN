@@ -10,7 +10,7 @@
 //! helpers), or put on the clipboard when the system won't let us type: macOS until the user allows
 //! Accessibility access, Wayland without `wtype` or `ydotool`, X11 without `xdotool`.
 
-mod chunk;
+pub(super) mod chunk;
 mod engine;
 mod model;
 #[cfg(windows)]
@@ -105,11 +105,21 @@ pub enum Command {
     Cancel,
 }
 
+/// The speech models, shared with the features that also turn speech into text (transcript).
+pub(super) type SpeechModels = ModelStore<model::Model, sherpa_onnx::OfflineRecognizer>;
+
+pub(super) use engine::Recognizer;
+
+/// Dictation's speech models: what the other speech features run on, on this machine.
+pub(super) fn speech_models(app: &AppHandle) -> Option<Arc<SpeechModels>> {
+    app.try_state::<Dictation>().map(|d| Arc::clone(&d.shared.models))
+}
+
 /// Shared between the commands, the worker and the decoder threads.
 struct Shared {
     phase: Live<Phase>,
     /// The chosen speech model, its download, and the loaded recognizer.
-    models: Arc<ModelStore<model::Model, sherpa_onnx::OfflineRecognizer>>,
+    models: Arc<SpeechModels>,
     /// Bumped by every start and cancel, so a stale decoder's result is thrown away.
     session: AtomicU64,
 }
