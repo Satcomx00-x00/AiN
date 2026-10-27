@@ -13,7 +13,7 @@ use std::{
 use serde_json::Value;
 use tauri::AppHandle;
 
-use super::{Command, FEATURE, KEEP_WARM, MAX_SECONDS, Phase, Shared, chunk, deliver, lock, model};
+use super::{Command, FEATURE, KEEP_WARM, MAX_SECONDS, Phase, Shared, chunk, deliver, lock, model, pastes};
 use crate::{
     features::microphone,
     shell::{
@@ -147,8 +147,9 @@ fn decoder(app: AppHandle, shared: Arc<Shared>, id: u64, engine: Engine, chunks:
     }
     let text = chunk::join(&parts);
     let delivery = (!text.is_empty()).then(|| {
-        let trailing = settings::option(&settings::current(&app), FEATURE, "trailingSpace").and_then(Value::as_bool).unwrap_or(true);
-        deliver(&app, &if trailing { format!("{text} ") } else { text.clone() })
+        let settings = settings::current(&app);
+        let trailing = settings::option(&settings, FEATURE, "trailingSpace").and_then(Value::as_bool).unwrap_or(true);
+        deliver(&app, &if trailing { format!("{text} ") } else { text.clone() }, pastes(&settings))
     });
     shared.publish(&app, Phase::Done { text, delivery });
 }

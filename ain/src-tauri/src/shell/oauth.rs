@@ -255,8 +255,7 @@ impl From<Failure> for Error {
 }
 
 fn post(url: &str, form: &[(&str, &str)]) -> Result<String, Failure> {
-    let agent: ureq::Agent =
-        ureq::Agent::config_builder().http_status_as_error(false).timeout_global(Some(Duration::from_secs(30))).build().into();
+    let agent: ureq::Agent = super::net::config().http_status_as_error(false).timeout_global(Some(Duration::from_secs(30))).build().into();
     let mut response =
         agent.post(url).send_form(form.iter().copied()).map_err(|e| Failure::Unreachable(format!("couldn't reach {url}: {e}")))?;
     let ok = response.status().is_success();
