@@ -271,6 +271,7 @@ cargo test             # also regenerates the TypeScript bindings: commit them
 ```
 
 How the code is organized, and how to add a feature: [docs/architecture.md](docs/architecture.md).
+Every built-in URL and folder can be overridden by an `AIN_*` environment variable: [docs/configuration.md](docs/configuration.md).
 
 ## Project layout
 

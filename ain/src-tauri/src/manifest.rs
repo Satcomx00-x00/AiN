@@ -27,7 +27,7 @@ macro_rules! manifest {
                 store: shell::store { typed: [catalog, install, open_repo], raw: [], events: [] }
                 secrets: shell::secrets { typed: [get, set, saved_keys], raw: [], events: [SecretChanged] }
                 oauth: shell::oauth { typed: [sign_in, token, sign_out, signed_in], raw: [], events: [] }
-                providers: shell::providers { typed: [models], raw: [], events: [] }
+                providers: shell::providers { typed: [models, preset_urls], raw: [], events: [] }
                 updates: shell::updater { typed: [status, check, install, open_releases], raw: [], events: [UpdateChanged] }
             }
             features {

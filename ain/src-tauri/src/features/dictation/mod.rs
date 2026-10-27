@@ -269,7 +269,7 @@ crate::ipc::dictation!();
 
 pub fn init() -> TauriPlugin<Wry> {
     ipc().plugin(|app| {
-        let default_dir = app.path().app_data_dir()?.join("models");
+        let default_dir = crate::config::data_dir(app)?.join("models");
         let emit = |app: &AppHandle, info| drop(ModelChanged(info).emit(app));
         let models = Arc::new(ModelStore::new(FEATURE, model::MODELS, &settings::current(app), default_dir, emit, engine::load));
         models.preload();
