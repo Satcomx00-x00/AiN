@@ -1,0 +1,12 @@
+# Build settings for the native code built from source (llama.cpp, via llama-cpp-sys-2), so it links
+# cleanly with sherpa-onnx's prebuilt static libraries.
+[env]
+# sherpa-onnx's Linux libraries use the pre-C++11 std::string ABI (manylinux2014): llama.cpp must
+# too, or classes holding a string (std::regex's scanner…) are laid out two ways under one name.
+CXXFLAGS_x86_64_unknown_linux_gnu = "-D_GLIBCXX_USE_CXX11_ABI=0"
+# sherpa-onnx's Windows libraries use the static CRT (/MT): llama.cpp must too, or both C++
+# runtimes end up linked (LNK2005).
+LLAMA_STATIC_CRT = "1"
+# llama.cpp uses std::filesystem, which macOS has from 10.15: the same as
+# bundle.macOS.minimumSystemVersion in tauri.conf.json, which `tauri build` sets this from.
+MACOSX_DEPLOYMENT_TARGET = "10.15"
