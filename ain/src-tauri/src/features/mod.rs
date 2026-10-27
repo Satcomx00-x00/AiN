@@ -7,6 +7,7 @@ pub mod clipboard;
 pub mod dictation;
 pub mod media;
 pub mod palette;
+pub mod persona;
 pub mod privacy;
 pub mod stats;
 pub mod tts;
@@ -16,8 +17,12 @@ pub mod zones;
 mod audio;
 mod download;
 mod live;
+mod microphone;
 mod models;
+mod speakers;
 mod worker;
+
+use std::sync::{Mutex, MutexGuard};
 
 use tauri::{Builder, Wry};
 
@@ -31,4 +36,10 @@ pub fn register(app: Builder<Wry>) -> Builder<Wry> {
         .plugin(palette::init())
         .plugin(zones::init())
         .plugin(tts::init())
+        .plugin(persona::init())
+}
+
+/// A poisoned lock still holds usable audio or state: carry on with it.
+fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
+    m.lock().unwrap_or_else(|e| e.into_inner())
 }

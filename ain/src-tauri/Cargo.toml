@@ -1,6 +1,6 @@
 [package]
 name = "ain"
-version = "0.10.0"
+version = "0.11.0"
 edition = "2024"
 
 [lib]
@@ -42,6 +42,10 @@ tauri-plugin-dialog = "2"
 specta = { version = "=2.0.0-rc.25", features = ["derive"] }
 specta-typescript = "=0.0.12"
 tauri-specta = { version = "=2.0.0-rc.25", features = ["derive", "typescript"] }
+# Full-duplex conversation with a PersonaPlex server: a WebSocket carrying Ogg Opus audio both ways
+# (libopus built from source, statically: needs CMake).
+tungstenite = { version = "0.30", default-features = false, features = ["handshake", "rustls-tls-webpki-roots"] }
+opus = "0.4"
 # PKCE verifiers and sign-in states for plugins signing in to online accounts.
 getrandom = "0.3"
 

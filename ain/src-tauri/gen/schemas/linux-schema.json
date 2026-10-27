@@ -2847,6 +2847,84 @@
           "markdownDescription": "Denies the system command without any pre-configured scope."
         },
         {
+          "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-state`\n- `allow-control`\n- `allow-local-status`\n- `allow-install-local`\n- `allow-remove-local`\n- `allow-open-local-dir`",
+          "type": "string",
+          "const": "persona:default",
+          "markdownDescription": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-state`\n- `allow-control`\n- `allow-local-status`\n- `allow-install-local`\n- `allow-remove-local`\n- `allow-open-local-dir`"
+        },
+        {
+          "description": "Enables the control command without any pre-configured scope.",
+          "type": "string",
+          "const": "persona:allow-control",
+          "markdownDescription": "Enables the control command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the install_local command without any pre-configured scope.",
+          "type": "string",
+          "const": "persona:allow-install-local",
+          "markdownDescription": "Enables the install_local command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the local_status command without any pre-configured scope.",
+          "type": "string",
+          "const": "persona:allow-local-status",
+          "markdownDescription": "Enables the local_status command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the open_local_dir command without any pre-configured scope.",
+          "type": "string",
+          "const": "persona:allow-open-local-dir",
+          "markdownDescription": "Enables the open_local_dir command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the remove_local command without any pre-configured scope.",
+          "type": "string",
+          "const": "persona:allow-remove-local",
+          "markdownDescription": "Enables the remove_local command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the state command without any pre-configured scope.",
+          "type": "string",
+          "const": "persona:allow-state",
+          "markdownDescription": "Enables the state command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the control command without any pre-configured scope.",
+          "type": "string",
+          "const": "persona:deny-control",
+          "markdownDescription": "Denies the control command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the install_local command without any pre-configured scope.",
+          "type": "string",
+          "const": "persona:deny-install-local",
+          "markdownDescription": "Denies the install_local command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the local_status command without any pre-configured scope.",
+          "type": "string",
+          "const": "persona:deny-local-status",
+          "markdownDescription": "Denies the local_status command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the open_local_dir command without any pre-configured scope.",
+          "type": "string",
+          "const": "persona:deny-open-local-dir",
+          "markdownDescription": "Denies the open_local_dir command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the remove_local command without any pre-configured scope.",
+          "type": "string",
+          "const": "persona:deny-remove-local",
+          "markdownDescription": "Denies the remove_local command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the state command without any pre-configured scope.",
+          "type": "string",
+          "const": "persona:deny-state",
+          "markdownDescription": "Denies the state command without any pre-configured scope."
+        },
+        {
           "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-bind`\n- `allow-failures`\n- `allow-open`\n- `allow-hide`\n- `allow-paste`",
           "type": "string",
           "const": "popup:default",

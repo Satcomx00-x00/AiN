@@ -14,6 +14,7 @@ const { tauriClipboard } = await import("./clipboard/service");
 const { tauriVolume } = await import("./volume/service");
 const { tauriDictation } = await import("./dictation/service");
 const { tauriTts } = await import("./tts/service");
+const { tauriPersona } = await import("./persona/service");
 const { tauriMedia } = await import("./media/service");
 const { tauriPrivacy } = await import("./privacy/service");
 const { tauriPalette, idlePalette } = await import("./palette/service");
@@ -125,6 +126,20 @@ describe("read aloud", () => {
     const models = await follow(tauriTts.watchModel, backend({ "plugin:tts|model_status": missing }));
     expect(models.seen).toEqual([missing]);
     expect(models.log.slice(0, 2)).toEqual(["listen plugin:tts:model-changed", "invoke plugin:tts|model_status"]);
+  });
+});
+
+describe("conversation", () => {
+  it("follows the conversation, with a sane level", async () => {
+    const live = { phase: "live", level: null, speaking: true, said: "Hi" };
+    const phases = await follow(tauriPersona.watch, backend({ "plugin:persona|state": { phase: "idle" } }, { "plugin:persona:phase-changed": [live] }));
+    expect(phases.seen).toEqual([{ ...live, level: 0 }, { phase: "idle" }]);
+    expect(phases.log.slice(0, 2)).toEqual(["listen plugin:persona:phase-changed", "invoke plugin:persona|state"]);
+
+    const missing = { dir: "D:/m/personaplex", running: false, state: "missing" };
+    const local = await follow(tauriPersona.watchLocal, backend({ "plugin:persona|local_status": missing }));
+    expect(local.seen).toEqual([missing]);
+    expect(local.log.slice(0, 2)).toEqual(["listen plugin:persona:local-changed", "invoke plugin:persona|local_status"]);
   });
 });
 

@@ -71,8 +71,8 @@ sets `panelHeight`: the island grows to it while that tab is shown and back when
   | `oauth` | `signIn(provider)`, `token(provider)`, `signOut(provider)`, `signedIn(provider)`: see [Signing in to an online account](#signing-in-to-an-online-account) |
 
   `watch` methods call back with the current value right away, then on every change; they
-  resolve with a function that stops watching. Clipboard history, screen captures, dictation and
-  read aloud are not available to plugins.
+  resolve with a function that stops watching. Clipboard history, screen captures, dictation,
+  read aloud and conversation are not available to plugins.
 
 - **host**: `host.options()` reads the plugin's options (read them when needed, the user can
   change them anytime), `host.setOptions(patch)` saves some, `host.secret(key)` reads one of its

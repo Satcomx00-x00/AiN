@@ -3,6 +3,11 @@
 All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.11.0](https://github.com/Satcomx00-x00/AiN/compare/v0.10.0..v0.11.0) - 2026-10-26
+
+### Features
+
+- **persona:** Talk with NVIDIA PersonaPlex, full duplex ([#31](https://github.com/Satcomx00-x00/AiN/pull/31)) ([3b1cc6d](https://github.com/Satcomx00-x00/AiN/commit/3b1cc6d4af231b7a2da8ebceb0910795ec30ad9b))
 ## [0.10.0](https://github.com/Satcomx00-x00/AiN/compare/v0.9.0..v0.10.0) - 2026-10-26
 
 ### Features

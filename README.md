@@ -130,6 +130,7 @@ Each widget can show on the pill, in its own tab, or both.
 | **Clipboard** | Your recently copied text, one click to copy it again; kept in memory only, never written to disk | ✅ | ✅ | ✅ |
 | **Dictation** | Speak, and the words are typed where your cursor is. Recognized on your computer by one of 7 models you download once (Parakeet, Whisper, SenseVoice, Moonshine) | ✅ | ⚠️ typing needs Accessibility access | ⚠️ typing needs `xdotool` (X11), `wtype` or `ydotool` (Wayland) |
 | **Read aloud** | Select text in any app, press the shortcut, and it is read out loud. Spoken on your computer by one of 6 voice models you download once (Kokoro, Kitten, Piper in English, French, German and Spanish), with a choice of voice and speed | ✅ | ⚠️ reading the selection needs Accessibility access | ✅ |
+| **Conversation** | Talk with NVIDIA [PersonaPlex](https://github.com/NVIDIA/personaplex), a full-duplex speech-to-speech model: it listens while it speaks, so you can interrupt it. Pick one of its 18 voices and the persona it plays. The model runs on this computer, where the app installs PersonaPlex (with [uv](https://docs.astral.sh/uv/)), starts its server when you talk and stops it once unused (an NVIDIA GPU with 24 GB, or less with CPU offload; a Hugging Face token for its weights), or on a server behind one of your AI providers, which brings its token | ✅ | ✅ | ✅ |
 
 Where typing isn't allowed, dictated text is copied for you to paste (see [permissions](#permissions-and-helper-tools)).
 
@@ -143,6 +144,7 @@ Global shortcuts open these even while the island is folded. You can rebind them
 | **Screenshot editor** | Freezes the screen; select an area, draw on it (pen, marker, rectangle, ellipse, colors, sizes, undo), then copy or save it as a PNG | ✅ | ✅ | ✅ |
 | **Dictation** | Starts and stops dictating | ✅ | ✅ | ✅ |
 | **Read aloud** | Reads the selected text, or stops reading | ✅ | ✅ | ✅ |
+| **Conversation** | Starts or ends a conversation with PersonaPlex | ✅ | ✅ | ✅ |
 | **Command palette** | One search for your apps, files, the app's own commands and system actions (lock, sleep, sign out, restart, shut down, empty the trash), with a calculator; `>` runs a command line in a terminal, `?` searches the web, a typed path browses its folder. What you pick often comes first | ✅ apps from the Start menu (desktop and Store) | ✅ apps from the Applications folders; locking needs Accessibility access | ✅ apps from desktop entries (Flatpak and Snap too) |
 | **Zones** | Snap windows into a layout of zones (priority grid, columns, rows, grid, focus) on every screen: drag a window with <kbd>Shift</kbd> held (<kbd>Ctrl</kbd> too to span zones), pick a zone by its number, or send a window to the next or previous zone, on to the next screen | ✅ | ⚠️ needs Accessibility access | ✅ X11<br>⚠️ GNOME on Wayland: with AiN's GNOME Shell helper, installed from **Settings → Zones**, running after you log in again<br>⚠️ other Wayland desktops (KDE, Sway…): not yet, they let no app move another's windows |
 
@@ -175,6 +177,7 @@ the `store` branch to list it.
 | Snap to a zone | <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>Win</kbd>+<kbd>Z</kbd> |
 | Move to the next or previous zone | <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>Win</kbd>+<kbd>→</kbd> / <kbd>←</kbd> |
 | Read the selected text aloud, or stop | <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>R</kbd> |
+| Start or end a conversation with PersonaPlex | <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>T</kbd> |
 
 You can rebind them all in **Settings → Shortcuts**. On Windows, <kbd>Win</kbd> + a single letter is reserved by the
 OS, so add <kbd>Shift</kbd> or <kbd>Alt</kbd>. On macOS, <kbd>Win</kbd> is <kbd>Cmd</kbd>; on Linux, the Super key.

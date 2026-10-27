@@ -2,6 +2,7 @@ import { type ClipboardPort, tauriClipboard } from "./clipboard/service";
 import { type DictationPort, tauriDictation } from "./dictation/service";
 import { type MediaPort, tauriMedia } from "./media/service";
 import { type PalettePort, tauriPalette } from "./palette/service";
+import { type PersonaPort, tauriPersona } from "./persona/service";
 import { type PrivacyPort, tauriPrivacy } from "./privacy/service";
 import { type CapturePort, tauriCapture } from "./screenshot/service";
 import { type StatsPort, tauriStats } from "./stats/service";
@@ -27,6 +28,7 @@ export interface Services {
   /** Windows snapped into zones: the layout preview and the overlay. */
   readonly zones: ZonesPort;
   readonly tts: TtsPort;
+  readonly persona: PersonaPort;
   /** Signing in to online accounts; each plugin gets its own, bound to its id. */
   readonly oauth: PerPlugin<OAuthPort>;
   /** The AI providers set up in Settings, which AI features may run on instead of their own model. */
@@ -44,6 +46,7 @@ export const tauriServices: Services = {
   palette: tauriPalette,
   zones: tauriZones,
   tts: tauriTts,
+  persona: tauriPersona,
   oauth: tauriOAuth,
   providers: settingsProviders(tauriSettings.watch),
 };

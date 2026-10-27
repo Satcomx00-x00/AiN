@@ -39,6 +39,7 @@ macro_rules! manifest {
                 }
                 media: features::media { typed: [state, artwork, control], raw: [], events: [TrackChanged] }
                 palette: features::palette { typed: [apps, launch, files, browse, open, reveal, run, system, open_url], raw: [], events: [] }
+                persona: features::persona { typed: [state, control, local_status, install_local, remove_local, open_local_dir], raw: [], events: [PhaseChanged, LocalChanged] }
                 privacy: features::privacy { typed: [state], raw: [], events: [UsageChanged] }
                 stats: features::stats { typed: [latest], raw: [], events: [] }
                 tts: features::tts {
