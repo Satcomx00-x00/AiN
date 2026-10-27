@@ -215,11 +215,11 @@ mod tests {
     fn chats_with_instructions_as_the_system_message() {
         let (base, served) = serve_once(r#"{"choices":[{"message":{"role":"assistant","content":"Hello there"}}]}"#);
         let provider = Provider { id: "local".into(), name: "Local".into(), base_url: base, auth: super::super::Auth::None };
-        assert_eq!(chat(&provider, "gpt-4o-mini", "Fix it", "Helo there").unwrap(), "Hello there");
+        assert_eq!(chat(&provider, "gpt-4o-mini", "Fix it", "hello there").unwrap(), "Hello there");
         let asked = served.join().unwrap();
         assert!(asked.starts_with("POST /v1/chat/completions "), "{asked}");
         assert!(asked.contains(r#"{"content":"Fix it","role":"system"}"#), "{asked}");
-        assert!(asked.contains(r#"{"content":"Helo there","role":"user"}"#), "{asked}");
+        assert!(asked.contains(r#"{"content":"hello there","role":"user"}"#), "{asked}");
     }
 
     #[test]
