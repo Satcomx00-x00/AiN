@@ -3153,6 +3153,48 @@
           "markdownDescription": "Denies the open_repo command without any pre-configured scope."
         },
         {
+          "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-state`\n- `allow-lines`\n- `allow-control`",
+          "type": "string",
+          "const": "transcript:default",
+          "markdownDescription": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-state`\n- `allow-lines`\n- `allow-control`"
+        },
+        {
+          "description": "Enables the control command without any pre-configured scope.",
+          "type": "string",
+          "const": "transcript:allow-control",
+          "markdownDescription": "Enables the control command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the lines command without any pre-configured scope.",
+          "type": "string",
+          "const": "transcript:allow-lines",
+          "markdownDescription": "Enables the lines command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the state command without any pre-configured scope.",
+          "type": "string",
+          "const": "transcript:allow-state",
+          "markdownDescription": "Enables the state command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the control command without any pre-configured scope.",
+          "type": "string",
+          "const": "transcript:deny-control",
+          "markdownDescription": "Denies the control command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the lines command without any pre-configured scope.",
+          "type": "string",
+          "const": "transcript:deny-lines",
+          "markdownDescription": "Denies the lines command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the state command without any pre-configured scope.",
+          "type": "string",
+          "const": "transcript:deny-state",
+          "markdownDescription": "Denies the state command without any pre-configured scope."
+        },
+        {
           "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-state`\n- `allow-model-status`\n- `allow-control`\n- `allow-speak`\n- `allow-download-model`\n- `allow-delete-model`\n- `allow-open-model-dir`",
           "type": "string",
           "const": "tts:default",
