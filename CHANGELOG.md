@@ -3,6 +3,21 @@
 All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.12.0](https://github.com/Satcomx00-x00/AiN/compare/v0.11.0..v0.12.0) - 2026-10-27
+
+### Features
+
+- **persona:** Install, download and test PersonaPlex from a desktop-style Settings ([#37](https://github.com/Satcomx00-x00/AiN/pull/37)) ([6399ab2](https://github.com/Satcomx00-x00/AiN/commit/6399ab20ac2322cbdcc6ae1405f59d0dcca2dc67))
+
+### Bug fixes
+
+- **linux:** Keep the island still on GNOME, shaping its input instead of resizing it ([9f67cf5](https://github.com/Satcomx00-x00/AiN/commit/9f67cf5b12b585d6343221b0400323fa7f2f1fad))
+- **island:** Grow the open panel to fit its tab's content ([9fd30a5](https://github.com/Satcomx00-x00/AiN/commit/9fd30a53765b8ac128150a7e65658a116097d87e))
+- **ci:** Expect the island's panel to grow to fit its content ([#38](https://github.com/Satcomx00-x00/AiN/pull/38)) ([0610e2e](https://github.com/Satcomx00-x00/AiN/commit/0610e2e41fbe96033c89a6863ac1b7bfbe3a809b))
+
+### Tests
+
+- **vmtest:** Run the app on Fedora 43/44 VMs in Proxmox ([#35](https://github.com/Satcomx00-x00/AiN/pull/35)) ([848b08a](https://github.com/Satcomx00-x00/AiN/commit/848b08adb443ce35cc2536ef13c4eeb91a357e95))
 ## [0.11.0](https://github.com/Satcomx00-x00/AiN/compare/v0.10.0..v0.11.0) - 2026-10-26
 
 ### Features
