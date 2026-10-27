@@ -54,6 +54,7 @@ disappears is tested on every platform.
 | volume | Core Audio | PipeWire/PulseAudio (`pactl`) | Core Audio (output devices; macOS has no per-app volume) |
 | privacy | Capability Access Manager | recording streams (`pactl`) and open `/dev/video*` | Core Audio's process list (macOS 14+) and Core Media IO (camera on or off) |
 | dictation | types the text | pastes it (Ctrl+V through the Remote Desktop portal, `xdotool`, `wtype` or `ydotool`), or types it when asked, else copies it | types it once Accessibility is allowed, else copies it |
+| transcript | records the default output in loopback (WASAPI, through cpal) | records the default sink's monitor with `parec` | records the default output through a Core Audio process tap (cpal, macOS 14.6+) |
 | tts (read aloud) | copies the selection (Ctrl+C), then puts the clipboard back | reads the primary selection | copies the selection (Cmd+C) once Accessibility is allowed, then puts the clipboard back |
 | popup paste | `SendInput` | the same tools | Cmd+V, once Accessibility is allowed |
 | clipboard, stats, capture | all platforms | | |
@@ -74,7 +75,7 @@ Every AI feature then picks its engine in its card: its own model on this comput
 or a provider and that provider's model (and voice). The backend's `shell::providers` reads the
 choice (`chosen(settings, feature)`) and speaks the provider's API (`/audio/transcriptions`,
 `/audio/speech` in WAV, `/models` for Settings' "Test connection"); dictation sends each 30 s chunk,
-read aloud a few sentences at a time. A new AI feature adds `engineOptions()` to its options, draws
+read aloud a few sentences at a time. Transcript runs on dictation's speech model (`dictation::speech_models`), or its own provider choice, and sends 8 s chunks, skipping silent ones. A new AI feature adds `engineOptions()` to its options, draws
 `enginePanel` in its settings panel and matches on `providers::Engine` in its backend.
 
 ## Adding a feature

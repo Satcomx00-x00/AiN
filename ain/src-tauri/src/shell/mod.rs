@@ -2,6 +2,7 @@
 //! capture overlay, the loader for third-party plugins, their secrets and online accounts, the AI providers, the network policy (certificates, models source), the community store, and self-update. Features build on this; it knows none of them.
 
 pub mod capture;
+pub mod cleanup;
 pub mod extensions;
 pub mod island;
 pub mod net;

@@ -12,7 +12,7 @@
 //! is pasted by default (the "typing" option): the typing tools press keys of the US layout, or of
 //! whichever layout they assume, so on AZERTY the words would come out wrong without any error.
 
-mod chunk;
+pub(super) mod chunk;
 mod engine;
 mod model;
 #[cfg(windows)]
@@ -107,11 +107,21 @@ pub enum Command {
     Cancel,
 }
 
+/// The speech models, shared with the features that also turn speech into text (transcript).
+pub(super) type SpeechModels = ModelStore<model::Model, sherpa_onnx::OfflineRecognizer>;
+
+pub(super) use engine::Recognizer;
+
+/// Dictation's speech models: what the other speech features run on, on this machine.
+pub(super) fn speech_models(app: &AppHandle) -> Option<Arc<SpeechModels>> {
+    app.try_state::<Dictation>().map(|d| Arc::clone(&d.shared.models))
+}
+
 /// Shared between the commands, the worker and the decoder threads.
 struct Shared {
     phase: Live<Phase>,
     /// The chosen speech model, its download, and the loaded recognizer.
-    models: Arc<ModelStore<model::Model, sherpa_onnx::OfflineRecognizer>>,
+    models: Arc<SpeechModels>,
     /// Bumped by every start and cancel, so a stale decoder's result is thrown away.
     session: AtomicU64,
 }
@@ -280,7 +290,7 @@ crate::ipc::dictation!();
 
 pub fn init() -> TauriPlugin<Wry> {
     ipc().plugin(|app| {
-        let default_dir = app.path().app_data_dir()?.join("models");
+        let default_dir = crate::config::data_dir(app)?.join("models");
         let emit = |app: &AppHandle, info| drop(ModelChanged(info).emit(app));
         let models = Arc::new(ModelStore::new(FEATURE, model::MODELS, &settings::current(app), default_dir, emit, engine::load));
         models.preload();

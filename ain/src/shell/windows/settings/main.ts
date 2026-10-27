@@ -38,6 +38,7 @@ import { memorySecrets } from "../../secrets";
 import { settingsPorts } from "./ports";
 import { slotList } from "./slots";
 import { PROVIDERS_ICON, PROVIDERS_LEAD, providersSection } from "./providers";
+import { PRESETS, type Preset, builtInPresets } from "../../providers";
 import { type Report, type Tone, demoUpdater, describe, noteLines } from "../../updater";
 import { messageOf, onProblem, reportProblem } from "../../../sdk/report";
 import { toaster } from "./toasts";
@@ -48,9 +49,11 @@ const SAVE_DELAY = 250;
 let plugins: readonly AnyPlugin[] = catalogue;
 const fallback = defaults(defaultLayout);
 // The app's backend, or in-memory stand-ins outside Tauri (the browser preview, integration tests).
-const { store, popup, folder, importer, community = noCommunity, updater = demoUpdater(), secrets = memorySecrets(), services = tauriServices, inApp: inTauri } = settingsPorts();
+const { store, popup, folder, importer, community = noCommunity, updater = demoUpdater(), secrets = memorySecrets(), presets: loadPresets = builtInPresets, services = tauriServices, inApp: inTauri } = settingsPorts();
 /** The updater's last report, kept current by its events; null until the first one arrives. */
 let update: Report | null = null;
+/** The AI provider presets, at their addresses once the backend has said (environment overrides). */
+let presets: readonly Preset[] = PRESETS;
 // Only built-in features offer shortcuts.
 const entries = commandsOf(catalogue);
 /** Shortcuts the island couldn't register, and why. */
@@ -1006,6 +1009,7 @@ const providers = (): Page => ({
     providers: () => settings.providers,
     save: (next, redraw) => commit({ ...settings, providers: next }, redraw),
     port: services.providers,
+    presets,
     pickFile: (current) => pickFolder(current, false),
   }),
 });
@@ -1365,6 +1369,10 @@ const showUpdate = (report: Report) => {
 };
 void updater.watch(showUpdate);
 void updater.status().then(showUpdate, () => {});
+void loadPresets().then((next) => {
+  presets = next;
+  if (section === "providers") render();
+});
 void rescan().then(() => {
   scanned = true;
   render();

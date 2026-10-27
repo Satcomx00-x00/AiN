@@ -464,14 +464,16 @@ describe("a tab whose content is taller than its panel", () => {
     for (const [k, v] of Object.entries(box)) Object.defineProperty(node, k, { configurable: true, get: () => v });
   };
   let block: HTMLElement;
+  let host: { refresh(): void } | undefined;
   const wordy = {
     id: "wordy",
     label: "wordy",
     description: "",
     icon: "",
     slots: ["tab"] as const,
-    setup: () => ({
+    setup: (_: unknown, h: { refresh(): void }) => ({
       panel: (section: HTMLElement) => {
+        host = h;
         block = document.createElement("div");
         section.append(block);
         // Under the tabs, 108 px are left for the content in a 156 px panel.
@@ -501,6 +503,29 @@ describe("a tab whose content is taller than its panel", () => {
     el.querySelector<HTMLButtonElement>("#tab-wordy")?.click();
     await settleAll();
     expect(el.style.getPropertyValue("--panel-h")).toBe("156px");
+  });
+
+  it("follows content that changes while open, and leaves a block's own scrolling to it", async () => {
+    vi.spyOn(window, "matchMedia").mockReturnValue({ matches: false } as MediaQueryList);
+    const el = document.createElement("div");
+    document.body.replaceChildren(el);
+    win = fakeWindow();
+    const placed = { ...withGeneral({ greeting: "none" }), layout: { glance: { left: [], right: [] }, tabs: ["wordy"] } };
+    await mount(el, [wordy] as never, {}, win.port, placed, { styles: [PILL.style] });
+    await settleAll();
+    laid(el.querySelector<HTMLElement>(".panel")!, { offsetHeight: 156 });
+    el.dispatchEvent(new MouseEvent("click"));
+    await settleAll();
+    expect(el.style.getPropertyValue("--panel-h")).toBe("198px");
+
+    // Now it scrolls its overflow itself: only its box counts.
+    block.style.overflowY = "auto";
+    const layouts = win.canvases.length;
+    host!.refresh();
+    await settleAll();
+    expect(el.style.getPropertyValue("--panel-h")).toBe("156px");
+    expect(win.canvases.length).toBeGreaterThan(layouts);
+    expect(win.canvases.at(-1)?.height).toBe(32 + 156 + 16);
   });
 });
 

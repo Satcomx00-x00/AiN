@@ -27,7 +27,7 @@ macro_rules! manifest {
                 store: shell::store { typed: [catalog, install, open_repo], raw: [], events: [] }
                 secrets: shell::secrets { typed: [get, set, saved_keys], raw: [], events: [SecretChanged] }
                 oauth: shell::oauth { typed: [sign_in, token, sign_out, signed_in], raw: [], events: [] }
-                providers: shell::providers { typed: [models], raw: [], events: [] }
+                providers: shell::providers { typed: [models, preset_urls], raw: [], events: [] }
                 updates: shell::updater { typed: [status, check, install, open_releases], raw: [], events: [UpdateChanged] }
             }
             features {
@@ -41,6 +41,7 @@ macro_rules! manifest {
                 persona: features::persona { typed: [state, control, local_status, install_local, download_model, cancel_download, test_local, stop_test, remove_local, open_local_dir], raw: [], events: [PhaseChanged, LocalChanged, TestProgress] }
                 privacy: features::privacy { typed: [state], raw: [], events: [UsageChanged] }
                 stats: features::stats { typed: [latest], raw: [], events: [] }
+                transcript: features::transcript { typed: [state, lines, control], raw: [], events: [PhaseChanged, LinesChanged] }
                 tts: features::tts {
                     typed: [state, model_status, control, speak, download_model, delete_model, open_model_dir],
                     raw: [],

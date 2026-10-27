@@ -10,12 +10,9 @@
 //! out like AiN's models folder: machines without internet get their models from it (see
 //! `features::download`).
 
-use std::{
-    env,
-    sync::{
-        Arc, RwLock,
-        atomic::{AtomicBool, Ordering},
-    },
+use std::sync::{
+    Arc, RwLock,
+    atomic::{AtomicBool, Ordering},
 };
 
 use rustls::{
@@ -32,10 +29,7 @@ use ureq::{
     typestate::AgentScope,
 };
 
-/// Turns certificate checks off when set to 1, true, yes or on, whatever the settings say.
-pub const INSECURE_ENV: &str = "AIN_INSECURE_TLS";
-/// A models source that wins over the settings' one.
-pub const SOURCE_ENV: &str = "AIN_MODELS_SOURCE";
+use crate::config::{INSECURE_TLS, MODELS_SOURCE};
 
 static INSECURE: AtomicBool = AtomicBool::new(false);
 static SOURCE: RwLock<Option<String>> = RwLock::new(None);
@@ -57,12 +51,12 @@ pub fn follow(settings: &Value) {
 
 /// Whether certificates go unchecked.
 pub fn insecure() -> bool {
-    env::var(INSECURE_ENV).is_ok_and(|v| truthy(&v)) || INSECURE.load(Ordering::SeqCst)
+    INSECURE_TLS.set().is_some_and(|v| truthy(&v)) || INSECURE.load(Ordering::SeqCst)
 }
 
 /// The folder or URL models come from instead of the internet, if any.
 pub fn models_source() -> Option<String> {
-    env::var(SOURCE_ENV).ok().as_deref().and_then(filled).or_else(|| SOURCE.read().unwrap_or_else(|e| e.into_inner()).clone())
+    MODELS_SOURCE.set().or_else(|| SOURCE.read().unwrap_or_else(|e| e.into_inner()).clone())
 }
 
 /// An HTTP client's configuration, with the certificate policy; callers add their own limits.

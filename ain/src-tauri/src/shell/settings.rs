@@ -238,7 +238,7 @@ crate::ipc::settings!();
 
 pub fn init() -> TauriPlugin<tauri::Wry> {
     ipc().plugin(|app| {
-        let path = app.path().app_config_dir()?.join(FILE);
+        let path = crate::config::config_dir(app.app_handle())?.join(FILE);
         super::net::follow(&read(&path));
         app.manage(Store { path, lock: Mutex::new(()) });
         Ok(())

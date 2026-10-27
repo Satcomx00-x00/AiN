@@ -156,7 +156,7 @@ impl Model {
     }
 
     pub fn url(&self, file: &str) -> String {
-        format!("https://huggingface.co/{}/resolve/{}/{file}?download=true", self.repo, self.revision)
+        format!("{}/{}/resolve/{}/{file}?download=true", crate::config::base(crate::config::HF_URL), self.repo, self.revision)
     }
 
     /// Ready once every file is there at its full size (hashes were checked when it was downloaded).

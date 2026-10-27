@@ -14,7 +14,6 @@ use bzip2::read::BzDecoder;
 use crate::features::download::{DownloadError, Status, remove};
 use crate::features::{download, models::Downloadable};
 
-const RELEASE: &str = "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models";
 /// Every model reads its phonemes through espeak-ng, from this folder of its own.
 const ESPEAK: &str = "espeak-ng-data";
 const TOKENS: &str = "tokens.txt";
@@ -155,7 +154,7 @@ pub const MODELS: &[Model] = &[
 
 impl Model {
     pub fn url(&self) -> String {
-        format!("{RELEASE}/{}.tar.bz2", self.folder)
+        format!("{}/{}.tar.bz2", crate::config::base(crate::config::TTS_MODELS_URL), self.folder)
     }
 
     /// Ready once its model file and companions are there (archives are unpacked aside, then moved in whole).

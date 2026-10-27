@@ -900,6 +900,18 @@ describe("Settings → AI providers", () => {
     expect(page.card("Groq")).toBeDefined();
   });
 
+  it("starts new providers at the presets' addresses the environment overrides", async () => {
+    environment();
+    const sys = system();
+    const { PRESETS } = await import("../../providers");
+    const presets = async () => PRESETS.map((p) => (p.id === "openai" ? { ...p, baseUrl: "https://gw.example/v1" } : p));
+    const page = await load(sys, "providers", { presets });
+    await advance(0);
+    press(page.page, "Add");
+    await page.saved();
+    expect((await sys.settings()).providers[0]?.baseUrl).toBe("https://gw.example/v1");
+  });
+
   it("edits a custom server: its name, its address, and a token file", async () => {
     environment();
     const sys = system();
