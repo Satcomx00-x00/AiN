@@ -1,14 +1,15 @@
-//! Correcting a text with the chosen engine (the dictionaries on this machine, or a provider's chat
-//! model), and the shortcut's whole round: read the selection, correct it, type the result over it.
+//! Correcting a text with the chosen engine, and the shortcut's whole round: read the selection,
+//! correct it, type the result over it. The engine is a provider's chat model, or on this machine the
+//! language model; when either fails (or isn't there), the dictionaries take over.
 
 use serde_json::Value;
 use tauri::AppHandle;
 
-use super::{Correction, FEATURE, MAX_CHARS, Phase, Shared, speller};
+use super::{Correction, Corrector, FEATURE, MAX_CHARS, Phase, Shared, speller};
 use crate::{
     features::delivery::{self, Delivery},
     shell::{
-        providers::{self, Engine, Remote},
+        providers::{self, Engine},
         settings,
     },
 };
@@ -56,30 +57,51 @@ fn unwrap<'a>(answer: &'a str, original: &str) -> &'a str {
     }
 }
 
-/// `text` corrected by `engine`.
+/// A chat model's answer, when it is the text corrected rather than something else: not empty, and
+/// about as long as the text (a small model may answer the text instead of correcting it).
+fn checked<'a>(answer: &'a str, original: &str) -> Result<&'a str, String> {
+    let fixed = unwrap(answer, original);
+    let (was, is) = (original.chars().count(), fixed.chars().count());
+    match () {
+        () if fixed.is_empty() => Err("The model sent back an empty text".into()),
+        () if is.abs_diff(was) > 12 && (is * 3 < was * 2 || is * 2 > was * 3) => {
+            Err("The model answered something else than the text".into())
+        }
+        () => Ok(fixed),
+    }
+}
+
+/// `text` corrected by `engine`, or by the dictionaries when it can't.
 pub fn correct(shared: &Shared, engine: &Engine, text: &str, language: Option<speller::Language>) -> Result<Correction, String> {
     if text.chars().count() > MAX_CHARS {
         return Err(format!("The text is too long to correct at once (at most {MAX_CHARS} characters)"));
     }
-    match engine {
-        Engine::Local if !shared.models.ready() => Err("Download the dictionaries in Settings first".into()),
-        Engine::Local => {
-            let speller = shared.models.engine()?;
-            let fixed = speller.correct(text, language);
-            shared.models.touch();
-            Ok(Correction { text: fixed.text, fixes: fixed.fixes })
+    let ask = |by, answer: Result<String, String>| {
+        answer.and_then(|a| checked(&a, text).map(|fixed| Correction { fixes: speller::changes(text, fixed), text: fixed.to_string(), by }))
+    };
+    let first = match engine {
+        Engine::Remote(remote) => Some(ask(Corrector::Provider, remote.chat(&instructions(language), text))),
+        Engine::Local if shared.model.ready() => {
+            let answer = shared.model.engine().and_then(|llm| llm.chat(&instructions(language), text));
+            shared.model.touch();
+            Some(ask(Corrector::Model, answer))
         }
-        Engine::Remote(remote) => remotely(remote, text, language),
+        Engine::Local => None,
+    };
+    let failure = match first {
+        Some(Ok(correction)) => return Ok(correction),
+        Some(Err(message)) => Some(message),
+        None => None,
+    };
+    if !shared.dictionaries.ready() {
+        return Err(failure.unwrap_or_else(|| "Download the language model or the dictionaries in Settings first".into()));
     }
-}
-
-fn remotely(remote: &Remote, text: &str, language: Option<speller::Language>) -> Result<Correction, String> {
-    let answer = remote.chat(&instructions(language), text)?;
-    let fixed = unwrap(&answer, text);
-    if fixed.is_empty() {
-        return Err("The provider sent back an empty text".into());
+    if let Some(message) = failure {
+        eprintln!("island: spelling: {message}; the dictionaries take over");
     }
-    Ok(Correction { fixes: speller::changes(text, fixed), text: fixed.to_string() })
+    let fixed = shared.dictionaries.engine()?.correct(text, language);
+    shared.dictionaries.touch();
+    Ok(Correction { text: fixed.text, fixes: fixed.fixes, by: Corrector::Dictionaries })
 }
 
 /// The spaces around `text`, and what's between them.
@@ -96,7 +118,7 @@ pub fn fix(app: &AppHandle, shared: &Shared, selection: Selection) -> Phase {
         Ok(engine) => engine,
         Err(message) => return Phase::Error { message },
     };
-    if engine == Engine::Local && !shared.models.ready() {
+    if engine == Engine::Local && !shared.model.ready() && !shared.dictionaries.ready() {
         return Phase::NeedsModel;
     }
     let Some(selected) = selection() else { return Phase::NothingSelected };
@@ -116,7 +138,7 @@ pub fn fix(app: &AppHandle, shared: &Shared, selection: Selection) -> Phase {
         (true, false) => return Phase::Error { message: "The correction couldn't be copied".into() },
     };
     let fixes = if changed { correction.fixes.max(1) } else { 0 };
-    Phase::Done { original: core.to_string(), corrected: correction.text, fixes, delivery }
+    Phase::Done { original: core.to_string(), corrected: correction.text, fixes, by: correction.by, delivery }
 }
 
 #[cfg(test)]
@@ -150,6 +172,16 @@ mod tests {
         assert_eq!(unwrap("\"Hello there.\"", "helo there."), "Hello there.");
         assert_eq!(unwrap("« Bonjour. »", "bonjour."), "Bonjour.");
         assert_eq!(unwrap("\"Hi,\" he said.", "\"Hi,\" he sayed."), "\"Hi,\" he said.");
+    }
+
+    #[test]
+    fn takes_only_answers_about_as_long_as_the_text() {
+        assert_eq!(checked("```\nI will receive it.\n```", "I will recieve it."), Ok("I will receive it."));
+        assert_eq!(checked("  ", "teh"), Err("The model sent back an empty text".into()));
+        assert_eq!(checked("The", "teh"), Ok("The"), "short texts may change a lot");
+        let chatty = "Sure! Here is your text, corrected: I will receive the letter today.";
+        assert_eq!(checked(chatty, "I will recieve teh letter"), Err("The model answered something else than the text".into()));
+        assert!(checked("I", "I will recieve teh letter today, and the parcel tomorrow").is_err());
     }
 
     #[test]

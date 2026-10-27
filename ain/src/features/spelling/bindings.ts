@@ -9,20 +9,26 @@ import * as __TAURI_EVENT from "@tauri-apps/api/event";
 export const commands = {
 	state: () => __TAURI_INVOKE<Phase>("plugin:spelling|state"),
 	modelStatus: () => __TAURI_INVOKE<ModelInfo>("plugin:spelling|model_status"),
+	dictionariesStatus: () => __TAURI_INVOKE<ModelInfo>("plugin:spelling|dictionaries_status"),
 	/**  Corrects the selected text, as the shortcut does. */
 	fix: () => __TAURI_INVOKE<null>("plugin:spelling|fix"),
 	/**  `text` corrected by the chosen engine, without touching the selection: to try it in Settings. */
 	check: (text: string) => __TAURI_INVOKE<Correction>("plugin:spelling|check", { text }),
-	/**  Starts downloading the dictionaries in the background; progress arrives as `ModelChanged` events. */
+	/**  Starts downloading the language model in the background; progress arrives as `ModelChanged` events. */
 	downloadModel: () => __TAURI_INVOKE<null>("plugin:spelling|download_model"),
-	/**  Stops a download in progress, or deletes the downloaded dictionaries. */
+	/**  Stops a download in progress, or deletes the downloaded language model. */
 	deleteModel: () => __TAURI_INVOKE<null>("plugin:spelling|delete_model"),
-	/**  Shows the dictionaries' folder (or the nearest one that exists) in the file manager. */
+	/**  Starts downloading the dictionaries in the background; progress arrives as `DictionariesChanged` events. */
+	downloadDictionaries: () => __TAURI_INVOKE<null>("plugin:spelling|download_dictionaries"),
+	/**  Stops a download in progress, or deletes the downloaded dictionaries. */
+	deleteDictionaries: () => __TAURI_INVOKE<null>("plugin:spelling|delete_dictionaries"),
+	/**  Shows the language model's folder (or the nearest one that exists) in the file manager. */
 	openModelDir: () => __TAURI_INVOKE<null>("plugin:spelling|open_model_dir"),
 };
 
 /** Events */
 export const events = {
+	dictionariesChanged: makeEvent<DictionariesChanged>("plugin:spelling:dictionaries-changed"),
 	modelChanged: makeEvent<ModelChanged>("plugin:spelling:model-changed"),
 	phaseChanged: makeEvent<PhaseChanged>("plugin:spelling:phase-changed"),
 };
@@ -33,7 +39,17 @@ export type Correction = {
 	text: string,
 	/**  How many words changed. */
 	fixes: number,
+	by: Corrector,
 };
+
+/**  What corrected a text. */
+export type Corrector = 
+/**  The provider's chat model. */
+"provider" | 
+/**  The language model on this machine. */
+"model" | 
+/**  The dictionaries, word by word. */
+"dictionaries";
 
 /**  How the text reached the user. */
 export type Delivery = 
@@ -43,6 +59,9 @@ export type Delivery =
 "copied";
 
 /**  The dictionaries' status, sent as it changes (and as they download). */
+export type DictionariesChanged = ModelInfo;
+
+/**  The language model's status, sent as it changes (and as it downloads). */
 export type ModelChanged = ModelInfo;
 
 /**  The chosen model's status, the folder it is (or would be) stored in, and which models are downloaded. */
@@ -53,12 +72,12 @@ export type ModelInfo = {
 } & Status;
 
 export type Phase = { phase: "idle" } | 
-/**  The shortcut fired but the dictionaries aren't downloaded. */
+/**  The shortcut fired but neither the model nor the dictionaries are downloaded. */
 { phase: "needsModel" } | 
 /**  The shortcut fired but no text is selected (or it couldn't be read). */
 { phase: "nothingSelected" } | { phase: "checking" } | { phase: "done"; original: string; corrected: string; 
 /**  How many words changed; none when the text was right. */
-fixes: number; 
+fixes: number; by: Corrector; 
 /**  How the correction was handed over; none when there was nothing to correct. */
 delivery: Delivery | null } | { phase: "error"; message: string };
 

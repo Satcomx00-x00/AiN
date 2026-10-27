@@ -41,9 +41,9 @@ macro_rules! manifest {
                 persona: features::persona { typed: [state, control, local_status, install_local, download_model, cancel_download, test_local, stop_test, remove_local, open_local_dir], raw: [], events: [PhaseChanged, LocalChanged, TestProgress] }
                 privacy: features::privacy { typed: [state], raw: [], events: [UsageChanged] }
                 spelling: features::spelling {
-                    typed: [state, model_status, fix, check, download_model, delete_model, open_model_dir],
+                    typed: [state, model_status, dictionaries_status, fix, check, download_model, delete_model, download_dictionaries, delete_dictionaries, open_model_dir],
                     raw: [],
-                    events: [PhaseChanged, ModelChanged]
+                    events: [PhaseChanged, ModelChanged, DictionariesChanged]
                 }
                 stats: features::stats { typed: [latest], raw: [], events: [] }
                 tts: features::tts {

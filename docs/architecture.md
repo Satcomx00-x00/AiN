@@ -54,7 +54,8 @@ disappears is tested on every platform.
 | volume | Core Audio | PipeWire/PulseAudio (`pactl`) | Core Audio (output devices; macOS has no per-app volume) |
 | privacy | Capability Access Manager | recording streams (`pactl`) and open `/dev/video*` | Core Audio's process list (macOS 14+) and Core Media IO (camera on or off) |
 | dictation | types the text | types it with `xdotool`, `wtype` or `ydotool`, else copies it | types it once Accessibility is allowed, else copies it |
-| tts (read aloud) | copies the selection (Ctrl+C), then puts the clipboard back | reads the primary selection | copies the selection (Cmd+C) once Accessibility is allowed, then puts the clipboard back |
+| tts (read aloud), spelling | copies the selection (Ctrl+C), then puts the clipboard back | reads the primary selection | copies the selection (Cmd+C) once Accessibility is allowed, then puts the clipboard back |
+| spelling's correction | types it over the selection | types it with the dictation's tools, else copies it | types it once Accessibility is allowed, else copies it |
 | popup paste | `SendInput` | the same tools | Cmd+V, once Accessibility is allowed |
 | clipboard, stats, capture | all platforms | | |
 
@@ -73,8 +74,10 @@ expired JWT is refused before it is sent. Tokens never enter `settings.json`, on
 Every AI feature then picks its engine in its card: its own model on this computer (the default),
 or a provider and that provider's model (and voice). The backend's `shell::providers` reads the
 choice (`chosen(settings, feature)`) and speaks the provider's API (`/audio/transcriptions`,
-`/audio/speech` in WAV, `/models` for Settings' "Test connection"); dictation sends each 30 s chunk,
-read aloud a few sentences at a time. A new AI feature adds `engineOptions()` to its options, draws
+`/audio/speech` in WAV, `/chat/completions`, `/models` for Settings' "Test connection"); dictation
+sends each 30 s chunk, read aloud a few sentences at a time, spelling the selected text. Spelling's own
+engine is a language model (llama.cpp) with Hunspell dictionaries as its fallback, which also step in
+when a provider fails. A new AI feature adds `engineOptions()` to its options, draws
 `enginePanel` in its settings panel and matches on `providers::Engine` in its backend.
 
 ## Adding a feature

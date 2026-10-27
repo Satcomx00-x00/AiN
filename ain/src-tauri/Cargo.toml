@@ -40,6 +40,8 @@ bzip2 = { version = "0.5.2", default-features = false, features = ["libbz2-rs-sy
 tauri-plugin-dialog = "2"
 # Spelling's dictionaries on this machine: Hunspell's .aff/.dic, read in pure Rust.
 spellbook = "0.4.2"
+# Spelling's language model on this machine: llama.cpp, built from source (needs CMake), on the CPU.
+llama-cpp-2 = { version = "0.1.160", default-features = false }
 # Typed TypeScript bindings for commands and events; pinned exactly while specta 2 is a release candidate.
 specta = { version = "=2.0.0-rc.25", features = ["derive"] }
 specta-typescript = "=0.0.12"

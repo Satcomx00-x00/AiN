@@ -1,14 +1,16 @@
 //! Spelling: select text anywhere, press a shortcut, and its mistakes are corrected in place, in
-//! French or English. On this machine, Hunspell dictionaries (read by spellbook, in Rust) fix the
-//! misspelled words one by one; nothing leaves the computer. They are downloaded once, when the
-//! user asks (`dictionaries.rs`). Or, when the user picks one of their AI providers instead
-//! (`shell::providers`), its chat model corrects spelling and grammar alike.
+//! French or English. On this machine, a small language model corrects spelling and grammar
+//! (`llm.rs`, run by llama.cpp); Hunspell dictionaries (read by spellbook, in Rust) fix misspelled
+//! words one by one when it can't (`dictionaries.rs`). Nothing leaves the computer; both are
+//! downloaded once, when the user asks. Or, when the user picks one of their AI providers instead
+//! (`shell::providers`), its chat model corrects, the dictionaries still taking over on failure.
 //!
 //! A worker thread runs each correction, one at a time: the selection comes from
 //! `features/selection.rs`, the corrected text is typed over it (`features/delivery`).
 
 mod dictionaries;
 mod engine;
+mod llm;
 mod speller;
 
 use std::{sync::Arc, time::Duration};
@@ -38,7 +40,7 @@ const FEATURE: &str = "spelling";
 const COMMAND: &str = "spelling.fix";
 /// How often the worker looks for dictionaries gone cold.
 const TICK: Duration = Duration::from_secs(1);
-/// The dictionaries take some tens of MB of memory; they are let go after this long unused.
+/// The model takes about a GB of memory, the dictionaries some tens of MB; they are let go after this long unused.
 const KEEP_WARM: Duration = Duration::from_secs(10 * 60);
 /// A selection, not a book: suggestions take a while for each misspelled word.
 const MAX_CHARS: usize = 20_000;
@@ -48,7 +50,7 @@ const MAX_CHARS: usize = 20_000;
 pub enum Phase {
     #[default]
     Idle,
-    /// The shortcut fired but the dictionaries aren't downloaded.
+    /// The shortcut fired but neither the model nor the dictionaries are downloaded.
     NeedsModel,
     /// The shortcut fired but no text is selected (or it couldn't be read).
     NothingSelected,
@@ -58,6 +60,7 @@ pub enum Phase {
         corrected: String,
         /// How many words changed; none when the text was right.
         fixes: u32,
+        by: Corrector,
         /// How the correction was handed over; none when there was nothing to correct.
         delivery: Option<Delivery>,
     },
@@ -70,9 +73,25 @@ pub enum Phase {
 #[derive(Debug, Clone, Serialize, Type, Event)]
 pub struct PhaseChanged(pub Phase);
 
-/// The dictionaries' status, sent as it changes (and as they download).
+/// The language model's status, sent as it changes (and as it downloads).
 #[derive(Debug, Clone, Serialize, Type, Event)]
 pub struct ModelChanged(pub ModelInfo);
+
+/// The dictionaries' status, sent as it changes (and as they download).
+#[derive(Debug, Clone, Serialize, Type, Event)]
+pub struct DictionariesChanged(pub ModelInfo);
+
+/// What corrected a text.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub enum Corrector {
+    /// The provider's chat model.
+    Provider,
+    /// The language model on this machine.
+    Model,
+    /// The dictionaries, word by word.
+    Dictionaries,
+}
 
 /// A text after correction.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
@@ -80,6 +99,7 @@ pub struct Correction {
     pub text: String,
     /// How many words changed.
     pub fixes: u32,
+    pub by: Corrector,
 }
 
 /// What the worker is asked.
@@ -91,7 +111,9 @@ enum Request {
 /// Shared between the commands and the worker.
 struct Shared {
     phase: Live<Phase>,
-    models: Arc<ModelStore<dictionaries::Dictionaries, speller::Speller<spellbook::Dictionary>>>,
+    /// The language model, first choice on this machine.
+    model: Arc<ModelStore<llm::Model, llm::Llm>>,
+    dictionaries: Arc<ModelStore<dictionaries::Dictionaries, speller::Speller<spellbook::Dictionary>>>,
 }
 
 impl Shared {
@@ -116,14 +138,20 @@ fn state(spelling: State<'_, Spelling>) -> Phase {
 #[tauri::command]
 #[specta::specta]
 fn model_status(spelling: State<'_, Spelling>) -> ModelInfo {
-    spelling.shared.models.info()
+    spelling.shared.model.info()
 }
 
-/// Shows the dictionaries' folder (or the nearest one that exists) in the file manager.
+#[tauri::command]
+#[specta::specta]
+fn dictionaries_status(spelling: State<'_, Spelling>) -> ModelInfo {
+    spelling.shared.dictionaries.info()
+}
+
+/// Shows the language model's folder (or the nearest one that exists) in the file manager.
 #[tauri::command]
 #[specta::specta]
 async fn open_model_dir(spelling: State<'_, Spelling>) -> Res<()> {
-    crate::platform::reveal(&spelling.shared.models.existing_dir())?;
+    crate::platform::reveal(&spelling.shared.model.existing_dir())?;
     Ok(())
 }
 
@@ -149,19 +177,35 @@ async fn check(app: AppHandle, spelling: State<'_, Spelling>, text: String) -> R
     .map_err(Error::msg)
 }
 
-/// Starts downloading the dictionaries in the background; progress arrives as `ModelChanged` events.
+/// Starts downloading the language model in the background; progress arrives as `ModelChanged` events.
 #[tauri::command]
 #[specta::specta]
 fn download_model(app: AppHandle, spelling: State<'_, Spelling>) -> Res<()> {
-    spelling.shared.models.download(app)?;
+    spelling.shared.model.download(app)?;
+    Ok(())
+}
+
+/// Stops a download in progress, or deletes the downloaded language model.
+#[tauri::command]
+#[specta::specta]
+fn delete_model(app: AppHandle, spelling: State<'_, Spelling>) -> Res<()> {
+    spelling.shared.model.remove(&app)?;
+    Ok(())
+}
+
+/// Starts downloading the dictionaries in the background; progress arrives as `DictionariesChanged` events.
+#[tauri::command]
+#[specta::specta]
+fn download_dictionaries(app: AppHandle, spelling: State<'_, Spelling>) -> Res<()> {
+    spelling.shared.dictionaries.download(app)?;
     Ok(())
 }
 
 /// Stops a download in progress, or deletes the downloaded dictionaries.
 #[tauri::command]
 #[specta::specta]
-fn delete_model(app: AppHandle, spelling: State<'_, Spelling>) -> Res<()> {
-    spelling.shared.models.remove(&app)?;
+fn delete_dictionaries(app: AppHandle, spelling: State<'_, Spelling>) -> Res<()> {
+    spelling.shared.dictionaries.remove(&app)?;
     Ok(())
 }
 
@@ -189,7 +233,10 @@ fn spawn(app: AppHandle, shared: Arc<Shared>) -> std::io::Result<Worker<Request>
                 let phase = engine::fix(&app, &shared, super::selection::raw);
                 shared.publish(&app, phase);
             }
-            None => shared.models.let_cold_go(KEEP_WARM),
+            None => {
+                shared.model.let_cold_go(KEEP_WARM);
+                shared.dictionaries.let_cold_go(KEEP_WARM);
+            }
         },
     )
 }
@@ -199,13 +246,19 @@ crate::ipc::spelling!();
 pub fn init() -> TauriPlugin<Wry> {
     ipc().plugin(|app| {
         let default_dir = app.path().app_data_dir()?.join("models");
+        let settings = settings::current(app);
         let emit = |app: &AppHandle, info| drop(ModelChanged(info).emit(app));
-        let models =
-            Arc::new(ModelStore::new(FEATURE, dictionaries::MODELS, &settings::current(app), default_dir, emit, dictionaries::load));
-        let shared = Arc::new(Shared { phase: Live::new(Phase::Idle), models });
+        let model = Arc::new(ModelStore::new(FEATURE, llm::MODELS, &settings, default_dir.clone(), emit, llm::load));
+        let emit = |app: &AppHandle, info| drop(DictionariesChanged(info).emit(app));
+        let dictionaries = Arc::new(ModelStore::new(FEATURE, dictionaries::MODELS, &settings, default_dir, emit, dictionaries::load));
+        model.preload();
+        let shared = Arc::new(Shared { phase: Live::new(Phase::Idle), model, dictionaries });
         let worker = spawn(app.clone(), Arc::clone(&shared))?;
         let (handle, followed) = (app.clone(), Arc::clone(&shared));
-        SettingsChanged::listen_any(app, move |event| followed.models.follow_settings(&handle, &event.payload.0.0));
+        SettingsChanged::listen_any(app, move |event| {
+            followed.model.follow_settings(&handle, &event.payload.0.0);
+            followed.dictionaries.follow_settings(&handle, &event.payload.0.0);
+        });
         app.manage(Spelling { shared, worker });
         let handle = app.clone();
         popup::Action::listen_any(app, move |event| on_shortcut(&handle, &event.payload));
@@ -225,10 +278,16 @@ mod tests {
 
     #[test]
     fn phases_serialize_for_the_page() {
-        let done = Phase::Done { original: "teh".into(), corrected: "the".into(), fixes: 1, delivery: Some(Delivery::Typed) };
+        let done = Phase::Done {
+            original: "teh".into(),
+            corrected: "the".into(),
+            fixes: 1,
+            by: Corrector::Dictionaries,
+            delivery: Some(Delivery::Typed),
+        };
         assert_eq!(
             serde_json::to_value(done).unwrap(),
-            serde_json::json!({ "phase": "done", "original": "teh", "corrected": "the", "fixes": 1, "delivery": "typed" })
+            serde_json::json!({ "phase": "done", "original": "teh", "corrected": "the", "fixes": 1, "by": "dictionaries", "delivery": "typed" })
         );
         assert_eq!(serde_json::to_value(Phase::NothingSelected).unwrap(), serde_json::json!({ "phase": "nothingSelected" }));
     }

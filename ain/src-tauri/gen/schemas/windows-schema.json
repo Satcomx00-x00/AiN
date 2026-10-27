@@ -3093,10 +3093,10 @@
           "markdownDescription": "Denies the set_autostart command without any pre-configured scope."
         },
         {
-          "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-state`\n- `allow-model-status`\n- `allow-fix`\n- `allow-check`\n- `allow-download-model`\n- `allow-delete-model`\n- `allow-open-model-dir`",
+          "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-state`\n- `allow-model-status`\n- `allow-dictionaries-status`\n- `allow-fix`\n- `allow-check`\n- `allow-download-model`\n- `allow-delete-model`\n- `allow-download-dictionaries`\n- `allow-delete-dictionaries`\n- `allow-open-model-dir`",
           "type": "string",
           "const": "spelling:default",
-          "markdownDescription": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-state`\n- `allow-model-status`\n- `allow-fix`\n- `allow-check`\n- `allow-download-model`\n- `allow-delete-model`\n- `allow-open-model-dir`"
+          "markdownDescription": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-state`\n- `allow-model-status`\n- `allow-dictionaries-status`\n- `allow-fix`\n- `allow-check`\n- `allow-download-model`\n- `allow-delete-model`\n- `allow-download-dictionaries`\n- `allow-delete-dictionaries`\n- `allow-open-model-dir`"
         },
         {
           "description": "Enables the check command without any pre-configured scope.",
@@ -3105,10 +3105,28 @@
           "markdownDescription": "Enables the check command without any pre-configured scope."
         },
         {
+          "description": "Enables the delete_dictionaries command without any pre-configured scope.",
+          "type": "string",
+          "const": "spelling:allow-delete-dictionaries",
+          "markdownDescription": "Enables the delete_dictionaries command without any pre-configured scope."
+        },
+        {
           "description": "Enables the delete_model command without any pre-configured scope.",
           "type": "string",
           "const": "spelling:allow-delete-model",
           "markdownDescription": "Enables the delete_model command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the dictionaries_status command without any pre-configured scope.",
+          "type": "string",
+          "const": "spelling:allow-dictionaries-status",
+          "markdownDescription": "Enables the dictionaries_status command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the download_dictionaries command without any pre-configured scope.",
+          "type": "string",
+          "const": "spelling:allow-download-dictionaries",
+          "markdownDescription": "Enables the download_dictionaries command without any pre-configured scope."
         },
         {
           "description": "Enables the download_model command without any pre-configured scope.",
@@ -3147,10 +3165,28 @@
           "markdownDescription": "Denies the check command without any pre-configured scope."
         },
         {
+          "description": "Denies the delete_dictionaries command without any pre-configured scope.",
+          "type": "string",
+          "const": "spelling:deny-delete-dictionaries",
+          "markdownDescription": "Denies the delete_dictionaries command without any pre-configured scope."
+        },
+        {
           "description": "Denies the delete_model command without any pre-configured scope.",
           "type": "string",
           "const": "spelling:deny-delete-model",
           "markdownDescription": "Denies the delete_model command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the dictionaries_status command without any pre-configured scope.",
+          "type": "string",
+          "const": "spelling:deny-dictionaries-status",
+          "markdownDescription": "Denies the dictionaries_status command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the download_dictionaries command without any pre-configured scope.",
+          "type": "string",
+          "const": "spelling:deny-download-dictionaries",
+          "markdownDescription": "Denies the download_dictionaries command without any pre-configured scope."
         },
         {
           "description": "Denies the download_model command without any pre-configured scope.",

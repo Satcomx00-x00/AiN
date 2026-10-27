@@ -89,8 +89,7 @@ pub fn complete(dir: &Path, files: &[Pinned]) -> bool {
 }
 
 /// Downloads the files missing from `dir`, each from `url(file)`, calling `progress(received, total)`
-/// along the way. Each file streams into `<name>.part`, is hashed on the fly, and is renamed only if
-/// it matches.
+/// along the way; each must match its size and hash.
 pub fn fetch_pinned(
     dir: &Path,
     files: &[Pinned],
@@ -98,34 +97,45 @@ pub fn fetch_pinned(
     cancel: &AtomicBool,
     mut progress: impl FnMut(u64, u64),
 ) -> Result<(), DownloadError> {
-    fs::create_dir_all(dir)?;
     let total = files.iter().map(|f| f.size).sum();
     let mut done = 0;
     for file in files {
-        let path = dir.join(file.name);
-        if fs::metadata(&path).is_ok_and(|m| m.len() == file.size) {
-            done += file.size;
-            continue;
+        if !fs::metadata(dir.join(file.name)).is_ok_and(|m| m.len() == file.size) {
+            let matches = |fetched: &Fetched| fetched.size == file.size && fetched.sha256 == file.sha256;
+            fetch_file(dir, file.name, &url(file), matches, cancel, |received| progress(done + received, total))?;
         }
-        let part = dir.join(format!("{}.part", file.name));
-        let result = (|| {
-            let mut out = io::BufWriter::new(File::create(&part)?);
-            let fetched = fetch(&url(file), &mut out, cancel, |received| progress(done + received, total))?;
-            drop(out);
-            if fetched.size != file.size || fetched.sha256 != file.sha256 {
-                return Err(DownloadError::Corrupt(file.name));
-            }
-            fs::rename(&part, &path)?;
-            Ok(())
-        })();
-        if result.is_err() {
-            let _ = fs::remove_file(&part);
-        }
-        result?;
         done += file.size;
         progress(done, total);
     }
     Ok(())
+}
+
+/// Downloads `url` into `dir` as `name`: it streams into `<name>.part`, is hashed on the fly, and is
+/// renamed only once `matches` accepts what came.
+pub fn fetch_file(
+    dir: &Path,
+    name: &'static str,
+    url: &str,
+    matches: impl FnOnce(&Fetched) -> bool,
+    cancel: &AtomicBool,
+    progress: impl FnMut(u64),
+) -> Result<(), DownloadError> {
+    fs::create_dir_all(dir)?;
+    let part = dir.join(format!("{name}.part"));
+    let result = (|| {
+        let mut out = io::BufWriter::new(File::create(&part)?);
+        let fetched = fetch(url, &mut out, cancel, progress)?;
+        drop(out);
+        if !matches(&fetched) {
+            return Err(DownloadError::Corrupt(name));
+        }
+        fs::rename(&part, dir.join(name))?;
+        Ok(())
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(&part);
+    }
+    result
 }
 
 pub fn hex(bytes: &[u8]) -> String {
