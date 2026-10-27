@@ -109,8 +109,18 @@ fn backend() -> Result<&'static LlamaBackend, String> {
 /// A model loaded in memory.
 pub struct Llm(LlamaModel);
 
+/// Whether `path` starts like a GGUF file: llama.cpp aborts the whole app on some broken files
+/// rather than failing, so anything else is refused before it gets there.
+fn gguf(path: &Path) -> bool {
+    let mut magic = [0; 4];
+    std::fs::File::open(path).and_then(|mut f| std::io::Read::read_exact(&mut f, &mut magic)).is_ok() && &magic == b"GGUF"
+}
+
 /// Loads `model`, stored in `dir`.
 pub fn load(model: &'static Model, dir: &Path) -> Result<Llm, String> {
+    if !gguf(&dir.join(model.file)) {
+        return Err("The language model's file is damaged; try downloading it again".into());
+    }
     let loaded = LlamaModel::load_from_file(backend()?, dir.join(model.file), &LlamaModelParams::default());
     loaded.map(Llm).map_err(|e| fail("couldn't be loaded; try downloading it again")(&e))
 }
@@ -198,7 +208,9 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(dir.join(MODELS[1].file), "not a model").unwrap();
         assert_eq!(MODELS[1].status(&dir), Status::Ready);
-        assert!(load(&MODELS[1], &dir).is_err_and(|e| e.contains("try downloading it again")));
+        assert!(load(&MODELS[1], &dir).is_err_and(|e| e.contains("damaged")), "refused before llama.cpp reads it");
+        std::fs::write(dir.join(MODELS[1].file), b"GGUF\x03\0\0\0").unwrap();
+        assert!(gguf(&dir.join(MODELS[1].file)));
         download::remove(&dir).unwrap();
     }
 
