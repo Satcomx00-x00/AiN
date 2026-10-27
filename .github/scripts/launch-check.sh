@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Starts the built app on a virtual X display and checks that it comes up for real:
 #   - the process starts and stays alive, and nothing panics;
-#   - the island's window takes the size the frontend asks for once it is running (472×204: the
-#     open island, its ears and room for the spring), which proves the web view loaded the page,
+#   - the island's window takes the size the frontend asks for once it is running (472 px wide and at
+#     least 204 tall: the open island, its ears and room for the spring; taller when a tab's content
+#     needs a taller panel in the runner's fonts), which proves the web view loaded the page,
 #     the frontend started, and its calls reached the backend.
 # Leaves the app's output, the window tree and a screenshot in OUT, for the workflow to upload.
 #
@@ -12,8 +13,10 @@ set -euo pipefail
 
 APP=$1
 OUT=${2:-launch-check}
-# Window size once the island has laid itself out, at the default settings.
-EXPECTED=${EXPECTED:-472x204}
+# Window width and least height once the island has laid itself out, at the default settings.
+WIDTH=${WIDTH:-472}
+MIN_HEIGHT=${MIN_HEIGHT:-204}
+EXPECTED="${WIDTH}x${MIN_HEIGHT}+"
 # Seconds to wait for it, then to keep it running.
 WAIT=${WAIT:-60}
 STAY=${STAY:-10}
@@ -58,14 +61,15 @@ alive() { kill -0 "$PID" 2>/dev/null; }
 laid_out=""
 for _ in $(seq 1 "$WAIT"); do
   alive || fail "the app exited before its window was laid out"
-  if xwininfo -root -tree 2>/dev/null | grep -q " ${EXPECTED}+"; then
+  size=$(xwininfo -root -tree 2>/dev/null | grep -oE " ${WIDTH}x[0-9]+\+" | tr -dc '0-9x\n' | awk -F x -v h="$MIN_HEIGHT" '$2 >= h { print; exit }' || true)
+  if [ -n "$size" ]; then
     laid_out=1
     break
   fi
   sleep 1
 done
 [ -n "$laid_out" ] || fail "no ${EXPECTED} window after ${WAIT}s: the frontend didn't start, or couldn't reach the backend"
-echo "The island's window is laid out (${EXPECTED})."
+echo "The island's window is laid out (${size})."
 
 # Let it run: a few beats of every widget, against the system as it is.
 sleep "$STAY"
