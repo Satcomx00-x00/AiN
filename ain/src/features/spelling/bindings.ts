@@ -9,7 +9,6 @@ import * as __TAURI_EVENT from "@tauri-apps/api/event";
 export const commands = {
 	state: () => __TAURI_INVOKE<Phase>("plugin:spelling|state"),
 	modelStatus: () => __TAURI_INVOKE<ModelInfo>("plugin:spelling|model_status"),
-	dictionariesStatus: () => __TAURI_INVOKE<ModelInfo>("plugin:spelling|dictionaries_status"),
 	/**  Corrects the selected text, as the shortcut does. */
 	fix: () => __TAURI_INVOKE<null>("plugin:spelling|fix"),
 	/**  `text` corrected by the chosen engine, without touching the selection: to try it in Settings. */
@@ -18,17 +17,12 @@ export const commands = {
 	downloadModel: () => __TAURI_INVOKE<null>("plugin:spelling|download_model"),
 	/**  Stops a download in progress, or deletes the downloaded language model. */
 	deleteModel: () => __TAURI_INVOKE<null>("plugin:spelling|delete_model"),
-	/**  Starts downloading the dictionaries in the background; progress arrives as `DictionariesChanged` events. */
-	downloadDictionaries: () => __TAURI_INVOKE<null>("plugin:spelling|download_dictionaries"),
-	/**  Stops a download in progress, or deletes the downloaded dictionaries. */
-	deleteDictionaries: () => __TAURI_INVOKE<null>("plugin:spelling|delete_dictionaries"),
 	/**  Shows the language model's folder (or the nearest one that exists) in the file manager. */
 	openModelDir: () => __TAURI_INVOKE<null>("plugin:spelling|open_model_dir"),
 };
 
 /** Events */
 export const events = {
-	dictionariesChanged: makeEvent<DictionariesChanged>("plugin:spelling:dictionaries-changed"),
 	modelChanged: makeEvent<ModelChanged>("plugin:spelling:model-changed"),
 	phaseChanged: makeEvent<PhaseChanged>("plugin:spelling:phase-changed"),
 };
@@ -58,9 +52,6 @@ export type Delivery =
 /**  Put on the clipboard, to paste. */
 "copied";
 
-/**  The dictionaries' status, sent as it changes (and as they download). */
-export type DictionariesChanged = ModelInfo;
-
 /**  The language model's status, sent as it changes (and as it downloads). */
 export type ModelChanged = ModelInfo;
 
@@ -72,8 +63,6 @@ export type ModelInfo = {
 } & Status;
 
 export type Phase = { phase: "idle" } | 
-/**  The shortcut fired but neither the model nor the dictionaries are downloaded. */
-{ phase: "needsModel" } | 
 /**  The shortcut fired but no text is selected (or it couldn't be read). */
 { phase: "nothingSelected" } | { phase: "checking" } | { phase: "done"; original: string; corrected: string; 
 /**  How many words changed; none when the text was right. */

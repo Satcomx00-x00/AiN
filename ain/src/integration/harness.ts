@@ -130,8 +130,6 @@ export function system() {
     spelling: {
       watch: async (onChange) => (onChange({ phase: "idle" }), () => {}),
       watchModel: async (onChange) => (onChange({ ...VOICE, model: "qwen2.5-1.5b", installed: ["qwen2.5-1.5b"] } as never), () => {}),
-      watchDictionaries: async (onChange) => (onChange({ ...VOICE, model: "hunspell-fr-en", installed: ["hunspell-fr-en"] } as never), () => {}),
-      dictionaries: { download: async () => {}, remove: async () => {}, openFolder: async () => {} },
       fix: async () => {},
       check: async (text) => ({ text, fixes: 0, by: "model" }),
       openFolder: async () => {},

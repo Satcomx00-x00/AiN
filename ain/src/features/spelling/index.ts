@@ -12,11 +12,11 @@ const CHECK = `<path d="M2.5 11.5 5 4.5l2.5 7M3.4 9h3.2"/><path d="m8.5 9.75 2 2
 /** How long a result stays on the pill. */
 const SHOW_DONE_MS = 2500;
 const SHOW_PROBLEM_MS = 5000;
-/** The dictionaries, as the island and Settings name them. */
+/** The dictionaries built into the app, as the island names them. */
 export const DICTIONARIES = "Dictionaries · French & English";
 
 /** Spelling's own engine: the language model, with the dictionaries as its fallback. */
-export const OWN_ENGINE: OwnEngine = { label: "On this computer", detail: "The language model below, or the dictionaries when it can't; nothing leaves the computer" };
+export const OWN_ENGINE: OwnEngine = { label: "On this computer", detail: "The language model below, or the built-in dictionaries when it can't; nothing leaves the computer" };
 
 /** "1 fix", "3 fixes". */
 export const fixes = (n: number): string => `${n} ${n === 1 ? "fix" : "fixes"}`;
@@ -34,8 +34,6 @@ export function spellingGlance(phase: Phase, since: number, now: number): Glance
       if (age >= SHOW_DONE_MS) return null;
       if (!phase.delivery) return { text: "No mistakes", tone: "muted" };
       return { text: phase.delivery === "copied" ? `${fixes(phase.fixes)} · copied` : fixes(phase.fixes), tone: "muted" };
-    case "needsModel":
-      return age < SHOW_PROBLEM_MS ? { text: "Get a model first", tone: "alert", wide: true } : null;
     case "nothingSelected":
       return age < SHOW_PROBLEM_MS ? { text: "Select text first", tone: "muted" } : null;
     case "error":
@@ -50,8 +48,6 @@ export function statusText(phase: Phase): string {
   switch (phase.phase) {
     case "idle":
       return "Select text in any app and press the spelling shortcut (Ctrl+Alt+O) to correct it.";
-    case "needsModel":
-      return "Download the language model or the dictionaries in Settings, or choose an AI provider, to start correcting.";
     case "nothingSelected":
       return "No text is selected. Select some, then press the shortcut again.";
     case "checking":
@@ -70,10 +66,10 @@ export function statusText(phase: Phase): string {
 export const modelOptions = (installed: readonly string[]): SelectOption[] =>
   MODELS.map((m) => ({ value: m.id, label: m.name, detail: m.about, meta: `${m.mb} MB`, badge: installed.includes(m.id) ? "Downloaded" : undefined }));
 
-/** What the island's card shows on this computer: the model, or the dictionaries standing in for it. */
-export function localCard(model: ModelInfo, dictionaries: ModelInfo | null): { name: string; info: ModelInfo } {
-  const standIn = model.state !== "ready" && model.state !== "downloading" && dictionaries?.state === "ready";
-  return standIn ? { name: DICTIONARIES, info: dictionaries } : { name: modelById(model.model).name, info: model };
+/** What the island's card shows on this computer: the model, or the built-in dictionaries standing in for it. */
+export function localCard(model: ModelInfo): { name: string; info: ModelInfo } {
+  const standIn = model.state !== "ready" && model.state !== "downloading";
+  return standIn ? { name: DICTIONARIES, info: { ...model, state: "ready" } } : { name: modelById(model.model).name, info: model };
 }
 
 /** Spelling, in French and English, on this computer or by an AI provider: corrects the selected text in place. */
@@ -113,7 +109,6 @@ export const spelling = definePlugin({
     const picker = select(modelOptions([]), host.options().model, (id) => host.setOptions({ model: id }), "Language model");
     const modelRow = row("Language model", picker.el);
     const files = modelFiles(port);
-    const dictionaries = modelFiles(port.dictionaries, "Dictionaries (fallback)");
     const sample = h("input", { class: "path-input", type: "text", spellcheck: "false", "aria-label": "Text to correct", placeholder: "Je vais a l'ecole demain. I recieve teh letter." });
     const result = h("p", { class: "field-hint" });
     const tryIt = button("Correct", () => {
@@ -126,38 +121,26 @@ export const spelling = definePlugin({
       );
     }, { class: "secondary" });
     let local = !host.options().engine;
-    const ready = { model: false, dictionaries: false };
     const paint = () => {
       for (const el of [modelRow, files.el]) el.hidden = !local;
-      tryIt.disabled = local && !ready.model && !ready.dictionaries;
     };
     const engine = enginePanel(providers, host, "text", (isLocal) => ((local = isLocal), paint()), OWN_ENGINE);
-    root.append(engine.el, modelRow, files.el, dictionaries.el, row("Try it", h("div", { class: "recorder" }, sample, tryIt)), result);
-    const watching = [
-      port.watchModel((model) => {
-        picker.setOptions(modelOptions(model.installed));
-        picker.set(model.model);
-        ready.model = model.state === "ready";
-        files.draw(model);
-        paint();
-      }),
-      port.watchDictionaries((info) => {
-        ready.dictionaries = info.state === "ready";
-        dictionaries.draw(info);
-        paint();
-      }),
-    ];
+    root.append(engine.el, modelRow, files.el, row("Try it", h("div", { class: "recorder" }, sample, tryIt)), result);
+    const watching = port.watchModel((model) => {
+      picker.setOptions(modelOptions(model.installed));
+      picker.set(model.model);
+      files.draw(model);
+    });
     paint();
     return () => {
       engine.stop();
-      for (const w of watching) void w.then((stop) => stop(), () => {});
+      void watching.then((stop) => stop(), () => {});
     };
   },
   setup({ spelling: port, providers: aiProviders }: { spelling: SpellingPort; providers: ProvidersPort }, host) {
     let phase: Phase = { phase: "idle" };
     let since = 0;
     let model: ModelInfo | null = null;
-    let dictionaries: ModelInfo | null = null;
     let providers: readonly AiProvider[] = [];
 
     const status = h("p", { class: "dict-status" });
@@ -174,7 +157,7 @@ export const spelling = definePlugin({
       const remote = remoteName(providers, host.options());
       if (remote && model) card.draw(remote, { ...model, state: "ready" });
       else if (model) {
-        const { name, info } = localCard(model, dictionaries);
+        const { name, info } = localCard(model);
         card.draw(name, info);
       }
     };
@@ -187,10 +170,6 @@ export const spelling = definePlugin({
     });
     void port.watchModel((next) => {
       model = next;
-      draw();
-    });
-    void port.watchDictionaries((next) => {
-      dictionaries = next;
       draw();
     });
     void aiProviders.watch((next) => {

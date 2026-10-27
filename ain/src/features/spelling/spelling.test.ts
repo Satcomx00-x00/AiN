@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 /**
- * Spelling: the dictionaries are downloaded (or a provider chosen) in Settings, where a correction
+ * Spelling: the language model is downloaded (or a provider chosen) in Settings, where a correction
  * can be tried; the island corrects the selection on the shortcut and shows what changed.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -19,28 +19,24 @@ const { memoryProviders } = await import("../../shell/providers");
 import type { Corrector, ModelInfo, Phase, SpellingPort } from "./service";
 
 const at = { model: "qwen2.5-1.5b", dir: "D:/Models/qwen2.5-1.5b-instruct-q4_k_m", installed: [] };
-const dicts = { model: "hunspell-fr-en", dir: "D:/Models/hunspell-fr-en", installed: [] };
 const done = (fixes: number, delivery: "typed" | "copied" | null, by: "model" | "dictionaries" = "model"): Phase =>
   ({ phase: "done", original: "teh cat", corrected: "the cat", fixes, by, delivery });
 
-/** A spelling backend whose phase and dictionaries' status can be pushed by the test. */
+/** A spelling backend whose phase and model status can be pushed by the test. */
 function fakePort() {
   let pushPhase: (phase: Phase) => void = () => {};
   let pushModel: (info: ModelInfo) => void = () => {};
-  let pushWords: (info: ModelInfo) => void = () => {};
   const stop = vi.fn();
   const port = {
     watch: vi.fn(async (onChange: (phase: Phase) => void) => ((pushPhase = onChange), onChange({ phase: "idle" }), () => {})),
     watchModel: vi.fn(async (onChange: (info: ModelInfo) => void) => ((pushModel = onChange), stop)),
-    watchDictionaries: vi.fn(async (onChange: (info: ModelInfo) => void) => ((pushWords = onChange), stop)),
-    dictionaries: { download: vi.fn(async () => {}), remove: vi.fn(async () => {}), openFolder: vi.fn(async () => {}) },
     fix: vi.fn(async () => {}),
     check: vi.fn(async (text: string) => ({ text: text.replace("teh", "the"), fixes: text.includes("teh") ? 1 : 0, by: "model" as Corrector })),
     openFolder: vi.fn(async () => {}),
     download: vi.fn(async () => {}),
     remove: vi.fn(async () => {}),
   } satisfies SpellingPort;
-  return { port, stop, phase: (p: Phase) => pushPhase(p), model: (info: ModelInfo) => pushModel(info), words: (info: ModelInfo) => pushWords(info) };
+  return { port, stop, phase: (p: Phase) => pushPhase(p), model: (info: ModelInfo) => pushModel(info) };
 }
 
 const tick = () => new Promise((r) => setTimeout(r));
@@ -57,16 +53,14 @@ describe("on the pill", () => {
   });
 
   it("shows problems while they are fresh", () => {
-    expect(spellingGlance({ phase: "needsModel" }, 1000, 2000)?.tone).toBe("alert");
     expect(spellingGlance({ phase: "nothingSelected" }, 1000, 2000)?.text).toBe("Select text first");
     expect(spellingGlance({ phase: "error", message: "x" }, 1000, 2000)).toEqual({ text: "Correction failed", tone: "alert" });
-    for (const phase of ["needsModel", "nothingSelected"] as const) expect(spellingGlance({ phase }, 1000, 9000)).toBeNull();
+    expect(spellingGlance({ phase: "nothingSelected" }, 1000, 9000)).toBeNull();
     expect(spellingGlance({ phase: "error", message: "x" }, 1000, 9000)).toBeNull();
   });
 
   it("says what to do in each phase", () => {
     expect(statusText({ phase: "idle" })).toContain("Ctrl+Alt+O");
-    expect(statusText({ phase: "needsModel" })).toContain("Download the language model or the dictionaries");
     expect(statusText({ phase: "nothingSelected" })).toContain("No text is selected");
     expect(statusText({ phase: "checking" })).toBe("Correcting…");
     expect(statusText(done(2, "typed"))).toBe("2 fixes, typed over the selection.");
@@ -106,12 +100,11 @@ describe("in the island", () => {
   });
 
   it("names the language model, the dictionaries standing in for it, or the provider's model", async () => {
-    const { root, model, words } = mount();
+    const { root, model } = mount();
     model({ ...at, state: "missing", size: 1.12e9 });
     await tick();
-    expect(root.querySelector(".dict-model strong")?.textContent).toBe("Qwen2.5 1.5B");
-    words({ ...dicts, state: "ready" });
     expect(root.querySelector(".dict-model strong")?.textContent).toBe(DICTIONARIES);
+    expect(root.querySelector<HTMLElement>(".dict-model")?.dataset.state).toBe("ready");
     model({ ...at, state: "ready" });
     expect(root.querySelector(".dict-model strong")?.textContent).toBe("Qwen2.5 1.5B");
     const lab = { id: "lab", name: "Lab", preset: "custom", baseUrl: "http://lab/v1", auth: { kind: "none" } } as const;
@@ -143,15 +136,10 @@ describe("in Settings", () => {
     return { ...fake, root, host, cleanup: cleanup as () => void, input, result: () => root.querySelector(".engine ~ .field-hint")?.textContent };
   };
 
-  it("downloads the model and the dictionaries, then lets a correction be tried", async () => {
-    const { root, port, model, words, input, result } = mount();
+  it("downloads the model, and lets a correction be tried with or without it", async () => {
+    const { root, port, model, input, result } = mount();
     await tick();
     model({ ...at, state: "missing", size: 1.12e9 });
-    words({ ...dicts, state: "missing", size: 1_983_851 });
-    expect(named(root, "Correct")?.disabled).toBe(true);
-    named(root, "Download · 2 MB")?.click();
-    expect(port.dictionaries.download).toHaveBeenCalledOnce();
-    words({ ...dicts, state: "ready" });
     expect(named(root, "Correct")?.disabled).toBe(false);
     named(root, "Download · 1.1 GB")?.click();
     expect(port.download).toHaveBeenCalledOnce();
@@ -190,7 +178,7 @@ describe("in Settings", () => {
     expect(host.setOptions).toHaveBeenCalledWith({ model: "qwen2.5-0.5b" });
   });
 
-  it("hides the dictionaries when a provider corrects", async () => {
+  it("hides the language model when a provider corrects", async () => {
     const { root, model } = mount("lab");
     model({ ...at, state: "missing", size: 2e6 });
     expect(named(root, "Correct")?.disabled).toBe(false);
@@ -202,7 +190,7 @@ describe("in Settings", () => {
     const { stop, cleanup } = mount();
     cleanup();
     await tick();
-    expect(stop).toHaveBeenCalledTimes(2);
+    expect(stop).toHaveBeenCalledOnce();
     const fake = fakePort();
     fake.port.watchModel.mockRejectedValueOnce(new Error("backend gone"));
     const host = { options: () => OPTIONS, setOptions: vi.fn(), openPage: vi.fn() };
@@ -229,12 +217,11 @@ describe("the language models", () => {
     expect(modelById("gone")).toBe(MODELS[0]);
   });
 
-  it("let the dictionaries stand in on the card only once they're ready", () => {
-    const missing = { ...at, state: "missing", size: 1 } as const;
-    const ready = { ...dicts, state: "ready" } as const;
-    expect(localCard(missing, null).name).toBe("Qwen2.5 1.5B");
-    expect(localCard(missing, ready).name).toBe(DICTIONARIES);
-    expect(localCard({ ...at, state: "downloading", received: 1, total: 2 }, ready).name).toBe("Qwen2.5 1.5B");
+  it("let the built-in dictionaries stand in on the card while the model isn't there", () => {
+    const missing = localCard({ ...at, state: "missing", size: 1 });
+    expect([missing.name, missing.info.state]).toEqual([DICTIONARIES, "ready"]);
+    expect(localCard({ ...at, state: "downloading", received: 1, total: 2 }).name).toBe("Qwen2.5 1.5B");
+    expect(localCard({ ...at, state: "ready" }).name).toBe("Qwen2.5 1.5B");
   });
 });
 
@@ -254,25 +241,18 @@ describe("the backend adapter", () => {
     expect(invoke).toHaveBeenLastCalledWith("plugin:spelling|delete_model");
     await tauriSpelling.openFolder();
     expect(invoke).toHaveBeenLastCalledWith("plugin:spelling|open_model_dir");
-    await tauriSpelling.dictionaries.download();
-    expect(invoke).toHaveBeenLastCalledWith("plugin:spelling|download_dictionaries");
-    await tauriSpelling.dictionaries.remove();
-    expect(invoke).toHaveBeenLastCalledWith("plugin:spelling|delete_dictionaries");
-    await tauriSpelling.dictionaries.openFolder();
-    expect(invoke).toHaveBeenLastCalledWith("plugin:spelling|open_model_dir");
     vi.mocked(invoke).mockResolvedValueOnce({ text: "the", fixes: 1 });
     expect(await tauriSpelling.check("teh")).toEqual({ text: "the", fixes: 1 });
     expect(invoke).toHaveBeenLastCalledWith("plugin:spelling|check", { text: "teh" });
   });
 
-  it("follows the phase and the dictionaries", async () => {
+  it("follows the phase and the model", async () => {
     vi.mocked(listen).mockImplementation(async () => () => {});
-    vi.mocked(invoke).mockResolvedValueOnce({ phase: "idle" }).mockResolvedValueOnce({ ...at, state: "ready" }).mockResolvedValueOnce({ ...dicts, state: "ready" });
+    vi.mocked(invoke).mockResolvedValueOnce({ phase: "idle" }).mockResolvedValueOnce({ ...at, state: "ready" });
     const seen: unknown[] = [];
     await tauriSpelling.watch((p) => seen.push(p));
     await tauriSpelling.watchModel((m) => seen.push(m.model));
-    await tauriSpelling.watchDictionaries((m) => seen.push(m.model));
-    expect(seen).toEqual([{ phase: "idle" }, "qwen2.5-1.5b", "hunspell-fr-en"]);
-    expect(vi.mocked(listen).mock.calls.map(([name]) => name)).toEqual(["plugin:spelling:phase-changed", "plugin:spelling:model-changed", "plugin:spelling:dictionaries-changed"]);
+    expect(seen).toEqual([{ phase: "idle" }, "qwen2.5-1.5b"]);
+    expect(vi.mocked(listen).mock.calls.map(([name]) => name)).toEqual(["plugin:spelling:phase-changed", "plugin:spelling:model-changed"]);
   });
 });

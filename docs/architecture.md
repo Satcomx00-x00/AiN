@@ -76,8 +76,9 @@ or a provider and that provider's model (and voice). The backend's `shell::provi
 choice (`chosen(settings, feature)`) and speaks the provider's API (`/audio/transcriptions`,
 `/audio/speech` in WAV, `/chat/completions`, `/models` for Settings' "Test connection"); dictation
 sends each 30 s chunk, read aloud a few sentences at a time, spelling the selected text. Spelling's own
-engine is a language model (llama.cpp) with Hunspell dictionaries as its fallback, which also step in
-when a provider fails. A new AI feature adds `engineOptions()` to its options, draws
+engine is a language model (llama.cpp, linked statically) with Hunspell dictionaries as its fallback,
+which also step in when a provider fails. Apart from the AI models, downloaded on request, everything
+ships inside the app: the dictionaries are compiled in from `src-tauri/dictionaries/`. A new AI feature adds `engineOptions()` to its options, draws
 `enginePanel` in its settings panel and matches on `providers::Engine` in its backend.
 
 ## Adding a feature

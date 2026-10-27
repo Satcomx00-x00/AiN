@@ -93,14 +93,10 @@ pub fn correct(shared: &Shared, engine: &Engine, text: &str, language: Option<sp
         Some(Err(message)) => Some(message),
         None => None,
     };
-    if !shared.dictionaries.ready() {
-        return Err(failure.unwrap_or_else(|| "Download the language model or the dictionaries in Settings first".into()));
-    }
     if let Some(message) = failure {
         eprintln!("island: spelling: {message}; the dictionaries take over");
     }
-    let fixed = shared.dictionaries.engine()?.correct(text, language);
-    shared.dictionaries.touch();
+    let fixed = shared.dictionaries.speller()?.correct(text, language);
     Ok(Correction { text: fixed.text, fixes: fixed.fixes, by: Corrector::Dictionaries })
 }
 
@@ -118,9 +114,6 @@ pub fn fix(app: &AppHandle, shared: &Shared, selection: Selection) -> Phase {
         Ok(engine) => engine,
         Err(message) => return Phase::Error { message },
     };
-    if engine == Engine::Local && !shared.model.ready() && !shared.dictionaries.ready() {
-        return Phase::NeedsModel;
-    }
     let Some(selected) = selection() else { return Phase::NothingSelected };
     shared.publish(app, Phase::Checking);
     let preferences = Preferences::read(&settings);

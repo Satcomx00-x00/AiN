@@ -175,11 +175,6 @@ const fake: Services = {
       onChange({ model: "qwen2.5-1.5b", dir: "C:\\Users\\you\\AppData\\Roaming\\dev.satcom.ain\\models\\qwen2.5-1.5b-instruct-q4_k_m", installed: ["qwen2.5-1.5b"], state: "ready" });
       return () => {};
     },
-    watchDictionaries: async (onChange) => {
-      onChange({ model: "hunspell-fr-en", dir: "C:\\Users\\you\\AppData\\Roaming\\dev.satcom.ain\\models\\hunspell-fr-en", installed: ["hunspell-fr-en"], state: "ready" });
-      return () => {};
-    },
-    dictionaries: { download: async () => {}, remove: async () => {}, openFolder: async () => {} },
     fix: async () => {},
     check: async (text) => ({ text, fixes: 0, by: "model" }),
     openFolder: async () => {},
