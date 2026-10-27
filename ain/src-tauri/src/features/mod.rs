@@ -9,6 +9,7 @@ pub mod media;
 pub mod persona;
 pub mod privacy;
 pub mod stats;
+pub mod transcript;
 pub mod tts;
 pub mod volume;
 
@@ -32,6 +33,7 @@ pub fn register(app: Builder<Wry>) -> Builder<Wry> {
         .plugin(privacy::init())
         .plugin(dictation::init())
         .plugin(tts::init())
+        .plugin(transcript::init())
         .plugin(persona::init())
 }
 

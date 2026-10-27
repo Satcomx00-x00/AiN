@@ -15,6 +15,7 @@ import type { Usage } from "../features/privacy/service";
 import type { Stats } from "../features/stats/service";
 import type { ModelInfo as Voice, Phase as Reading } from "../features/tts/service";
 import type { Phase as Talk } from "../features/persona/service";
+import type { Line, Phase as Hearing } from "../features/transcript/service";
 import type { Output, Source } from "../features/volume/service";
 import type { PopupPort } from "../shell/commands";
 import type { CommunityPort, Offer } from "../shell/community";
@@ -77,6 +78,8 @@ export function system() {
   const phase = channel<Phase>({ phase: "idle" });
   const model = channel<ModelInfo>(READY);
   const reading = channel<Reading>({ phase: "idle" });
+  const hearing = channel<Hearing>({ phase: "idle" });
+  const heard = channel<readonly Line[]>([]);
   const voice = channel<Voice>(VOICE);
   /** What read aloud was asked: a control, or a text to read. */
   const spoken: string[] = [];
@@ -117,6 +120,11 @@ export function system() {
       control: async () => {},
       download: async () => {},
       remove: async () => {},
+    },
+    transcript: {
+      watch: hearing.watch,
+      watchLines: heard.watch,
+      control: async () => {},
     },
     tts: {
       watch: reading.watch,
@@ -218,7 +226,7 @@ export function system() {
     importer,
     community,
     secrets,
-    /** What the system says: push a track, an output volume, mic/camera use, a dictation, reading or conversation phase, a stats sample. */
+    /** What the system says: push a track, an output volume, mic/camera use, a dictation, transcript, reading or conversation phase, transcript lines, a stats sample. */
     push: {
       track: (t: Track | null) => media.push(t),
       output: (o: Output | null) => output.push(o),
@@ -226,6 +234,8 @@ export function system() {
       phase: (p: Phase) => phase.push(p),
       reading: (p: Reading) => reading.push(p),
       talk: (p: Talk) => talk.push(p),
+      hearing: (p: Hearing) => hearing.push(p),
+      heard: (lines: readonly Line[]) => heard.push(lines),
       stats: (s: Partial<Stats> | null) => void (sample = s && sample ? { ...sample, ...s } : null),
     },
     recorded: { regions, canvases, rules, bound, controls, spoken, talked },

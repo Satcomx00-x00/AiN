@@ -14,6 +14,7 @@ const { tauriClipboard } = await import("./clipboard/service");
 const { tauriVolume } = await import("./volume/service");
 const { tauriDictation } = await import("./dictation/service");
 const { tauriTts } = await import("./tts/service");
+const { tauriTranscript } = await import("./transcript/service");
 const { tauriPersona } = await import("./persona/service");
 const { tauriMedia } = await import("./media/service");
 const { tauriPrivacy } = await import("./privacy/service");
@@ -111,6 +112,23 @@ describe("dictation", () => {
     vi.mocked(invoke).mockResolvedValueOnce([{ id: "wasapi:{a}", name: "Headset" }]);
     expect(await tauriDictation.microphones()).toEqual([{ id: "wasapi:{a}", name: "Headset" }]);
     expect(invoke).toHaveBeenLastCalledWith("plugin:dictation|microphones");
+  });
+});
+
+describe("transcript", () => {
+  it("follows the phase and the lines heard, and controls the recording", async () => {
+    const phases = await follow(tauriTranscript.watch, backend({ "plugin:transcript|state": { phase: "idle" } }, { "plugin:transcript:phase-changed": [{ phase: "listening", level: null, seconds: 1 }] }));
+    expect(phases.seen).toEqual([{ phase: "listening", level: 0, seconds: 1 }, { phase: "idle" }]);
+    expect(phases.log.slice(0, 2)).toEqual(["listen plugin:transcript:phase-changed", "invoke plugin:transcript|state"]);
+
+    const line = { at: 1, text: "Hi" };
+    const lines = await follow(tauriTranscript.watchLines, backend({ "plugin:transcript|lines": [line] }));
+    expect(lines.seen).toEqual([[line]]);
+    expect(lines.log.slice(0, 2)).toEqual(["listen plugin:transcript:lines-changed", "invoke plugin:transcript|lines"]);
+
+    vi.mocked(invoke).mockResolvedValueOnce(null);
+    expect(await tauriTranscript.control("clear")).toBeUndefined();
+    expect(invoke).toHaveBeenLastCalledWith("plugin:transcript|control", { command: "clear" });
   });
 });
 
