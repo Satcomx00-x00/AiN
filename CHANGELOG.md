@@ -3,6 +3,11 @@
 All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.14.0](https://github.com/Satcomx00-x00/AiN/compare/v0.13.0..v0.14.0) - 2026-10-27
+
+### Features
+
+- **npm:** Install with bun or npm, one package per platform ([#34](https://github.com/Satcomx00-x00/AiN/pull/34)) ([8f9e415](https://github.com/Satcomx00-x00/AiN/commit/8f9e415dc214433f1a02ccd130c3dba392763752))
 ## [0.13.0](https://github.com/Satcomx00-x00/AiN/compare/v0.12.0..v0.13.0) - 2026-10-27
 
 ### Features
