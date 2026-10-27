@@ -6,6 +6,7 @@ set -euo pipefail
 sudo apt-get update
 sudo apt-get install -y --no-install-recommends \
   build-essential \
+  cmake \
   pkg-config \
   clang \
   libclang-dev \

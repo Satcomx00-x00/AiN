@@ -137,19 +137,46 @@ export async function mount<S>(
   const broken = new Set<string>();
   /** Open, the island is at least as tall as the pill, so the panel sits the same under every style. */
   const openRow = () => Math.max(folded.height, pill.height);
+  /** The panel height each tab's content was last measured to need: text wraps further in a wider font (Linux's). */
+  const needs = new Map<string, number>();
+  /** What a tab asks for, or more if its content needs it. */
+  const askedBy = (m: Mounted) => Math.max(m.plugin.panelHeight ?? 0, needs.get(m.plugin.id) ?? 0);
   /** The open panel's height: what the shown tab asks for. */
-  const panelNow = () => panelHeight(placement.tabs.find((m) => m.plugin.id === view?.active())?.plugin.panelHeight);
+  const panelNow = () => {
+    const shown = placement.tabs.find((m) => m.plugin.id === view?.active());
+    return panelHeight(shown && askedBy(shown));
+  };
   const sized = (open: boolean, wide = false, panel = panelNow()) =>
     open ? sizeFor(true, { width: folded.width, height: openRow() }, false, 1, panel) : sizeFor(false, folded, wide && style?.widens !== false, pill.scale);
   /** The window holds the open pill with its tallest tab, so switching tabs only moves the input region. */
-  const canvasNow = () => frame(sized(true, false, Math.max(panelNow(), ...placement.tabs.map((m) => panelHeight(m.plugin.panelHeight)))), true, pill.scale);
+  const canvasNow = () => frame(sized(true, false, Math.max(panelNow(), ...placement.tabs.map((m) => panelHeight(askedBy(m))))), true, pill.scale);
 
   el.dataset.notch = String(i.hasNotch);
   el.dataset.open = "false";
   el.dataset.hidden = "false";
   let canvas = canvasNow();
+  /**
+   * Measures the shown tab's content; true when its panel needs another height than measured before.
+   * Read from offsets, which the panel's open and close transforms don't change.
+   */
+  const measure = (): boolean => {
+    const id = view?.active();
+    const section = panel.querySelector<HTMLElement>(".panels > section:not([hidden])");
+    const blocks = [...(section?.children ?? [])].filter((c): c is HTMLElement => c instanceof HTMLElement && c.offsetParent !== null);
+    if (!id || !section || !blocks.length) return false;
+    // A block may shrink to the room and let its content spill out (min-height: 0): that spill counts,
+    // unless the block scrolls or clips it on purpose.
+    const tall = (b: HTMLElement) => (/auto|scroll|hidden|clip/.test(getComputedStyle(b).overflowY) ? b.offsetHeight : Math.max(b.offsetHeight, b.scrollHeight));
+    const content = Math.max(...blocks.map((b) => b.offsetTop + tall(b))) - Math.min(...blocks.map((b) => b.offsetTop));
+    // The panel around the content (tabs, gaps, padding) stays; the room left for content becomes the content's height.
+    const need = Math.ceil(panel.offsetHeight - section.clientHeight + content);
+    if (need === needs.get(id)) return false;
+    needs.set(id, need);
+    return true;
+  };
   /** Sizes the panel for the shown tab, laid out at its final size before the pill reveals it. */
   const fitPanel = () => {
+    measure();
     el.style.setProperty("--panel-h", `${panelNow()}px`);
     canvas = canvasNow();
   };
@@ -285,6 +312,11 @@ export async function mount<S>(
 
     const nextWide = !!(l?.glance.wide || r?.glance.wide);
     drawLook({ left: l?.glance ?? null, right: r?.glance ?? null, leftFrom: l?.from.plugin.id, rightFrom: r?.from.plugin.id, ambient, alert, wide: nextWide, now });
+    // The open tab's content grew or shrank (a download's progress, a longer message): so does the panel.
+    if (open && el.dataset.open === "true" && measure()) {
+      fitPanel();
+      await resize();
+    }
     if (nextWide !== wide) {
       wide = nextWide;
       el.dataset.wide = String(wide);
@@ -359,6 +391,8 @@ export async function mount<S>(
       // Opening on an alerting tab: the island opens to that tab's panel.
       const alert = alerting(Date.now());
       if (alert && placement.tabs.includes(alert) && alert.plugin.id !== view?.active()) view?.select(alert.plugin.id, false);
+      // What the tab shows may have changed while the island was folded.
+      fitPanel();
       const s = sized(true, wide);
       await win.layout(canvas, frame(s, true, pill.scale));
       if (!open) return;

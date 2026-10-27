@@ -77,14 +77,15 @@ test.describe("the pill styles", () => {
 });
 
 test.describe("hover", () => {
+  // The preview opens on Media, whose card needs a 166 px panel: the panel grows past the usual 156 to fit it.
   test("opens the island under the pointer, and folds it once the pointer leaves", async ({ page }) => {
     const island = await openIsland(page, { still: true });
     const b = await box(island);
     await page.mouse.move(b.x + b.width / 2, b.height / 2);
     await expect(island).toHaveAttribute("data-open", "true");
-    await expect.poll(() => box(island)).toMatchObject({ width: 420, height: 188 });
+    await expect.poll(() => box(island)).toMatchObject({ width: 420, height: 32 + 166 });
     await expect(island.locator(".panel")).toBeVisible();
-    await expect(island.locator("[role=tab]")).toHaveCount(9);
+    await expect(island.locator("[role=tab]")).toHaveCount(10);
     await page.mouse.move(640, 600);
     await expect(island).toHaveAttribute("data-open", "false");
     await expect.poll(() => box(island)).toMatchObject({ width: 296, height: 32 });
@@ -95,7 +96,7 @@ test.describe("hover", () => {
     const b = await box(island);
     await page.mouse.move(b.x + b.width / 2, 2);
     await expect(island).toHaveAttribute("data-open", "true");
-    await expect.poll(() => box(island)).toMatchObject({ width: 420, height: 20 + 156 });
+    await expect.poll(() => box(island)).toMatchObject({ width: 420, height: 20 + 166 });
   });
 
   test("a timer started from its tab counts down on the pill", async ({ page }) => {

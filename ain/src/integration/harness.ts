@@ -14,6 +14,7 @@ import type { Control, Track } from "../features/media/service";
 import type { Usage } from "../features/privacy/service";
 import type { Stats } from "../features/stats/service";
 import type { ModelInfo as Voice, Phase as Reading } from "../features/tts/service";
+import type { Phase as Talk } from "../features/persona/service";
 import type { Output, Source } from "../features/volume/service";
 import type { PopupPort } from "../shell/commands";
 import type { CommunityPort, Offer } from "../shell/community";
@@ -79,6 +80,9 @@ export function system() {
   const voice = channel<Voice>(VOICE);
   /** What read aloud was asked: a control, or a text to read. */
   const spoken: string[] = [];
+  const talk = channel<Talk>({ phase: "idle" });
+  /** What the conversation was asked. */
+  const talked: string[] = [];
   let sample: Stats | null = { cpu: 42, memUsed: 8e9, memTotal: 16e9, rxPerSec: 0, txPerSec: 0, sampledAt: NOW };
   let clips: Clip[] = [];
   const controls: Control[] = [];
@@ -122,6 +126,18 @@ export function system() {
       speak: async (text) => void spoken.push(text),
       download: async () => {},
       remove: async () => {},
+    },
+    persona: {
+      watch: talk.watch,
+      control: async (c) => void talked.push(c),
+      watchLocal: async (onChange) => (onChange({ dir: "/models/personaplex", running: false, model: { state: "ready" }, state: "ready" }), () => {}),
+      download: async () => {},
+      cancelDownload: async () => {},
+      test: async () => 8998,
+      stopTest: async () => {},
+      install: async () => {},
+      remove: async () => {},
+      openFolder: async () => {},
     },
   };
 
@@ -202,16 +218,17 @@ export function system() {
     importer,
     community,
     secrets,
-    /** What the system says: push a track, an output volume, mic/camera use, a dictation or reading phase, a stats sample. */
+    /** What the system says: push a track, an output volume, mic/camera use, a dictation, reading or conversation phase, a stats sample. */
     push: {
       track: (t: Track | null) => media.push(t),
       output: (o: Output | null) => output.push(o),
       usage: (u: Usage | null) => usage.push(u),
       phase: (p: Phase) => phase.push(p),
       reading: (p: Reading) => reading.push(p),
+      talk: (p: Talk) => talk.push(p),
       stats: (s: Partial<Stats> | null) => void (sample = s && sample ? { ...sample, ...s } : null),
     },
-    recorded: { regions, canvases, rules, bound, controls, spoken },
+    recorded: { regions, canvases, rules, bound, controls, spoken, talked },
     /** Shows or hides the pill, as the backend's auto-hide rule would. */
     reveal: (shown: boolean) => reveal(shown),
     /** The hardware island: e.g. a MacBook notch. Set before the island starts. */

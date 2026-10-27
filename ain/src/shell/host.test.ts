@@ -457,6 +457,78 @@ describe("a tab that asks for a taller panel", () => {
   });
 });
 
+describe("a tab whose content is taller than its panel", () => {
+  /** Lays `node` out as a browser would: jsdom lays nothing out. */
+  const laid = (node: HTMLElement, box: Partial<Record<"offsetTop" | "offsetHeight" | "clientHeight" | "scrollHeight", number>>) => {
+    Object.defineProperty(node, "offsetParent", { configurable: true, get: () => node.parentElement });
+    for (const [k, v] of Object.entries(box)) Object.defineProperty(node, k, { configurable: true, get: () => v });
+  };
+  let block: HTMLElement;
+  let host: { refresh(): void } | undefined;
+  const wordy = {
+    id: "wordy",
+    label: "wordy",
+    description: "",
+    icon: "",
+    slots: ["tab"] as const,
+    setup: (_: unknown, h: { refresh(): void }) => ({
+      panel: (section: HTMLElement) => {
+        host = h;
+        block = document.createElement("div");
+        section.append(block);
+        // Under the tabs, 108 px are left for the content in a 156 px panel.
+        laid(section, { clientHeight: 108 });
+        // Shrunk to the room, its content spilling 42 px out.
+        laid(block, { offsetTop: 40, offsetHeight: 108, scrollHeight: 150 });
+      },
+    }),
+  };
+
+  it("grows the panel and the window to fit it, and shrinks back when it's shorter", async () => {
+    vi.spyOn(window, "matchMedia").mockReturnValue({ matches: false } as MediaQueryList);
+    const el = document.createElement("div");
+    document.body.replaceChildren(el);
+    win = fakeWindow();
+    const placed = { ...withGeneral({ greeting: "none" }), layout: { glance: { left: [], right: [] }, tabs: ["wordy"] } };
+    await mount(el, [wordy] as never, {}, win.port, placed, { styles: [PILL.style] });
+    await settleAll();
+    laid(el.querySelector<HTMLElement>(".panel")!, { offsetHeight: 156 });
+    el.dispatchEvent(new MouseEvent("click"));
+    await settleAll();
+    // 156 − 108 around the content, plus its 150.
+    expect([el.style.getPropertyValue("--h"), el.style.getPropertyValue("--panel-h")]).toEqual([`${32 + 198}px`, "198px"]);
+    expect(win.canvases.at(-1)?.height).toBe(32 + 198 + 16);
+
+    laid(block, { offsetTop: 40, offsetHeight: 60, scrollHeight: 60 });
+    el.querySelector<HTMLButtonElement>("#tab-wordy")?.click();
+    await settleAll();
+    expect(el.style.getPropertyValue("--panel-h")).toBe("156px");
+  });
+
+  it("follows content that changes while open, and leaves a block's own scrolling to it", async () => {
+    vi.spyOn(window, "matchMedia").mockReturnValue({ matches: false } as MediaQueryList);
+    const el = document.createElement("div");
+    document.body.replaceChildren(el);
+    win = fakeWindow();
+    const placed = { ...withGeneral({ greeting: "none" }), layout: { glance: { left: [], right: [] }, tabs: ["wordy"] } };
+    await mount(el, [wordy] as never, {}, win.port, placed, { styles: [PILL.style] });
+    await settleAll();
+    laid(el.querySelector<HTMLElement>(".panel")!, { offsetHeight: 156 });
+    el.dispatchEvent(new MouseEvent("click"));
+    await settleAll();
+    expect(el.style.getPropertyValue("--panel-h")).toBe("198px");
+
+    // Now it scrolls its overflow itself: only its box counts.
+    block.style.overflowY = "auto";
+    const layouts = win.canvases.length;
+    host!.refresh();
+    await settleAll();
+    expect(el.style.getPropertyValue("--panel-h")).toBe("156px");
+    expect(win.canvases.length).toBeGreaterThan(layouts);
+    expect(win.canvases.at(-1)?.height).toBe(32 + 156 + 16);
+  });
+});
+
 describe("pill styles, live", () => {
   it("reads the style's options for its size and while drawing, as they change", async () => {
     const seen: unknown[] = [];

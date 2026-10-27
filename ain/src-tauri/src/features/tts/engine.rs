@@ -13,9 +13,9 @@ use std::{
 use serde_json::Value;
 use tauri::AppHandle;
 
-use super::{FEATURE, KEEP_WARM, Phase, Request, Shared, lock, model::Model, speakers};
+use super::{FEATURE, KEEP_WARM, Phase, Request, Shared, lock, model::Model};
 use crate::{
-    features::audio,
+    features::{audio, speakers},
     shell::{
         providers::{self, Engine},
         settings,

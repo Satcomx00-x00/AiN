@@ -14,6 +14,7 @@ const { tauriClipboard } = await import("./clipboard/service");
 const { tauriVolume, output } = await import("./volume/service");
 const { tauriDictation, phase } = await import("./dictation/service");
 const { tauriTts } = await import("./tts/service");
+const { tauriPersona } = await import("./persona/service");
 const { tauriMedia } = await import("./media/service");
 const { tauriCapture, decode } = await import("./screenshot/service");
 
@@ -164,5 +165,36 @@ describe("capture", () => {
     vi.mocked(invoke).mockResolvedValueOnce("C:/Pictures/AiN/a.png");
     expect(await tauriCapture.save(new Uint8Array([1]), "a.png")).toBe("C:/Pictures/AiN/a.png");
     expect(invoke).toHaveBeenLastCalledWith("plugin:capture|save_png", new Uint8Array([1]), { headers: { "x-name": "a.png" } });
+  });
+});
+
+describe("conversation", () => {
+  it("calls each command by its Rust name", async () => {
+    vi.mocked(invoke).mockResolvedValue(null);
+    await tauriPersona.control("toggle");
+    expect(invoke).toHaveBeenLastCalledWith("plugin:persona|control", { command: "toggle" });
+    await tauriPersona.install();
+    expect(invoke).toHaveBeenLastCalledWith("plugin:persona|install_local");
+    await tauriPersona.download();
+    expect(invoke).toHaveBeenLastCalledWith("plugin:persona|download_model");
+    await tauriPersona.cancelDownload();
+    expect(invoke).toHaveBeenLastCalledWith("plugin:persona|cancel_download");
+    await tauriPersona.remove();
+    expect(invoke).toHaveBeenLastCalledWith("plugin:persona|remove_local");
+    await tauriPersona.openFolder();
+    expect(invoke).toHaveBeenLastCalledWith("plugin:persona|open_local_dir");
+    await tauriPersona.stopTest();
+    expect(invoke).toHaveBeenLastCalledWith("plugin:persona|stop_test");
+  });
+
+  it("tests the server, following its progress until it answers, then stops listening", async () => {
+    const log: string[] = [];
+    events(log, ["Loading the model"]);
+    vi.mocked(invoke).mockResolvedValueOnce(41234);
+    const lines: string[] = [];
+    expect(await tauriPersona.test((line) => lines.push(line))).toBe(41234);
+    expect(lines).toEqual(["Loading the model"]);
+    expect(invoke).toHaveBeenLastCalledWith("plugin:persona|test_local");
+    expect(log).toEqual(["listen plugin:persona:test-progress", "unlisten plugin:persona:test-progress"]);
   });
 });

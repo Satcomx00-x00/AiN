@@ -27,6 +27,38 @@ pub fn open_url(url: &str) -> std::io::Result<()> {
     open(url.as_ref())
 }
 
+/// Ties a helper program we start to the app: on Linux it ends with the app, even when the app is
+/// killed; on Windows it opens no console window.
+#[cfg_attr(target_os = "macos", allow(unused_variables, reason = "nothing to tie on macOS"))]
+pub fn tie_to_app(command: &mut std::process::Command) {
+    #[cfg(target_os = "linux")]
+    {
+        use std::os::unix::process::CommandExt;
+        // SAFETY: prctl only changes the child's own death signal, between fork and exec, and is
+        // async-signal-safe.
+        unsafe {
+            command.pre_exec(|| match libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGTERM) {
+                0 => Ok(()),
+                _ => Err(std::io::Error::last_os_error()),
+            });
+        }
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+}
+
+/// Makes a helper the app started end with it, however the app ends. On Linux `tie_to_app` already
+/// did, before it started; macOS has no such thing.
+#[cfg_attr(not(windows), allow(unused_variables, reason = "only Windows needs the started process"))]
+pub fn end_with_app(child: &std::process::Child) {
+    #[cfg(windows)]
+    windows::end_with_app(child);
+}
+
 #[cfg(windows)]
 fn open(target: &std::ffi::OsStr) -> std::io::Result<()> {
     windows::shell_open(target)
