@@ -38,6 +38,11 @@ fn log_panics() {
 }
 
 pub fn run() {
+    // `ain --cleanup`: undo what the app registered outside its files, and stop there. Before the
+    // crash log, which would recreate the data folder a purge removes.
+    if let Some(request) = shell::cleanup::Request::parse(std::env::args()) {
+        std::process::exit(shell::cleanup::run(&request));
+    }
     log_panics();
     #[cfg(target_os = "linux")]
     platform::linux::prefer_xwayland();
