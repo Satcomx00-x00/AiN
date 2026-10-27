@@ -1,9 +1,15 @@
-//! The text selected in the app in front. On Linux the primary selection holds it already; elsewhere
-//! it is copied with the system's copy shortcut, and the text that was on the clipboard put back.
+//! The text selected in the app in front, for read aloud and spelling. On Linux the primary
+//! selection holds it already; elsewhere it is copied with the system's copy shortcut, and the text
+//! that was on the clipboard put back.
 
 /// The selected text, trimmed; none when nothing is selected or it can't be read.
 pub fn selected() -> Option<String> {
-    grab().map(|text| text.trim().to_string()).filter(|text| !text.is_empty())
+    raw().map(|text| text.trim().to_string())
+}
+
+/// The selected text as is, with the spaces around it; none when it is blank or can't be read.
+pub fn raw() -> Option<String> {
+    grab().filter(|text| !text.trim().is_empty())
 }
 
 #[cfg(target_os = "linux")]

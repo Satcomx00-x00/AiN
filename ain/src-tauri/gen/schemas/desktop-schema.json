@@ -3093,6 +3093,96 @@
           "markdownDescription": "Denies the set_autostart command without any pre-configured scope."
         },
         {
+          "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-state`\n- `allow-model-status`\n- `allow-fix`\n- `allow-check`\n- `allow-download-model`\n- `allow-delete-model`\n- `allow-open-model-dir`",
+          "type": "string",
+          "const": "spelling:default",
+          "markdownDescription": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-state`\n- `allow-model-status`\n- `allow-fix`\n- `allow-check`\n- `allow-download-model`\n- `allow-delete-model`\n- `allow-open-model-dir`"
+        },
+        {
+          "description": "Enables the check command without any pre-configured scope.",
+          "type": "string",
+          "const": "spelling:allow-check",
+          "markdownDescription": "Enables the check command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the delete_model command without any pre-configured scope.",
+          "type": "string",
+          "const": "spelling:allow-delete-model",
+          "markdownDescription": "Enables the delete_model command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the download_model command without any pre-configured scope.",
+          "type": "string",
+          "const": "spelling:allow-download-model",
+          "markdownDescription": "Enables the download_model command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the fix command without any pre-configured scope.",
+          "type": "string",
+          "const": "spelling:allow-fix",
+          "markdownDescription": "Enables the fix command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the model_status command without any pre-configured scope.",
+          "type": "string",
+          "const": "spelling:allow-model-status",
+          "markdownDescription": "Enables the model_status command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the open_model_dir command without any pre-configured scope.",
+          "type": "string",
+          "const": "spelling:allow-open-model-dir",
+          "markdownDescription": "Enables the open_model_dir command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the state command without any pre-configured scope.",
+          "type": "string",
+          "const": "spelling:allow-state",
+          "markdownDescription": "Enables the state command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the check command without any pre-configured scope.",
+          "type": "string",
+          "const": "spelling:deny-check",
+          "markdownDescription": "Denies the check command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the delete_model command without any pre-configured scope.",
+          "type": "string",
+          "const": "spelling:deny-delete-model",
+          "markdownDescription": "Denies the delete_model command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the download_model command without any pre-configured scope.",
+          "type": "string",
+          "const": "spelling:deny-download-model",
+          "markdownDescription": "Denies the download_model command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the fix command without any pre-configured scope.",
+          "type": "string",
+          "const": "spelling:deny-fix",
+          "markdownDescription": "Denies the fix command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the model_status command without any pre-configured scope.",
+          "type": "string",
+          "const": "spelling:deny-model-status",
+          "markdownDescription": "Denies the model_status command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the open_model_dir command without any pre-configured scope.",
+          "type": "string",
+          "const": "spelling:deny-open-model-dir",
+          "markdownDescription": "Denies the open_model_dir command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the state command without any pre-configured scope.",
+          "type": "string",
+          "const": "spelling:deny-state",
+          "markdownDescription": "Denies the state command without any pre-configured scope."
+        },
+        {
           "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-latest`",
           "type": "string",
           "const": "stats:default",

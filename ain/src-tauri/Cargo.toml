@@ -38,6 +38,8 @@ sha2 = "0.11.1"
 tar = "0.4.46"
 bzip2 = { version = "0.5.2", default-features = false, features = ["libbz2-rs-sys"] }
 tauri-plugin-dialog = "2"
+# Spelling's dictionaries on this machine: Hunspell's .aff/.dic, read in pure Rust.
+spellbook = "0.4.2"
 # Typed TypeScript bindings for commands and events; pinned exactly while specta 2 is a release candidate.
 specta = { version = "=2.0.0-rc.25", features = ["derive"] }
 specta-typescript = "=0.0.12"

@@ -1,8 +1,8 @@
-//! Model downloads shared by the features that run models on this machine (dictation, read aloud):
-//! streamed over HTTPS, hashed on the fly, stoppable, reporting progress along the way.
+//! Model downloads shared by the features that run models on this machine (dictation, read aloud,
+//! spelling): streamed over HTTPS, hashed on the fly, stoppable, reporting progress along the way.
 
 use std::{
-    fs,
+    fs::{self, File},
     io::{self, Read, Write},
     path::{Path, PathBuf},
     sync::atomic::{AtomicBool, Ordering},
@@ -70,6 +70,62 @@ pub fn fetch(url: &str, out: &mut impl Write, cancel: &AtomicBool, mut progress:
     }
     out.flush()?;
     Ok(Fetched { size: received, sha256: hex(&hash.finalize()) })
+}
+
+/// A file known in advance by its size and SHA-256, as served at a pinned revision.
+pub struct Pinned {
+    pub name: &'static str,
+    pub size: u64,
+    pub sha256: &'static str,
+}
+
+pub const fn pinned(name: &'static str, size: u64, sha256: &'static str) -> Pinned {
+    Pinned { name, size, sha256 }
+}
+
+/// Whether every file is in `dir` at its full size (hashes were checked when it was downloaded).
+pub fn complete(dir: &Path, files: &[Pinned]) -> bool {
+    files.iter().all(|f| fs::metadata(dir.join(f.name)).is_ok_and(|m| m.len() == f.size))
+}
+
+/// Downloads the files missing from `dir`, each from `url(file)`, calling `progress(received, total)`
+/// along the way. Each file streams into `<name>.part`, is hashed on the fly, and is renamed only if
+/// it matches.
+pub fn fetch_pinned(
+    dir: &Path,
+    files: &[Pinned],
+    url: impl Fn(&Pinned) -> String,
+    cancel: &AtomicBool,
+    mut progress: impl FnMut(u64, u64),
+) -> Result<(), DownloadError> {
+    fs::create_dir_all(dir)?;
+    let total = files.iter().map(|f| f.size).sum();
+    let mut done = 0;
+    for file in files {
+        let path = dir.join(file.name);
+        if fs::metadata(&path).is_ok_and(|m| m.len() == file.size) {
+            done += file.size;
+            continue;
+        }
+        let part = dir.join(format!("{}.part", file.name));
+        let result = (|| {
+            let mut out = io::BufWriter::new(File::create(&part)?);
+            let fetched = fetch(&url(file), &mut out, cancel, |received| progress(done + received, total))?;
+            drop(out);
+            if fetched.size != file.size || fetched.sha256 != file.sha256 {
+                return Err(DownloadError::Corrupt(file.name));
+            }
+            fs::rename(&part, &path)?;
+            Ok(())
+        })();
+        if result.is_err() {
+            let _ = fs::remove_file(&part);
+        }
+        result?;
+        done += file.size;
+        progress(done, total);
+    }
+    Ok(())
 }
 
 pub fn hex(bytes: &[u8]) -> String {

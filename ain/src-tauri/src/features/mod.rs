@@ -8,15 +8,18 @@ pub mod dictation;
 pub mod media;
 pub mod persona;
 pub mod privacy;
+pub mod spelling;
 pub mod stats;
 pub mod tts;
 pub mod volume;
 
 mod audio;
+mod delivery;
 mod download;
 mod live;
 mod microphone;
 mod models;
+mod selection;
 mod speakers;
 mod worker;
 
@@ -33,6 +36,7 @@ pub fn register(app: Builder<Wry>) -> Builder<Wry> {
         .plugin(dictation::init())
         .plugin(tts::init())
         .plugin(persona::init())
+        .plugin(spelling::init())
 }
 
 /// A poisoned lock still holds usable audio or state: carry on with it.
