@@ -3,6 +3,23 @@
 All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.13.0](https://github.com/Satcomx00-x00/AiN/compare/v0.12.0..v0.13.0) - 2026-10-27
+
+### Features
+
+- **transcript:** Write down the computer's sound as it plays ([1b91961](https://github.com/Satcomx00-x00/AiN/commit/1b9196137053f91c3122f3a85fa7e5b164131f6b))
+
+### Bug fixes
+
+- **transcript:** Read parec's samples with as_chunks ([872b175](https://github.com/Satcomx00-x00/AiN/commit/872b175e55db9efc3d4fce84bc33067f006a7a02))
+
+### Refactoring
+
+- **dictation:** Share the speech models and loopback-capable recording ([ace0198](https://github.com/Satcomx00-x00/AiN/commit/ace0198133dd5d69a64d23df8802034ee7f2243d))
+
+### Documentation
+
+- Describe the transcript feature ([dce8032](https://github.com/Satcomx00-x00/AiN/commit/dce8032233c5578396c6cb824fb3745306e760c8))
 ## [0.12.0](https://github.com/Satcomx00-x00/AiN/compare/v0.11.0..v0.12.0) - 2026-10-27
 
 ### Features

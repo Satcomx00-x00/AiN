@@ -58,6 +58,7 @@ flowchart LR
 | macOS | `.app` | replaces the bundle with the one from `.app.tar.gz` |
 | Linux | AppImage | replaces the AppImage file in place |
 | Linux | `.deb` / `.rpm` | installs the package with `dpkg -i` / `rpm -U`, asking for the password through `pkexec` |
+| any | npm / bun (under `node_modules`) | nothing: updates are off, `bun update -g @satcomx00/ain` updates it ([npm.md](npm.md)) |
 
 The state the backend reports (and emits as `UpdateChanged` on every change):
 
