@@ -127,6 +127,15 @@ export function system() {
       download: async () => {},
       remove: async () => {},
     },
+    spelling: {
+      watch: async (onChange) => (onChange({ phase: "idle" }), () => {}),
+      watchModel: async (onChange) => (onChange({ ...VOICE, model: "hunspell-fr-en", installed: ["hunspell-fr-en"] } as never), () => {}),
+      fix: async () => {},
+      check: async (text) => ({ text, fixes: 0 }),
+      openFolder: async () => {},
+      download: async () => {},
+      remove: async () => {},
+    },
     persona: {
       watch: talk.watch,
       control: async (c) => void talked.push(c),

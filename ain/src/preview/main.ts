@@ -168,6 +168,19 @@ const fake: Services = {
     download: async () => {},
     remove: async () => {},
   },
+  spelling: {
+    watch: async (onChange) =>
+      (onChange(params.has("spell") ? { phase: "done", original: "Je vais a l'ecole demain.", corrected: "Je vais à l'école demain.", fixes: 2, delivery: "typed" } : { phase: "idle" }), () => {}),
+    watchModel: async (onChange) => {
+      onChange({ model: "hunspell-fr-en", dir: "C:\\Users\\you\\AppData\\Roaming\\dev.satcom.ain\\models\\hunspell-fr-en", installed: ["hunspell-fr-en"], state: "ready" });
+      return () => {};
+    },
+    fix: async () => {},
+    check: async (text) => ({ text, fixes: 0 }),
+    openFolder: async () => {},
+    download: async () => {},
+    remove: async () => {},
+  },
   persona: {
     watch: async (onChange) =>
       (onChange(params.has("talk") ? { phase: "live", level: 0.4, speaking: true, said: "Sure! What would you like to talk about today?" } : { phase: "idle" }), () => {}),

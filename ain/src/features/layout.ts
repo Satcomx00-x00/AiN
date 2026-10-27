@@ -7,9 +7,9 @@ import type { Layout } from "../shell/placement";
 export const layout: Layout = {
   glance: {
     left: ["clock"],
-    // Priority order, first with something to show wins: dictation, reading or a conversation in progress,
+    // Priority order, first with something to show wins: dictation, reading, a correction or a conversation in progress,
     // a volume change pops up briefly, mic/camera use stays visible, then a running timer, what's playing, and CPU load.
-    right: ["dictation", "tts", "persona", "volume", "privacy", "timer", "media", "stats"],
+    right: ["dictation", "tts", "spelling", "persona", "volume", "privacy", "timer", "media", "stats"],
   },
-  tabs: ["media", "clock", "timer", "volume", "clipboard", "stats", "privacy", "dictation", "tts", "persona"],
+  tabs: ["media", "clock", "timer", "volume", "clipboard", "stats", "privacy", "dictation", "tts", "spelling", "persona"],
 };

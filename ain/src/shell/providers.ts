@@ -4,8 +4,8 @@ import type { Auth, Provider } from "./bindings/providers";
 
 export type { Auth };
 
-/** What an AI feature asks of a provider: speech to text, text to speech, or a speech-to-speech server it talks with (no model to pick). */
-export type Capability = "stt" | "tts" | "s2s";
+/** What an AI feature asks of a provider: speech to text, text to speech, a speech-to-speech server it talks with (no model to pick), or a chat model working on text. */
+export type Capability = "stt" | "tts" | "s2s" | "text";
 
 /** A provider the app knows: its address, where its key usually is, and models worth suggesting. */
 export interface Preset {
@@ -27,7 +27,7 @@ export const PRESETS = [
     name: "OpenAI",
     baseUrl: "https://api.openai.com/v1",
     auth: { kind: "env", name: "OPENAI_API_KEY" },
-    models: { stt: ["gpt-4o-mini-transcribe", "gpt-4o-transcribe", "whisper-1"], tts: ["gpt-4o-mini-tts", "tts-1", "tts-1-hd"], s2s: [] },
+    models: { stt: ["gpt-4o-mini-transcribe", "gpt-4o-transcribe", "whisper-1"], tts: ["gpt-4o-mini-tts", "tts-1", "tts-1-hd"], s2s: [], text: ["gpt-4.1-mini", "gpt-4o-mini", "gpt-4.1"] },
     voices: OPENAI_VOICES,
   },
   {
@@ -35,7 +35,7 @@ export const PRESETS = [
     name: "Groq",
     baseUrl: "https://api.groq.com/openai/v1",
     auth: { kind: "env", name: "GROQ_API_KEY" },
-    models: { stt: ["whisper-large-v3-turbo", "whisper-large-v3"], tts: [], s2s: [] },
+    models: { stt: ["whisper-large-v3-turbo", "whisper-large-v3"], tts: [], s2s: [], text: ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"] },
     voices: [],
   },
   {
@@ -43,7 +43,7 @@ export const PRESETS = [
     name: "Mistral",
     baseUrl: "https://api.mistral.ai/v1",
     auth: { kind: "env", name: "MISTRAL_API_KEY" },
-    models: { stt: ["voxtral-mini-latest"], tts: [], s2s: [] },
+    models: { stt: ["voxtral-mini-latest"], tts: [], s2s: [], text: ["mistral-small-latest", "mistral-medium-latest"] },
     voices: [],
   },
   {
@@ -51,7 +51,7 @@ export const PRESETS = [
     name: "Custom (OpenAI-compatible)",
     baseUrl: "http://localhost:8000/v1",
     auth: { kind: "none" },
-    models: { stt: [], tts: [], s2s: [] },
+    models: { stt: [], tts: [], s2s: [], text: [] },
     voices: [],
   },
 ] as const satisfies readonly Preset[];
