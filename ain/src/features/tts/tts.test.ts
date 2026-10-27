@@ -7,7 +7,8 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 
-const { SAMPLE, reading, statusText, tts, ttsGlance, voiceOptions } = await import(".");
+const { SAMPLE, modelOptions, reading, statusText, tts, ttsGlance, voiceOptions } = await import(".");
+const { MODELS } = await import("./models");
 const { bindings } = await import("../../shell/commands");
 const { catalogue } = await import("..");
 const { memoryProviders } = await import("../../shell/providers");
@@ -212,5 +213,14 @@ describe("its settings", () => {
     expect(tts.options?.speed.default).toBe(1);
     expect(tts.options?.modelDir.kind).toBe("folder");
     expect(tts.options?.keepLoaded).toMatchObject({ kind: "toggle", default: false });
+  });
+});
+
+describe("the voice models listed in Settings", () => {
+  it("say which are downloaded", () => {
+    const [first, second] = MODELS;
+    const listed = modelOptions([first!.id]);
+    expect(listed.find((o) => o.value === first!.id)?.badge).toBe("Downloaded");
+    expect(listed.find((o) => o.value === second!.id)?.badge).toBeUndefined();
   });
 });

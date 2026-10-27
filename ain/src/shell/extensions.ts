@@ -9,6 +9,7 @@
  * enables them in Settings.
  */
 import { type Sdk, sdk } from "../sdk";
+import { reportProblem } from "../sdk/report";
 import type { Greeting, Stage } from "../sdk/greeting";
 import { isHex } from "../sdk/color";
 import { type Field, type Fields, patternOf } from "../sdk/options";
@@ -274,6 +275,8 @@ export function confine(plugin: AnyPlugin, needs: readonly string[], log: (messa
         return typeof stop === "function" ? fuse(`${what} cleanup`, stop, undefined, report) : undefined;
       } catch (e) {
         report(what, e);
+        // Drawn in Settings, which shows it as a notification.
+        reportProblem(`${plugin.label}'s ${what} couldn't be shown`, e, what === "page" ? "PLUGIN_PAGE" : "PLUGIN_PANEL");
         return undefined;
       }
     };

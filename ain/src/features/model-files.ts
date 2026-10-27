@@ -4,6 +4,7 @@
  */
 import { button, h } from "../sdk/dom";
 import { toggle } from "../sdk/options";
+import { reportProblem } from "../sdk/report";
 
 /** The "keepLoaded" option: the chosen model stays in memory, ready at once, alongside the other features' models. */
 export const keepLoaded = () => toggle("Keep the model loaded", false, "Ready at once, at the cost of its memory; otherwise it is let go after 10 minutes unused.");
@@ -24,7 +25,40 @@ export interface ModelFilesPort {
 
 export const mb = (bytes: number): string => `${Math.round(bytes / 1e6)} MB`;
 
-const progressOf = (received: number, total: number) => (total ? received / total : 0);
+/** A download's size: in MB, or GB from 1 GB on (the conversation model is about 17). */
+export const size = (bytes: number): string => (bytes >= 1e9 ? `${(bytes / 1e9).toFixed(1)} GB` : mb(bytes));
+
+/** How far a download is (0–1), from what was received of the total; 0 while the total is unknown. */
+export const progressOf = (received: number, total: number): number => (total ? Math.min(received / total, 1) : 0);
+
+/** What a download says: how much was received of how much, once the total is known. */
+export const downloading = (received: number, total: number): string => (total ? `Downloading… ${size(received)} of ${size(total)}` : "Downloading…");
+
+/** A download's speed: in KB/s, or MB/s from 1 MB/s on. */
+export const rate = (bytesPerSecond: number): string =>
+  bytesPerSecond >= 1e6 ? `${(bytesPerSecond / 1e6).toFixed(1)} MB/s` : `${Math.round(bytesPerSecond / 1e3)} KB/s`;
+
+/** How long the speed is averaged over: long enough to smooth it, short enough to follow it. */
+const SPEED_WINDOW_MS = 5000;
+
+/**
+ * Follows a download's bytes as they are drawn, and says its speed (" · 36.1 MB/s") over the last
+ * few seconds; nothing until it has a second of them, nor once given `null` (no download), which
+ * starts it over, as does fewer bytes than before (a new download).
+ */
+export function speedometer(): (received: number | null, at?: number) => string {
+  let samples: { at: number; received: number }[] = [];
+  return (received, at = Date.now()) => {
+    if (received === null) return void (samples = []), "";
+    if (received < (samples.at(-1)?.received ?? 0)) samples = [];
+    samples.push({ at, received });
+    // The oldest goes once the next is already old enough to measure from.
+    while (samples.length > 2 && at - samples[1]!.at >= SPEED_WINDOW_MS) samples.shift();
+    const first = samples[0]!;
+    const span = at - first.at;
+    return span < 1000 ? "" : ` · ${rate(((received - first.received) / span) * 1000)}`;
+  };
+}
 
 /** What the island's tab says about the chosen model (`name`): read-only, since it is managed in Settings. */
 export function modelLine(name: string, info: ModelState): { title: string; detail: string; progress: number | null } {
@@ -32,7 +66,7 @@ export function modelLine(name: string, info: ModelState): { title: string; deta
     case "missing":
       return { title: name, detail: "Not downloaded yet", progress: null };
     case "downloading":
-      return { title: name, detail: `Downloading… ${mb(info.received)} of ${mb(info.total)}`, progress: progressOf(info.received, info.total) };
+      return { title: name, detail: downloading(info.received, info.total), progress: progressOf(info.received, info.total) };
     case "ready":
       return { title: name, detail: "Ready", progress: null };
     case "error":
@@ -44,9 +78,9 @@ export function modelLine(name: string, info: ModelState): { title: string; deta
 export function modelSetup(info: ModelState): { detail: string; action: "download" | "stop" | "remove"; label: string; progress: number | null } {
   switch (info.state) {
     case "missing":
-      return { detail: "Not downloaded", action: "download", label: `Download · ${mb(info.size)}`, progress: null };
+      return { detail: "Not downloaded", action: "download", label: `Download · ${size(info.size)}`, progress: null };
     case "downloading":
-      return { detail: `Downloading… ${mb(info.received)} of ${mb(info.total)}`, action: "stop", label: "Stop", progress: progressOf(info.received, info.total) };
+      return { detail: downloading(info.received, info.total), action: "stop", label: "Stop", progress: progressOf(info.received, info.total) };
     case "ready":
       return { detail: "Downloaded", action: "remove", label: "Remove", progress: null };
     case "error":
@@ -66,14 +100,15 @@ export function modelFiles(port: ModelFilesPort): { readonly el: HTMLElement; dr
   const action = button("", () => {
     const setup = model && modelSetup(model);
     const run = setup?.action === "download" ? port.download() : setup ? port.remove() : null;
-    run?.catch((e: unknown) => (detail.textContent = String(e)));
+    run?.catch((e: unknown) => reportProblem(setup?.action === "download" ? "Couldn't download the model" : "Couldn't stop or remove the model", e, "MODEL_FILES"));
   }, { class: "secondary" });
-  const folder = button("Show folder", () => void port.openFolder().catch(() => {}), { class: "secondary" });
+  const folder = button("Show folder", () => void port.openFolder().catch((e: unknown) => reportProblem("Couldn't open the model folder", e, "FOLDER_OPEN")), { class: "secondary" });
   const el = h("div", { class: "field" }, h("div", {}, h("div", { class: "field-label" }, "Model files"), detail, bar), h("div", { class: "recorder" }, folder, action));
+  const speed = speedometer();
   const draw = (info: ModelInfo) => {
     model = info;
     const setup = modelSetup(info);
-    detail.textContent = setup.detail;
+    detail.textContent = setup.detail + speed(info.state === "downloading" ? info.received : null);
     detail.title = info.dir;
     bar.hidden = setup.progress === null;
     bar.style.setProperty("--p", String(setup.progress ?? 0));
@@ -83,24 +118,29 @@ export function modelFiles(port: ModelFilesPort): { readonly el: HTMLElement; dr
   return { el, draw };
 }
 
-/** The island's card for the chosen model, read-only, with a way to Settings until it is ready. */
-export function modelCard(openSettings: () => void): { readonly el: HTMLElement; draw(name: string, info: ModelInfo): void } {
+/** A line of the island's model card, and the state it is in: ready (nothing to set up), downloading (Settings can stop it), or another; with the bytes received while downloading, for its speed. */
+export type CardLine = { title: string; detail: string; progress: number | null; state: string; dir: string; received?: number };
+
+/** The island's card for the chosen model, read-only, with a way to Settings until it is ready; `show` draws any line on it. */
+export function modelCard(openSettings: () => void): { readonly el: HTMLElement; draw(name: string, info: ModelInfo): void; show(line: CardLine): void } {
   const title = h("strong");
   const detail = h("span", { class: "muted" });
   const bar = h("div", { class: "bar thin" }, h("i"));
   const setUp = button("Set up in Settings", openSettings, { class: "chip" });
   const el = h("div", { class: "dict-model" }, h("div", { class: "dict-model-text" }, title, detail, bar), setUp);
-  const draw = (name: string, info: ModelInfo) => {
-    const line = modelLine(name, info);
+  const speed = speedometer();
+  const show = (line: CardLine) => {
     title.textContent = line.title;
-    detail.textContent = line.detail;
-    detail.title = info.dir;
+    detail.textContent = line.detail + speed(line.received ?? null);
+    detail.title = line.dir;
     bar.hidden = line.progress === null;
     bar.style.setProperty("--p", String(line.progress ?? 0));
-    el.dataset.state = info.state;
+    el.dataset.state = line.state;
     // Ready, there's nothing to set up; while downloading, Settings is where it can be stopped.
-    setUp.hidden = info.state === "ready";
-    setUp.textContent = info.state === "downloading" ? "Settings" : "Set up in Settings";
+    setUp.hidden = line.state === "ready";
+    setUp.textContent = line.state === "downloading" ? "Settings" : "Set up in Settings";
   };
-  return { el, draw };
+  const draw = (name: string, info: ModelInfo) =>
+    show({ ...modelLine(name, info), state: info.state, dir: info.dir, ...(info.state === "downloading" && { received: info.received }) });
+  return { el, draw, show };
 }

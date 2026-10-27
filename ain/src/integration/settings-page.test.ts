@@ -9,6 +9,13 @@ import { advance, environment, pick, press, restore, startIsland, startSettings,
 
 afterEach(restore);
 
+
+/** The toasts shown now, as "[code] title: message". */
+const toasts = () =>
+  [...document.querySelectorAll<HTMLElement>(".toast")].map(
+    (t) => `[${t.querySelector(".toast-code")?.textContent ?? ""}] ${t.querySelector(".toast-title")?.textContent}: ${t.querySelector(".toast-message")?.textContent ?? ""}`,
+  );
+
 describe("Settings → Appearance", () => {
   it("makes the pill large, and the island grows", async () => {
     environment();
@@ -253,14 +260,15 @@ describe("Settings → Plugins → Community store", () => {
     sys.breakStore("install", "couldn't reach raw.githubusercontent.com");
     press(offer(page.page, "Orbit clock"), "Install");
     await advance(0);
-    expect(offer(page.page, "Orbit clock").textContent).toContain("Couldn't install it: couldn't reach raw.githubusercontent.com");
-    expect(offer(page.page, "Orbit clock").classList).toContain("failed");
+    expect(toasts()).toEqual(["[STORE_INSTALL] Couldn't install Orbit clock: couldn't reach raw.githubusercontent.com"]);
+    expect(offer(page.page, "Orbit clock").textContent).not.toContain("couldn't reach");
+    expect(buttonOf(offer(page.page, "Orbit clock"), "Install")?.disabled).toBe(false);
     expect(fileCard(page.page, "orbit-clock/index.js")).toBeUndefined();
 
     sys.breakStore("install", null);
     press(offer(page.page, "Orbit clock"), "Install");
     await advance(0);
-    expect(offer(page.page, "Orbit clock").textContent).not.toContain("Couldn't install it");
+    expect(toasts().at(-1)).toBe("[] Orbit clock is installed: turn it on above: ");
     expect(fileCard(page.page, "orbit-clock/index.js")).toBeDefined();
   });
 
@@ -270,13 +278,14 @@ describe("Settings → Plugins → Community store", () => {
     sys.addOffer(orbit, orbitPlugin);
     sys.breakStore("store", "couldn't reach raw.githubusercontent.com");
     const page = await startSettings(sys, "plugins");
-    expect(page.page.querySelector(".note.failed")?.textContent).toBe("Couldn't read the store: couldn't reach raw.githubusercontent.com");
+    expect(toasts()).toEqual(["[STORE_READ] Couldn't read the community store: couldn't reach raw.githubusercontent.com"]);
+    expect(page.page.textContent).toContain("The store isn't available right now. Refresh to try again.");
     expect(storeCards(page.page)).toHaveLength(0);
 
     sys.breakStore("store", null);
     press(page.page, "Refresh");
     await advance(0);
-    expect(page.page.querySelector(".note.failed")).toBeNull();
+    expect(page.page.textContent).not.toContain("The store isn't available");
     expect(storeCards(page.page).map((c) => c.querySelector("h2")?.textContent)).toEqual(["Orbit clock"]);
   });
 
@@ -462,7 +471,7 @@ describe("Settings → Widgets", () => {
     const sys = system();
     const island = await startIsland(sys);
     await advance(1000);
-    const page = await startSettings(sys, "widgets");
+    const page = await startSettings(sys, "widgets:clock");
     press(page.page.querySelector("#card-clock")!, "12-hour");
     await page.saved();
     await advance(1000);
@@ -499,7 +508,8 @@ describe("A plugin's page", () => {
       setup: () => ({ panel() {} }),
     });
   const heading = (root: ParentNode) => root.querySelector("h1")?.textContent;
-  const cardOf = (page: ParentNode, title: string) => [...page.querySelectorAll<HTMLElement>(".card")].find((c) => c.querySelector("h2")?.textContent === title);
+  const cardOf = (page: ParentNode, title: string) =>
+    [...page.querySelectorAll<HTMLElement>(".card")].find((c) => c.querySelector("h2")?.textContent === title || c.dataset.title === title);
 
   it("opens from its settings panel, keeps what's typed while Settings redraws, then saves and goes back", async () => {
     environment();
@@ -509,7 +519,7 @@ describe("A plugin's page", () => {
     await sys.save((s) => ({ ...s, extensions: ["notes.js"] }));
     const page = await startSettings(sys, "widgets", { inApp: true });
     await advance(0);
-    await page.open("Widgets");
+    await page.open("Notes");
     press(cardOf(page.page, "Notes")!, "Open notes");
     await advance(0);
     // The whole window is the page's: no menu, its title on the window.
@@ -529,9 +539,10 @@ describe("A plugin's page", () => {
     await page.saved();
     expect((await sys.settings()).options.notes).toEqual({ last: "Buy milk" });
     expect(left.count).toBe(1);
-    expect(heading(page.page)).toBe("Widgets");
+    // Back on the plugin's own page in Settings, where it was opened from.
+    expect(heading(page.page)).toBe("Notes");
     expect(page.page.dataset.page).toBe("false");
-    expect(location.hash).toBe("#widgets");
+    expect(location.hash).toBe("#widgets:notes");
   });
 
   it("opens at a page asked for from elsewhere, and leaving it leads to the plugin's card", async () => {
@@ -546,8 +557,8 @@ describe("A plugin's page", () => {
     press(page.page, "Back");
     await advance(0);
     expect(left.count).toBe(1);
-    expect(heading(page.page)).toBe("Widgets");
-    expect(page.page.querySelector("nav [aria-current=page]")?.textContent?.trim()).toBe("Widgets");
+    expect(heading(page.page)).toBe("Notes");
+    expect(page.page.querySelector("nav [aria-current=page]")?.textContent?.trim()).toBe("Notes");
   });
 
   it("says when its plugin isn't turned on", async () => {

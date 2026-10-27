@@ -3,6 +3,7 @@ import { select } from "../../../sdk/select";
 import { hexToHsv, hsvToHex, parseHex } from "../../../sdk/color";
 import { type Field, type NumberField, type SecretField, type TextField, numberProblem, textProblem } from "../../../sdk/options";
 import type { Theme } from "../../themes";
+import { reportProblem } from "../../../sdk/report";
 
 const X = `<path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/>`;
 
@@ -249,7 +250,7 @@ export function folderControl(
   };
   input.addEventListener("change", () => set(input.value));
   const browse = button("Browse…", () => {
-    pick(input.value).then((chosen) => (chosen ? set(chosen) : undefined), (e: unknown) => console.error("[settings] folder picker", e));
+    pick(input.value).then((chosen) => (chosen ? set(chosen) : undefined), (e: unknown) => reportProblem("Couldn't open the folder picker", e, "FOLDER_PICKER"));
   }, { class: "secondary" });
   reset.hidden = !value;
   return h("div", { class: "path" }, input, browse, reset);
@@ -299,8 +300,6 @@ export interface SecretAccess {
   readonly save: (value: string) => Promise<void>;
 }
 
-const messageOf = (e: unknown) => (e instanceof Error ? e.message : String(e));
-
 /**
  * A secret: typed hidden and saved to the system's credential store. What's saved is never shown,
  * only that there is one; typing replaces it, Remove deletes it.
@@ -327,7 +326,7 @@ export function secretControl(f: SecretField, access: SecretAccess | undefined):
       await access.save(value);
       show(value !== "", value === "");
     } catch (e) {
-      flag(el, `Couldn't save it: ${messageOf(e)}`);
+      reportProblem(value ? `Couldn't save ${f.label}` : `Couldn't remove ${f.label}`, e, "SECRET_SAVE");
     }
   };
   const commit = async () => {
@@ -345,7 +344,10 @@ export function secretControl(f: SecretField, access: SecretAccess | undefined):
     input.placeholder = "Secrets can only be set in the app";
   } else {
     input.placeholder = "Checking…";
-    access.saved().then(show, (e: unknown) => flag(el, `Couldn't read the credential store: ${messageOf(e)}`));
+    access.saved().then(show, (e: unknown) => {
+      input.placeholder = "Unknown: the credential store can't be read";
+      reportProblem("Couldn't read the credential store", e, "SECRET_READ");
+    });
   }
   return el;
 }

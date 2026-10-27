@@ -14,6 +14,13 @@ pub fn prefer_xwayland() {
         // Unlike GDK_BACKEND, this doesn't reach the apps we start, which stay on Wayland.
         gtk::gdk::set_allowed_backends("x11");
         XWAYLAND.store(true, Ordering::Relaxed);
+        // Our decorated windows (Settings) draw their own title bar, as GNOME's apps do. Otherwise
+        // GNOME draws it, in a helper (mutter-x11-frames) that quits for good on an X error, and
+        // from then on it shows no decorated X11 window at all: Settings would open hidden.
+        if !set("GTK_CSD") {
+            // SAFETY: called first thing in `run`, before any other thread exists.
+            unsafe { std::env::set_var("GTK_CSD", "1") };
+        }
     }
 }
 

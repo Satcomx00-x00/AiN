@@ -2847,16 +2847,28 @@
           "markdownDescription": "Denies the system command without any pre-configured scope."
         },
         {
-          "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-state`\n- `allow-control`\n- `allow-local-status`\n- `allow-install-local`\n- `allow-remove-local`\n- `allow-open-local-dir`",
+          "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-state`\n- `allow-control`\n- `allow-local-status`\n- `allow-install-local`\n- `allow-download-model`\n- `allow-cancel-download`\n- `allow-test-local`\n- `allow-stop-test`\n- `allow-remove-local`\n- `allow-open-local-dir`",
           "type": "string",
           "const": "persona:default",
-          "markdownDescription": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-state`\n- `allow-control`\n- `allow-local-status`\n- `allow-install-local`\n- `allow-remove-local`\n- `allow-open-local-dir`"
+          "markdownDescription": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-state`\n- `allow-control`\n- `allow-local-status`\n- `allow-install-local`\n- `allow-download-model`\n- `allow-cancel-download`\n- `allow-test-local`\n- `allow-stop-test`\n- `allow-remove-local`\n- `allow-open-local-dir`"
+        },
+        {
+          "description": "Enables the cancel_download command without any pre-configured scope.",
+          "type": "string",
+          "const": "persona:allow-cancel-download",
+          "markdownDescription": "Enables the cancel_download command without any pre-configured scope."
         },
         {
           "description": "Enables the control command without any pre-configured scope.",
           "type": "string",
           "const": "persona:allow-control",
           "markdownDescription": "Enables the control command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the download_model command without any pre-configured scope.",
+          "type": "string",
+          "const": "persona:allow-download-model",
+          "markdownDescription": "Enables the download_model command without any pre-configured scope."
         },
         {
           "description": "Enables the install_local command without any pre-configured scope.",
@@ -2889,10 +2901,34 @@
           "markdownDescription": "Enables the state command without any pre-configured scope."
         },
         {
+          "description": "Enables the stop_test command without any pre-configured scope.",
+          "type": "string",
+          "const": "persona:allow-stop-test",
+          "markdownDescription": "Enables the stop_test command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the test_local command without any pre-configured scope.",
+          "type": "string",
+          "const": "persona:allow-test-local",
+          "markdownDescription": "Enables the test_local command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the cancel_download command without any pre-configured scope.",
+          "type": "string",
+          "const": "persona:deny-cancel-download",
+          "markdownDescription": "Denies the cancel_download command without any pre-configured scope."
+        },
+        {
           "description": "Denies the control command without any pre-configured scope.",
           "type": "string",
           "const": "persona:deny-control",
           "markdownDescription": "Denies the control command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the download_model command without any pre-configured scope.",
+          "type": "string",
+          "const": "persona:deny-download-model",
+          "markdownDescription": "Denies the download_model command without any pre-configured scope."
         },
         {
           "description": "Denies the install_local command without any pre-configured scope.",
@@ -2923,6 +2959,18 @@
           "type": "string",
           "const": "persona:deny-state",
           "markdownDescription": "Denies the state command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the stop_test command without any pre-configured scope.",
+          "type": "string",
+          "const": "persona:deny-stop-test",
+          "markdownDescription": "Denies the stop_test command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the test_local command without any pre-configured scope.",
+          "type": "string",
+          "const": "persona:deny-test-local",
+          "markdownDescription": "Denies the test_local command without any pre-configured scope."
         },
         {
           "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-bind`\n- `allow-failures`\n- `allow-open`\n- `allow-hide`\n- `allow-paste`",

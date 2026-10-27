@@ -1,0 +1,12 @@
+{
+  // The VM test runner: run by Node as is (type stripping), so only erasable syntax and explicit .ts imports.
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2024"],
+    "types": ["node"],
+    "allowImportingTsExtensions": true,
+    "erasableSyntaxOnly": true
+  },
+  "include": ["."],
+  "exclude": [".cache", "results"]
+}

@@ -59,6 +59,14 @@ pub fn tie_to_app(command: &mut std::process::Command) {
     }
 }
 
+/// Makes a helper the app started end with it, however the app ends. On Linux `tie_to_app` already
+/// did, before it started; macOS has no such thing.
+#[cfg_attr(not(windows), allow(unused_variables, reason = "only Windows needs the started process"))]
+pub fn end_with_app(child: &std::process::Child) {
+    #[cfg(windows)]
+    windows::end_with_app(child);
+}
+
 #[cfg(windows)]
 fn open(target: &std::ffi::OsStr) -> std::io::Result<()> {
     windows::shell_open(target)

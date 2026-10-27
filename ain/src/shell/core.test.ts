@@ -40,6 +40,27 @@ describe("geometry", () => {
   });
   it("adds slack around the open pill for overshoot and shadow", () =>
     expect(frame({ width: 420, height: 188 }, true)).toEqual({ width: 420 + 2 * (EAR + SLACK), height: 188 + SLACK }));
+  it("keeps the open pill's shadow inside that slack, which ends the window on Wayland", async () => {
+    const { readFileSync } = await import("node:fs");
+    const css = readFileSync(new URL("./windows/island/island.css", import.meta.url), "utf8");
+    const rule = /#island\[data-open="true"\]\s*\{[^}]*?box-shadow:([^;]+);/.exec(css)![1]!;
+    // Split on the commas between shadows, not those inside color-mix(…) or rgba(…).
+    let depth = 0;
+    const parts = [""];
+    for (const c of rule) {
+      depth += c === "(" ? 1 : c === ")" ? -1 : 0;
+      if (c === "," && depth === 0) parts.push("");
+      else parts[parts.length - 1] += c;
+    }
+    const shadows = parts.map((s) => s.trim()).filter((s) => !s.startsWith("inset"));
+    expect(shadows.length).toBeGreaterThan(0);
+    for (const shadow of shadows) {
+      const [x, y, blur, spread = 0] = shadow.match(/-?\d+(?:\.\d+)?px/g)!.map(parseFloat);
+      // Below the pill, and beside it (where the ears take part of the room), with 2 px spare for the spring's overshoot.
+      expect(y! + blur! + spread, shadow).toBeLessThanOrEqual(SLACK - 2);
+      expect(Math.abs(x!) + blur! + spread, shadow).toBeLessThanOrEqual(SLACK);
+    }
+  });
   it("rounds the ears up, so the window never clips them", () => {
     expect([earFor(0.625), earFor(1), earFor(1.375)]).toEqual([7, 10, 14]);
     expect(frame({ width: 420, height: 200 }, true, 1.375)).toEqual({ width: 420 + 2 * (14 + SLACK), height: 200 + SLACK });
