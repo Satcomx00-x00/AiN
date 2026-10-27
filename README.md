@@ -127,6 +127,7 @@ Each widget can show on the pill, in its own tab, or both.
 | **Mic & camera** | Which apps use the microphone (orange) or the camera (green) right now | ✅ | ⚠️ apps on the mic from macOS 14; for the camera, only that one is in use | ✅ your own apps |
 | **Clipboard** | Your recently copied text, one click to copy it again; kept in memory only, never written to disk | ✅ | ✅ | ✅ |
 | **Dictation** | Speak, and the words are typed where your cursor is. Recognized on your computer by one of 7 models you download once (Parakeet, Whisper, SenseVoice, Moonshine) | ✅ | ⚠️ typing needs Accessibility access | ⚠️ typing needs `xdotool` (X11), `wtype` or `ydotool` (Wayland) |
+| **Transcript** | Writes down what your computer plays (a video, a call, a chat app) as it is heard, with the time of each line; copy it in one click. Recognized by dictation's speech model on your computer, or by one of your AI providers | ✅ | ⚠️ macOS 14.6+, asks once to record the system's audio | ⚠️ needs `parec` (pulseaudio-utils; PulseAudio or PipeWire) |
 | **Read aloud** | Select text in any app, press the shortcut, and it is read out loud. Spoken on your computer by one of 6 voice models you download once (Kokoro, Kitten, Piper in English, French, German and Spanish), with a choice of voice and speed | ✅ | ⚠️ reading the selection needs Accessibility access | ✅ |
 | **Conversation** | Talk with NVIDIA [PersonaPlex](https://github.com/NVIDIA/personaplex), a full-duplex speech-to-speech model: it listens while it speaks, so you can interrupt it. Pick one of its 18 voices and the persona it plays. The model runs on this computer, where the app installs PersonaPlex (with [uv](https://docs.astral.sh/uv/)), starts its server when you talk and stops it once unused (an NVIDIA GPU with 24 GB, or less with CPU offload; a Hugging Face token for its weights), or on a server behind one of your AI providers, which brings its token | ✅ | ✅ | ✅ |
 
@@ -141,6 +142,7 @@ Global shortcuts open these even while the island is folded. You can rebind them
 | **Clipboard picker** | Search your clipboard history, pick with the arrows or <kbd>Alt</kbd>+<kbd>1</kbd>…<kbd>9</kbd>, and it is pasted into the app you were in | ✅ | ⚠️ pasting needs Accessibility access | ⚠️ shortcut on X11 only; pasting needs `xdotool`, `wtype` or `ydotool` |
 | **Screenshot editor** | Freezes the screen; select an area, draw on it (pen, marker, rectangle, ellipse, colors, sizes, undo), then copy or save it as a PNG | ✅ | ✅ | ⚠️ shortcut on X11 only |
 | **Dictation** | Starts and stops dictating | ✅ | ✅ | ⚠️ shortcut on X11 only |
+| **Transcript** | Starts and stops writing down the computer's sound | ✅ | ✅ | ⚠️ shortcut on X11 only |
 | **Read aloud** | Reads the selected text, or stops reading | ✅ | ✅ | ⚠️ shortcut on X11 only |
 | **Conversation** | Starts or ends a conversation with PersonaPlex | ✅ | ✅ | ⚠️ shortcut on X11 only |
 
@@ -167,6 +169,7 @@ the `store` branch to list it.
 | Clipboard history picker | <kbd>Win</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd> |
 | Annotate a screenshot | <kbd>Win</kbd>+<kbd>Alt</kbd>+<kbd>S</kbd> |
 | Start or stop dictation | <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>D</kbd> |
+| Start or stop transcribing the computer's sound | <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>H</kbd> |
 | Read the selected text aloud, or stop | <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>R</kbd> |
 | Start or end a conversation with PersonaPlex | <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>T</kbd> |
 
@@ -200,7 +203,7 @@ with no keys pressed.
 
 | OS | What it needs |
 | --- | --- |
-| macOS | Allow AiN under **System Settings → Privacy & Security → Accessibility** (macOS asks the first time). Now playing asks once to control Spotify or Music, and dictation to use the microphone. |
+| macOS | Allow AiN under **System Settings → Privacy & Security → Accessibility** (macOS asks the first time). Now playing asks once to control Spotify or Music, dictation to use the microphone, and transcript to record the system's audio. |
 | Linux, X11 | [`xdotool`](https://github.com/jordansissel/xdotool) |
 | Linux, Wayland | [`wtype`](https://github.com/atx/wtype) (wlroots compositors, KDE), or [`ydotool`](https://github.com/ReimuNotMoe/ydotool) with its daemon running and its socket open to you (any compositor, GNOME included; Fedora's `ydotool.service` keeps its socket root-only in `/tmp`, where the client doesn't look: run `ydotoold --socket-path=$XDG_RUNTIME_DIR/.ydotool_socket --socket-own=$(id -u):$(id -g)` instead) |
 
