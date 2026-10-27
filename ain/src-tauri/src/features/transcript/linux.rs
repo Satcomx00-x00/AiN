@@ -83,7 +83,7 @@ fn pump(mut input: impl Read, mut on_samples: impl FnMut(&[f32])) {
             Ok(n) => {
                 let filled = held + n;
                 let whole = filled - filled % SAMPLE;
-                let samples: Vec<f32> = buf[..whole].chunks_exact(SAMPLE).map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]])).collect();
+                let samples: Vec<f32> = buf[..whole].as_chunks::<SAMPLE>().0.iter().map(|b| f32::from_le_bytes(*b)).collect();
                 on_samples(&samples);
                 buf.copy_within(whole..filled, 0);
                 held = filled - whole;
