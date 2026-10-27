@@ -8,6 +8,8 @@ import { invoke as __TAURI_INVOKE } from "@tauri-apps/api/core";
 export const commands = {
 	/**  The models `provider` offers, by id: to check it is set up right, and to pick from. */
 	models: (provider: Provider) => __TAURI_INVOKE<string[]>("plugin:providers|models", { provider }),
+	/**  Where Settings' provider presets point, environment overrides applied. */
+	presetUrls: () => __TAURI_INVOKE<PresetUrls>("plugin:providers|preset_urls"),
 };
 
 /* Types */
@@ -19,6 +21,14 @@ export type Auth =
 { kind: "env"; name: string } | 
 /**  A bearer token in this file (its whole content, trimmed). */
 { kind: "file"; path: string };
+
+/**  The presets' addresses, by preset id, after their `AIN_PROVIDER_*_URL` overrides. */
+export type PresetUrls = {
+	openai: string,
+	groq: string,
+	mistral: string,
+	custom: string,
+};
 
 /**  A provider, as Settings lists it. */
 export type Provider = {

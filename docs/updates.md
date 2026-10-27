@@ -127,7 +127,7 @@ re-sign them is at the top of `update_flow.rs`. Not covered: running the install
 ## Testing an update by hand
 
 Without publishing anything: an old portable build reads `latest.json` from a local server
-through `AIN_UPDATE_URL` (the signature is still checked).
+through `AIN_UPDATE_URL` (the signature is still checked; other overrides in [configuration](configuration.md)).
 
 1. Old version, portable, allowed to read plain `http://`:
    `tauri build --no-bundle --config '{"version":"0.1.0","plugins":{"updater":{"dangerousInsecureTransportProtocol":true}}}'`

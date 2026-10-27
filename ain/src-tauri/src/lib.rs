@@ -1,6 +1,7 @@
 #[macro_use]
 mod manifest;
 
+mod config;
 mod error;
 mod features;
 mod ipc;
