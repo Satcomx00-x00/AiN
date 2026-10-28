@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
-vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn() }));
+const island = vi.hoisted(() => ({ listen: vi.fn(), screens: vi.fn() }));
+vi.mock("./bindings/island", () => ({ commands: { screens: island.screens }, events: { screensChanged: { listen: island.listen } } }));
 
-const { PRIMARY, fixedScreens, screenOptions, screenSetting } = await import("./screens");
+const { PRIMARY, fixedScreens, screenOptions, screenSetting, tauriScreens } = await import("./screens");
 type Screen = import("./screens").Screen;
 
 const screen = (id: string, primary: boolean, scale = 1): Screen => ({ id, name: id, width: 2560, height: 1440, x: 0, y: 0, scale, primary });
@@ -37,7 +37,18 @@ describe("the screen picker", () => {
 
   it("lists a fixed set once", async () => {
     const seen: (readonly Screen[])[] = [];
-    await fixedScreens([laptop]).watch((s) => seen.push(s));
+    const stop = await fixedScreens([laptop]).watch((s) => seen.push(s));
+    stop();
     expect(seen).toEqual([[laptop]]);
+  });
+
+  it("follows the backend's screens: now, then on each change", async () => {
+    let push: (e: { payload: Screen[] }) => void = () => {};
+    island.listen.mockImplementation(async (cb: typeof push) => ((push = cb), () => {}));
+    island.screens.mockResolvedValue([laptop]);
+    const seen: (readonly Screen[])[] = [];
+    await tauriScreens.watch((s) => seen.push(s));
+    push({ payload: [laptop, external] });
+    expect(seen).toEqual([[laptop], [laptop, external]]);
   });
 });

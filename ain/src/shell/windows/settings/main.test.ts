@@ -160,6 +160,14 @@ describe("Settings → General", () => {
     expect((await sys.settings()).general.screen).toBeNull();
   });
 
+  it("still offers the primary screen when the screens can't be listed", async () => {
+    environment();
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const page = await load(system(), "", { screens: { watch: () => Promise.reject(new Error("no display")) } });
+    expect(page.field("Screen").querySelector(".ui-select-trigger")?.textContent).toContain("Primary screen");
+    expect(error).toHaveBeenCalledWith("[settings] could not list the screens", expect.any(Error));
+  });
+
   it("keeps an unplugged screen chosen and listed", async () => {
     environment();
     const sys = system();
