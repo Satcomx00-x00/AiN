@@ -27,11 +27,12 @@ export function toastStack(root: HTMLElement, port: ToastWindowPort, log: (m: st
   const shown = new Map<string, Card>();
   let corner: Corner = "top-right";
 
-  const fit = () =>
-    requestAnimationFrame(() => {
-      const height = shown.size ? Math.ceil(root.scrollHeight) : 0;
-      port.place(corner, TOAST_WIDTH + 2 * GUTTER, height).catch((e: unknown) => log(`[toasts] place: ${String(e)}`));
-    });
+  // Measured at once (reading scrollHeight lays the page out), not on the next frame: the window
+  // starts hidden, and WebKitGTK runs no frames for a hidden page, so it would never be shown.
+  const fit = () => {
+    const height = shown.size ? Math.ceil(root.scrollHeight) : 0;
+    port.place(corner, TOAST_WIDTH + 2 * GUTTER, height).catch((e: unknown) => log(`[toasts] place: ${String(e)}`));
+  };
 
   const drop = async (id: string, c: Card) => {
     shown.delete(id);

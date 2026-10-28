@@ -1,16 +1,16 @@
 import { h, icon } from "../../sdk/dom";
 import type { PopupContext, PopupView } from "../../sdk/plugin";
 import type { Clip, ClipboardPort } from "./service";
-import { ago, badge, preview } from "./format";
+import { ago, describe, mark } from "./format";
 
 const SEARCH = `<circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/>`;
 /** Alt+1…9 picks directly. */
 const QUICK = 9;
 
-/** Clips whose text contains every word of the query, in history order. */
+/** Clips whose text (for an image, "image" and its size) contains every word of the query, in history order. */
 export const matching = (clips: readonly Clip[], query: string): Clip[] => {
   const words = query.toLowerCase().split(/\s+/).filter(Boolean);
-  return clips.filter((c) => words.every((w) => c.text.toLowerCase().includes(w)));
+  return clips.filter((c) => words.every((w) => (c.image ? describe(c) : c.text).toLowerCase().includes(w)));
 };
 
 const kbd = (text: string) => h("kbd", {}, text);
@@ -45,7 +45,7 @@ export function picker(root: HTMLElement, ctx: PopupContext<{ clipboard: Clipboa
 
   const choose = async (clip: Clip | undefined) => {
     if (!clip) return;
-    await ctx.services.clipboard.copy(clip.text).catch(() => {});
+    await ctx.services.clipboard.restore(clip.id).catch(() => {});
     if (ctx.options().paste) await ctx.paste().catch(() => ctx.close());
     else ctx.close();
   };
@@ -65,9 +65,9 @@ export function picker(root: HTMLElement, ctx: PopupContext<{ clipboard: Clipboa
       ...shown.map((clip, i) => {
         const li = h(
           "li",
-          { id: `pk-${i}`, role: "option", "aria-selected": "false" },
-          badge(clip.text),
-          h("span", { class: "pk-text" }, preview(clip.text, 160)),
+          { id: `pk-${i}`, role: "option", "aria-selected": "false", "data-kind": clip.image ? "image" : "text" },
+          mark(clip),
+          h("span", { class: "pk-text" }, describe(clip, 160)),
           h("span", { class: "pk-meta" }, i < QUICK ? h("span", { class: "pk-num" }, `Alt ${i + 1}`) : "", ago(now - clip.copiedAt)),
         );
         li.addEventListener("mousemove", () => index !== i && select(i));
@@ -76,7 +76,7 @@ export function picker(root: HTMLElement, ctx: PopupContext<{ clipboard: Clipboa
       }),
     );
     empty.hidden = shown.length > 0;
-    empty.textContent = clips.length ? "Nothing matches." : "Nothing copied yet — copy some text and it shows up here.";
+    empty.textContent = clips.length ? "Nothing matches." : "Nothing copied yet — copy some text or an image and it shows up here.";
     count.textContent = `${shown.length} of ${clips.length}`;
     select(0);
   };

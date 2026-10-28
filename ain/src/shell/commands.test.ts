@@ -61,9 +61,9 @@ describe("recording a shortcut", () => {
 
 describe("clipboard picker search", () => {
   const clips = [
-    { text: "https://tauri.app/start", copiedAt: 3 },
-    { text: "Meeting notes for Friday", copiedAt: 2 },
-    { text: "#0A84FF", copiedAt: 1 },
+    { id: 1, text: "https://tauri.app/start", image: null, copiedAt: 3 },
+    { id: 2, text: "Meeting notes for Friday", image: null, copiedAt: 2 },
+    { id: 3, text: "#0A84FF", image: null, copiedAt: 1 },
   ];
 
   it("keeps history order and matches every word, ignoring case", () => {

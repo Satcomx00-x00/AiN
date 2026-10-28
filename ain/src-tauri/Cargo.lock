@@ -49,6 +49,7 @@ dependencies = [
  "getrandom 0.4.3",
  "gtk",
  "gtk-layer-shell",
+ "image",
  "keyring",
  "libc",
  "llama-cpp-2",

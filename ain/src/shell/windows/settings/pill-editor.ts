@@ -4,6 +4,7 @@ import type { Field } from "../../../sdk/options";
 import type { AnyPlugin, Glance } from "../../../sdk/plugin";
 import type { Layout } from "../../placement";
 import { PER_SIDE_RANGE, type PillLook, WIDTH_RANGE } from "../../settings";
+import { MAX_TABS } from "../../tabs";
 import { field, rangeControl, segmented, standardFields, switchControl } from "./controls";
 import { move } from "./slots";
 
@@ -86,48 +87,22 @@ export function pillEditor(ed: PillEditor): Node[] {
   const { layout, look } = ed;
 
   // ---------- the preview ----------
-  const chip = (id: string, zone: Side, spare: boolean): HTMLElement | null => {
+  /** A widget on the preview pill, drawn as on the island. */
+  const chip = (id: string, zone: Side): HTMLElement | null => {
     const p = byId.get(id);
     if (!p) return null;
     const slot = glanceSlot();
     slot.draw(previewGlance(p, ed.values(p), look), id);
-    const el = h("span", { class: "pp-item", title: p.label, ...(spare ? { "data-spare": "true" } : {}) }, slot.el);
+    const el = h("span", { class: "pp-item", title: p.label }, slot.el);
     el.classList.toggle("selected", ed.selected === id);
     return draggable(el, id, zone);
   };
-  /** An end of the pill: what it shows at once, then those waiting their turn. */
-  const end = (zone: Side) => {
-    const ids = layout.glance[zone];
-    const shown = ids.slice(0, look.perSide);
-    const queued = ids.slice(look.perSide);
-    const now = h("span", { class: "pp-end", "data-zone": zone, "data-empty": ZONE_NAMES[zone] }, ...shown.flatMap((id) => chip(id, zone, false) ?? []));
-    const later = h(
-      "div",
-      { class: "pp-queue", "data-zone": zone, title: "Shown when one before it has nothing to say" },
-      ...queued.flatMap((id) => chip(id, zone, true) ?? []),
-    );
-    later.hidden = !later.childElementCount;
-    return { now, later };
-  };
-  const left = end("left");
-  const right = end("right");
-  const tabs = h(
-    "div",
-    { class: "pp-tabs", "data-zone": "tabs", "data-empty": "Tabs" },
-    ...layout.tabs.flatMap((id) => {
-      const p = byId.get(id);
-      if (!p) return [];
-      const el = h("span", { class: "pp-tab", title: p.label }, icon(p.icon));
-      el.classList.toggle("selected", ed.selected === id);
-      return [draggable(el, id, "tabs")];
-    }),
-  );
+  const end = (zone: Side) =>
+    h("span", { class: "pp-end", "data-zone": zone, "data-empty": ZONE_NAMES[zone] }, ...layout.glance[zone].slice(0, look.perSide).flatMap((id) => chip(id, zone) ?? []));
   const preview = h(
     "div",
     { class: "pp", style: `--pill-w: ${ed.width}px` },
-    h("div", { class: "pp-pill" }, left.now, h("span", { class: "pp-notch", "aria-hidden": "true" }), right.now),
-    h("div", { class: "pp-queues" }, left.later, right.later),
-    tabs,
+    h("div", { class: "pp-pill" }, end("left"), h("span", { class: "pp-notch", "aria-hidden": "true" }), end("right")),
   );
   const stage = h(
     "section",
@@ -146,10 +121,67 @@ export function pillEditor(ed: PillEditor): Node[] {
       ),
       field(
         "Per side",
-        undefined,
+        "How many each side shows at once; the rest wait their turn.",
         segmented(String(look.perSide), Array.from({ length: PER_SIDE_RANGE.max }, (_, i) => ({ value: String(i + 1), label: String(i + 1) })), (v) => ed.setLook({ ...look, perSide: Number(v) }), "Widgets per side"),
       ),
     ),
+  );
+
+  // ---------- each side, as an ordered list ----------
+  /** One widget of a side's list: its place in the order, what it is, and whether the pill shows it now. */
+  const sideRow = (id: string, zone: Side, at: number): HTMLElement | null => {
+    const p = byId.get(id);
+    if (!p) return null;
+    const row = h(
+      "div",
+      { class: "side-row", title: p.label, "data-waiting": String(at >= look.perSide) },
+      h("span", { class: "grip", "aria-hidden": "true" }, icon(GRIP)),
+      h("span", { class: "side-n" }, String(at + 1)),
+      h("span", { class: "ico", "aria-hidden": "true" }, icon(p.icon)),
+      h("span", { class: "side-name" }, p.label),
+    );
+    row.classList.toggle("selected", ed.selected === id);
+    return draggable(row, id, zone);
+  };
+  const sideCard = (zone: Side) => {
+    const rows = layout.glance[zone].filter((id) => byId.has(id)).flatMap((id, i) => sideRow(id, zone, i) ?? []);
+    // Where the pill's share ends: the rest show only when one before them has nothing to show.
+    if (rows.length > look.perSide) rows.splice(look.perSide, 0, h("div", { class: "side-split" }, "Waiting their turn"));
+    return h(
+      "section",
+      { class: "card side-card", "data-side": zone },
+      h("div", { class: "card-head" }, h("h2", {}, `${ZONE_NAMES[zone]} side`), h("span", { class: "card-hint" }, `${Math.min(look.perSide, layout.glance[zone].length)} on the pill`)),
+      h("div", { class: "side-list", "data-zone": zone, "data-axis": "y", "data-empty": "Drag a widget here" }, ...rows),
+    );
+  };
+  const sides = h(
+    "div",
+    { class: "pill-sides" },
+    h("p", { class: "pill-help" }, "Each side of the pill shows the first widgets of its list. Further down, they wait: one shows when a widget before it has nothing to show."),
+    h("div", { class: "pill-sides-grid" }, sideCard("left"), sideCard("right")),
+  );
+
+  // ---------- the tabs ----------
+  const tabs = h(
+    "div",
+    { class: "pp-tabs", "data-zone": "tabs", "data-empty": "Drag a widget here" },
+    ...layout.tabs
+      .filter((id) => byId.has(id))
+      .flatMap((id, i) => {
+        const p = byId.get(id)!;
+        // Past the bar's limit, behind the island's More tab: marked where it starts, and dimmed.
+        const spare = i >= MAX_TABS;
+        const el = h("span", { class: "pp-tab", title: spare ? `${p.label} (under More)` : p.label, ...(spare ? { "data-spare": "true" } : {}) }, icon(p.icon));
+        el.classList.toggle("selected", ed.selected === id);
+        const tab = draggable(el, id, "tabs");
+        return i === MAX_TABS ? [h("span", { class: "pp-more", title: "More: the rest are listed under this tab" }, "⋯"), tab] : [tab];
+      }),
+  );
+  const tabsCard = h(
+    "section",
+    { class: "card tabs-card" },
+    h("div", { class: "card-head" }, h("h2", {}, "Tabs"), h("span", { class: "card-hint" }, `When the island opens. The bar holds ${MAX_TABS}; the rest go under ⋯ More.`)),
+    tabs,
   );
 
   // ---------- the widget list ----------
@@ -185,7 +217,7 @@ export function pillEditor(ed: PillEditor): Node[] {
   // ---------- the selected widget ----------
   const inspector = h("section", { class: "card pill-inspector" }, ...inspect(ed, byId.get(ed.selected ?? "")));
 
-  const root = h("div", { class: "pill-editor" }, stage, h("div", { class: "pill-work" }, shelfCard, inspector));
+  const root = h("div", { class: "pill-editor" }, stage, sides, tabsCard, h("div", { class: "pill-work" }, shelfCard, inspector));
   dragging(root, ed);
   return [root];
 }
@@ -279,9 +311,11 @@ function dragging(root: HTMLElement, ed: PillEditor): void {
       zone.classList.add("over");
       if (zone.dataset.zone === "shelf") return { zone };
       const items = [...zone.querySelectorAll<HTMLElement>(":scope > [data-drag]")].filter((el) => el.dataset.drag !== id);
+      // A side's list runs down the page; the pill and the tabs run across.
+      const down = zone.dataset.axis === "y";
       const at = items.findIndex((el) => {
         const r = el.getBoundingClientRect();
-        return x < r.left + r.width / 2;
+        return down ? y < r.top + r.height / 2 : x < r.left + r.width / 2;
       });
       if (at === -1) zone.append(caret);
       else items[at]!.before(caret);

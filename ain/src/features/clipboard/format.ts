@@ -1,4 +1,5 @@
 import { h, icon } from "../../sdk/dom";
+import type { Clip } from "./service";
 
 export type Kind = "url" | "email" | "color" | "number" | "code" | "text";
 
@@ -44,3 +45,10 @@ export const badge = (text: string) => {
   swatch.style.background = text.trim();
   return swatch;
 };
+
+/** What a clip is, in words: its text, or the size of its image. */
+export const describe = (clip: Clip, max = 80): string => (clip.image ? `Image · ${clip.image.width} × ${clip.image.height}` : preview(clip.text, max));
+
+/** A clip's mark: the image itself, small, or the badge of its text. */
+export const mark = (clip: Clip): HTMLElement =>
+  clip.image ? h("img", { class: "thumb", src: clip.image.thumb, alt: "", draggable: "false" }) : badge(clip.text);

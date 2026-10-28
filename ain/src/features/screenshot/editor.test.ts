@@ -97,7 +97,7 @@ async function open(
     problem: vi.fn(opts.problem ?? (async () => null)),
     save: vi.fn(async (_png: Uint8Array, _name: string) => "C:/Pictures/AiN/shot.png"),
   } satisfies CapturePort;
-  const clipboard = { history: vi.fn(async () => []), copy: vi.fn(async () => {}), copyImage: vi.fn(async (_image: ImageData) => {}), clear: vi.fn(async () => {}) } satisfies ClipboardPort;
+  const clipboard = { history: vi.fn(async () => []), copy: vi.fn(async () => {}), restore: vi.fn(async () => {}), copyImage: vi.fn(async (_image: ImageData) => {}), clear: vi.fn(async () => {}) } satisfies ClipboardPort;
   const close = vi.fn();
   const root = document.createElement("div");
   document.body.append(root);

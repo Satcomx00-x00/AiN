@@ -10,7 +10,7 @@ import type { Services } from "../features/services";
 import { settingsProviders } from "../shell/providers";
 import { center } from "../shell/notifications";
 import { centerPort } from "../features/notifications/service";
-import type { Clip } from "../features/clipboard/service";
+import { memoryClipboard } from "../features/clipboard/service";
 import type { ModelInfo, Phase } from "../features/dictation/service";
 import type { Control, Track } from "../features/media/service";
 import type { Usage } from "../features/privacy/service";
@@ -90,7 +90,6 @@ export function system() {
   /** What the conversation was asked. */
   const talked: string[] = [];
   let sample: Stats | null = { cpu: 42, memUsed: 8e9, memTotal: 16e9, rxPerSec: 0, txPerSec: 0, sampledAt: NOW };
-  let clips: Clip[] = [];
   const controls: Control[] = [];
 
   /** The plugins signed in to an account, by id. */
@@ -109,12 +108,7 @@ export function system() {
       signedIn: async () => accounts.has(plugin),
     })),
     stats: { stats: async () => sample && { ...sample, sampledAt: Date.now() } },
-    clipboard: {
-      history: async () => clips,
-      copy: async (text) => void (clips = [{ text, copiedAt: Date.now() }, ...clips.filter((c) => c.text !== text)]),
-      copyImage: async () => {},
-      clear: async () => void (clips = []),
-    },
+    clipboard: memoryClipboard(),
     media: { watch: media.watch, artwork: async () => null, control: async (c) => void controls.push(c) },
     volume: { watch: output.watch, watchSources: sources.watch, peak: async () => 0, setLevel: async () => {}, setMuted: async () => {} },
     privacy: { watch: usage.watch },

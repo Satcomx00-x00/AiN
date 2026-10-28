@@ -328,14 +328,14 @@ describe("Settings → Pill", () => {
   };
   const flip = (page: Awaited<ReturnType<typeof load>>, label: string) => page.field(label).querySelector<HTMLButtonElement>(".switch")!.click();
 
-  it("previews each end of the pill and the tabs", async () => {
+  it("previews each end of the pill, lists each side, and the tabs", async () => {
     environment();
     const page = await load(system(), "layout");
     expect(page.heading()).toBe("Pill");
     const ids = (sel: string) => [...page.page.querySelectorAll<HTMLElement>(`${sel} [data-drag]`)].map((el) => el.dataset.drag);
     expect(ids('.pp-end[data-zone="left"]')).toEqual(["clock"]);
     expect(ids('.pp-end[data-zone="right"]')).toEqual(["dictation"]);
-    expect(ids('.pp-queue[data-zone="right"]')).toContain("stats");
+    expect(ids('.side-list[data-zone="right"]')).toContain("stats");
     expect(ids(".pp-tabs")[0]).toBe("media");
   });
 
@@ -1221,7 +1221,11 @@ describe("Finding your way", () => {
     expect(page.heading()).toBe("Dictation");
     expect(location.hash).toBe("#widgets:dictation");
     expect(page.page.querySelector(".crumbs")?.textContent).toBe("Widgets›");
-    expect(page.field("Shows in").querySelector(".field-hint")?.textContent).toBe("Right of the pill · Tabs");
+    // The widget's shortcut sits in the page's head, with Change and Try it; no "On the island" card.
+    const head = page.page.querySelector(".page-head .page-shortcut")!;
+    expect(head.querySelector(".page-shortcut-label")?.textContent).toBe("Shortcut");
+    expect([...head.querySelectorAll("button")].map((b) => b.textContent)).toEqual(expect.arrayContaining(["Change", "Try it"]));
+    expect(page.page.querySelector(".group-title")?.textContent).toBe("Options");
     expect(page.page.querySelector("nav [aria-current=page]")?.textContent?.trim()).toBe("Dictation");
 
     press(page.page.querySelector(".crumbs")!, "Widgets");
@@ -1231,10 +1235,7 @@ describe("Finding your way", () => {
     page.page.querySelector<HTMLButtonElement>(".list-row[data-widget=screenshot]")!.click();
     await advance(0);
     expect(page.heading()).toBe("Screenshot");
-    expect(page.field("Shows in").querySelector(".field-hint")?.textContent).toBe("Not on the island yet: add it in Pill.");
-    press(page.field("Shows in"), "Edit in Pill");
-    await advance(0);
-    expect(page.heading()).toBe("Pill");
+    expect(page.page.querySelectorAll(".page-head .page-shortcut")).toHaveLength(1);
   });
 
   it("finds a setting by its words, and leads to it", async () => {

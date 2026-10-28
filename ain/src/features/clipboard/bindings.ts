@@ -9,13 +9,26 @@ export const commands = {
 	history: () => __TAURI_INVOKE<Clip[]>("plugin:clipboard|history"),
 	/**  Writing can block while another app holds the OS clipboard, so it runs off the main thread. */
 	copy: (text: string) => __TAURI_INVOKE<null>("plugin:clipboard|copy", { text }),
+	/**  Puts a history clip back on the clipboard, text or image; off the main thread, like `copy`. */
+	restore: (id: number) => __TAURI_INVOKE<null>("plugin:clipboard|restore", { id }),
 	clear: () => __TAURI_INVOKE<void>("plugin:clipboard|clear"),
 };
 
 /* Types */
 export type Clip = {
+	/**  Stable while the clip is in the history, for `restore`. */
+	id: number,
+	/**  Empty for an image. */
 	text: string,
+	image: Picture | null,
 	/**  Unix time in milliseconds. */
 	copiedAt: number,
+};
+
+export type Picture = {
+	width: number,
+	height: number,
+	/**  A PNG data URL, at most 160 px on its longer side. */
+	thumb: string,
 };
 

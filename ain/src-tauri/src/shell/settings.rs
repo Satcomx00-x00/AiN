@@ -123,6 +123,18 @@ fn play_greeting(app: AppHandle, id: String) -> Res<()> {
     Ok(())
 }
 
+/// Asks the island to show a sample notification: the Test button in Settings → Notifications.
+#[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
+pub struct TestNotification;
+
+/// Shows a sample notification on the island, as the notification settings have it.
+#[tauri::command]
+#[specta::specta]
+fn test_notification(app: AppHandle) -> Res<()> {
+    TestNotification.emit(&app)?;
+    Ok(())
+}
+
 /// How long quitting may take before the process is ended outright.
 const QUIT_GRACE: std::time::Duration = std::time::Duration::from_secs(3);
 

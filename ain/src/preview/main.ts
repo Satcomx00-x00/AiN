@@ -23,7 +23,7 @@ import { themeById } from "../shell/themes";
 import { layout } from "../features/layout";
 import type { Services } from "../features/services";
 import type { WindowPort } from "../shell/window";
-import type { Clip } from "../features/clipboard/service";
+import { memoryClipboard } from "../features/clipboard/service";
 import type { Track } from "../features/media/service";
 import { noOAuth } from "../shell/oauth";
 import { noAi } from "../shell/ai";
@@ -35,13 +35,18 @@ const params = new URLSearchParams(location.search);
 const t0 = Date.now();
 const GB = 1024 ** 3;
 
-let clips: Clip[] = [
-  { text: "https://v2.tauri.app/start/", copiedAt: t0 - 4_000 },
-  { text: "#0A84FF", copiedAt: t0 - 95_000 },
-  { text: "const island = await mount(root, modules);\nexport default island;", copiedAt: t0 - 12 * 60_000 },
-  { text: "hello@example.com", copiedAt: t0 - 3 * 3_600_000 },
-  { text: "Ship the island widget before Friday, then polish the timer ring.", copiedAt: t0 - 26 * 3_600_000 },
-];
+/** A white-to-blue gradient, standing in for a copied screenshot. */
+const SAMPLE_IMAGE =
+  "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="160" height="90"><defs><linearGradient id="g" x2="1" y2="1"><stop offset="0" stop-color="#5ac8fa"/><stop offset="1" stop-color="#0a84ff"/></linearGradient></defs><rect width="160" height="90" fill="url(#g)"/><rect x="18" y="16" width="70" height="10" rx="5" fill="#fff" opacity=".85"/><rect x="18" y="34" width="110" height="8" rx="4" fill="#fff" opacity=".55"/></svg>');
+
+const clipboardDemo = memoryClipboard([
+  { id: 1, text: "https://v2.tauri.app/start/", image: null, copiedAt: t0 - 4_000 },
+  { id: 2, text: "", image: { width: 1920, height: 1080, thumb: SAMPLE_IMAGE }, copiedAt: t0 - 40_000 },
+  { id: 3, text: "#0A84FF", image: null, copiedAt: t0 - 95_000 },
+  { id: 4, text: "const island = await mount(root, modules);\nexport default island;", image: null, copiedAt: t0 - 12 * 60_000 },
+  { id: 5, text: "hello@example.com", image: null, copiedAt: t0 - 3 * 3_600_000 },
+  { id: 6, text: "Ship the island widget before Friday, then polish the timer ring.", image: null, copiedAt: t0 - 26 * 3_600_000 },
+]);
 
 const fakeWindow: WindowPort = {
   island: async () => ({ width: params.has("notch") ? 185 : 200, height: 32, hasNotch: params.has("notch") }),
@@ -86,16 +91,7 @@ const fake: Services = {
       };
     },
   },
-  clipboard: {
-    history: async () => clips,
-    copyImage: async () => {},
-    copy: async (text) => {
-      clips = [{ text, copiedAt: Date.now() }, ...clips.filter((c) => c.text !== text)];
-    },
-    clear: async () => {
-      clips = [];
-    },
-  },
+  clipboard: clipboardDemo,
   media: {
     watch: async (onChange) => (onChange(track), () => {}),
     artwork: async () => cover,

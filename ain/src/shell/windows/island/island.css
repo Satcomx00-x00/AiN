@@ -468,14 +468,16 @@ button:focus-visible {
   transition: transform 0.45s var(--spring);
 }
 
+/* No minimum width: a tab that kept its content's width would break the equal widths the highlight relies on, in a row too narrow for every icon. */
 .tabs button {
   position: relative;
-  flex: 1;
+  flex: 1 1 0;
+  min-width: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 5px;
-  padding: 5px 6px;
+  padding: 5px 2px;
   font-size: 12px;
   color: var(--muted);
   background: none;
@@ -505,6 +507,37 @@ button:focus-visible {
 
 .panels section[hidden] {
   display: none;
+}
+
+/* The tabs past the bar's limit, by name: a tile each, as many to a row as fit. */
+.panels .more-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  align-content: center;
+  gap: 6px;
+}
+
+.more-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 9px 12px;
+  border-radius: var(--r-inner);
+  background: var(--faint);
+  color: var(--fg);
+  font-size: 13px;
+  text-align: left;
+}
+
+.more-item:hover {
+  background: var(--hover);
+}
+
+.more-item span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .muted {
@@ -846,6 +879,21 @@ button:focus-visible {
 
 .swatch {
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--fg) 22%, transparent);
+}
+
+/* An image clip: the picture where a text's badge goes, a little larger so it can be told apart. */
+.clip[data-kind="image"] .clip-in {
+  grid-template-columns: 44px 1fr auto;
+}
+
+.clip .thumb {
+  display: block;
+  width: 44px;
+  height: 30px;
+  border-radius: 6px;
+  object-fit: cover;
+  background: var(--track);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--fg) 14%, transparent);
 }
 
 .clip-text {

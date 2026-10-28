@@ -2,10 +2,10 @@ import { EASE_OUT, button, h, reducedMotion } from "../../sdk/dom";
 import { toggle } from "../../sdk/options";
 import { definePlugin } from "../../sdk/plugin";
 import type { Clip, ClipboardPort } from "./service";
-import { ago, badge, preview } from "./format";
+import { ago, describe, mark } from "./format";
 import { picker } from "./picker";
 
-export { ago, badge, kindOf, preview } from "./format";
+export { ago, badge, describe, kindOf, mark, preview } from "./format";
 export type { Kind } from "./format";
 
 const FLASH_MS = 1400;
@@ -15,7 +15,7 @@ type Row = { li: HTMLLIElement; meta: HTMLSpanElement; at: number; copied: boole
 export const clipboard = definePlugin({
   id: "clipboard",
   label: "Clipboard",
-  description: "Recently copied text, kept in memory only.",
+  description: "Recently copied text and images, kept in memory only.",
   slots: ["tab"],
   options: {
     paste: toggle("Paste after choosing", true),
@@ -24,7 +24,7 @@ export const clipboard = definePlugin({
     {
       id: "history",
       label: "Clipboard history",
-      description: "Pick a copied text and paste it.",
+      description: "Pick something copied and paste it.",
       // Win+B itself belongs to Windows (it focuses the tray), so the default adds Shift.
       shortcut: "Super+Shift+KeyB",
       popup: picker,
@@ -33,18 +33,18 @@ export const clipboard = definePlugin({
   icon: `<rect x="3.25" y="3" width="9.5" height="11.25" rx="2"/><path d="M6 3V2.25h4V3M5.75 7.5h4.5M5.75 10.25h3"/>`,
   setup({ clipboard: port }: { clipboard: ClipboardPort }) {
     const list = h("ul", { class: "clips" });
-    const empty = h("p", { class: "empty" }, "Copy some text — it shows up here.");
+    const empty = h("p", { class: "empty" }, "Copy some text or an image — it shows up here.");
     const count = h("span", { class: "eyebrow" });
     const clear = button("Clear", async () => {
       await port.clear();
       await refresh();
     }, { class: "ghost" });
-    const rows = new Map<string, Row>();
+    const rows = new Map<number, Row>();
 
-    const create = (text: string): Row => {
+    const create = (clip: Clip): Row => {
       const meta = h("span", { class: "clip-meta" });
-      const btn = button(h("span", { class: "clip-in" }, badge(text), h("span", { class: "clip-text" }, preview(text)), meta), async () => {
-        const ok = await port.copy(text).then(
+      const btn = button(h("span", { class: "clip-in" }, mark(clip), h("span", { class: "clip-text" }, describe(clip)), meta), async () => {
+        const ok = await port.restore(clip.id).then(
           () => true,
           () => false,
         );
@@ -56,7 +56,7 @@ export const clipboard = definePlugin({
           delete btn.dataset.copied;
           meta.textContent = ago(Date.now() - row.at);
         }, FLASH_MS);
-      }, { class: "clip", title: preview(text, 400) });
+      }, { class: "clip", title: describe(clip, 400), "data-kind": clip.image ? "image" : "text" });
       const row: Row = { li: h("li", {}, btn), meta, at: 0, copied: false };
       return row;
     };
@@ -64,15 +64,15 @@ export const clipboard = definePlugin({
     /** Keyed render so rows keep their state, then FLIP-animates moves and entrances. */
     const draw = (clips: Clip[], now: number) => {
       const before = new Map([...rows.values()].map((r) => [r, r.li.getBoundingClientRect().top]));
-      const keep = new Set(clips.map((c) => c.text));
-      for (const [text, r] of rows) {
-        if (keep.has(text)) continue;
-        rows.delete(text);
+      const keep = new Set(clips.map((c) => c.id));
+      for (const [id, r] of rows) {
+        if (keep.has(id)) continue;
+        rows.delete(id);
         r.li.remove();
       }
       const ordered = clips.map((c) => {
-        const r = rows.get(c.text) ?? create(c.text);
-        rows.set(c.text, r);
+        const r = rows.get(c.id) ?? create(c);
+        rows.set(c.id, r);
         r.at = c.copiedAt;
         if (!r.copied) r.meta.textContent = ago(now - c.copiedAt);
         return r;

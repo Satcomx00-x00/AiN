@@ -25,7 +25,7 @@ describe("Settings → Appearance", () => {
     press(page.field("Size")!, "Large");
     await page.saved();
     expect((await sys.settings()).general.pillSize).toBe("large");
-    expect(island.size()).toEqual({ width: "260px", height: "44px" });
+    expect(island.size()).toEqual({ width: "520px", height: "44px" });
   });
 
   it("lists every built-in style with a line about it, and picking one restyles the island", async () => {
@@ -80,6 +80,27 @@ describe("Settings → Appearance", () => {
     await page.saved();
     expect((await sys.settings()).options.neon).toEqual({ glow: false });
     expect(island.el.dataset.style).toBe("neon");
+  });
+});
+
+describe("Settings → Notifications", () => {
+  it("sends a test notification that the island shows, and keeps the history beside it in the menu", async () => {
+    environment();
+    const sys = system();
+    await startIsland(sys);
+    const page = await startSettings(sys, "notifications");
+    press(page.page.querySelector(".page-head")!, "Send a test");
+    await advance(0);
+    expect(sys.notices.list().map((n) => [n.source.label, n.title])).toEqual([["AiN", "This is a test notification"]]);
+    const menu = [...page.page.querySelectorAll<HTMLElement>("nav button")].map((b) => b.textContent?.trim());
+    expect(menu.slice(menu.indexOf("Notifications"), menu.indexOf("Notifications") + 3)).toEqual(["Notifications", "Notification history", "Shortcuts"]);
+    expect(menu.filter((m) => m === "Notification history")).toHaveLength(1);
+    // A child of Notifications: drawn as one, and its page leads back there.
+    const child = page.page.querySelector<HTMLButtonElement>("nav button[data-widget=notifications]")!;
+    expect(child.classList.contains("nav-child")).toBe(true);
+    child.click();
+    await advance(0);
+    expect(page.page.querySelector(".crumbs")?.textContent).toBe("Notifications›");
   });
 });
 

@@ -422,7 +422,7 @@ let pillSelected: string | null = null;
 function layout(): Page {
   return {
     title: "Pill",
-    lead: "Drag widgets onto the pill, or select one to set it up.",
+    lead: "Drag widgets into a side of the pill or the tabs, or select one to set it up.",
     actions: [button("Restore default layout", () => commit({ ...settings, layout: defaultLayout, pill: fallback.pill }, true), { class: "secondary" })],
     body: pillEditor({
       plugins,
@@ -489,8 +489,13 @@ function recorder(entry: Entry): HTMLElement {
 
 function notifications(): Page {
   const notifiers = [...loaded.values()].flatMap((e) => (e.notifier && settings.extensions.includes(e.file) ? [{ id: e.notifier.id, label: e.notifier.label }] : []));
+  const test = button("Send a test", () => store.testNotification().catch((e: unknown) => reportProblem("Couldn't send a test notification", e, "NOTIFICATION_TEST")), {
+    class: "secondary",
+    title: settings.notifications.quiet ? "Do not disturb is on: it goes to the history without showing." : "Shows one on the island, as set below.",
+  });
   return {
     title: "Notifications",
+    actions: [test],
     lead: NOTIFICATIONS_LEAD,
     body: notificationsBody(settings.notifications, { sources: plugins.map((p) => ({ id: p.id, label: p.label })), notifiers }, setNotifications, group),
   };
@@ -621,13 +626,6 @@ function optionRows(p: AnyPlugin | AnyStyle | { readonly id: string; readonly op
   return [...before.map(control), ...(panel ? [panel] : []), ...after.map(control), ...resetRow(p.id, p.options ?? {})];
 }
 
-/** Where the island shows a widget, in words. */
-function placedText(id: string): string {
-  const names: Record<string, string> = { Left: "Left of the pill", Right: "Right of the pill", Tabs: "Tabs" };
-  const places = placesOf(id);
-  return places.length ? places.map((p) => names[p]).join(" · ") : "Not on the island yet: add it in Pill.";
-}
-
 /** Every widget, one per row: what it is, where it shows, whether it needs setting up. */
 function widgetList(): Page {
   return {
@@ -659,17 +657,33 @@ function widgetList(): Page {
   };
 }
 
-/** One widget's page: where it shows, then its options. */
+/**
+ * A widget's shortcut at the top of its page, as on the Shortcuts page: the keys, Change, and Try it.
+ * Named only when the widget has several, and saying why when the island couldn't take it.
+ */
+function shortcutAction(entry: Entry, named: boolean): HTMLElement {
+  const failed = failures[entry.id];
+  return h(
+    "div",
+    { class: "page-shortcut", "data-command": entry.id, ...(failed ? { "data-failed": "true" } : {}) },
+    h("span", { class: "page-shortcut-label", title: failed ? `${failed}: pick another shortcut.` : entry.command.description }, named ? entry.command.label : "Shortcut", ...(failed ? [" — not set"] : [])),
+    recorder(entry),
+  );
+}
+
+/** One widget's page: its shortcuts at the top, then its options. */
 function widgetPage(p: AnyPlugin): Page {
   const rows = optionRows(p);
+  const own = entries().filter((e) => e.plugin.id === p.id);
   return {
-    crumbs: [["Widgets", () => openWidget(null)]],
+    // The history sits under Notifications in the menu, so that's where it leads back to.
+    crumbs: [p.id === HISTORY ? ["Notifications", () => showSection("notifications")] : ["Widgets", () => openWidget(null)]],
     title: p.label,
     lead: p.description,
     icon: p.icon,
     badges: [setupBadge(p.id, p.options ?? {})],
+    actions: own.map((e) => shortcutAction(e, own.length > 1)),
     body: [
-      group("On the island", field("Shows in", placedText(p.id), button("Edit in Pill", () => ((pillSelected = p.id), goTo("layout")), { class: "secondary" }))),
       titled(
         "Options",
         h("section", { class: "card", id: `card-${p.id}`, "data-title": p.label }, ...(rows.length ? rows : [h("p", { class: "no-options" }, "No options.")])),
@@ -1320,19 +1334,27 @@ function fillNav() {
   const at = (key: Section) => !page && !query && section === key && (key !== "widgets" || !plugins.some((p) => p.id === widget));
   const item = (key: Section) => navItem(SECTIONS[key].label, SECTIONS[key].icon, at(key), () => showSection(key), { "data-section": key });
   navList.replaceChildren(
-    ...(["general", "appearance", "layout", "notifications", "shortcuts"] as const).map(item),
+    ...(["general", "appearance", "layout", "notifications"] as const).map(item),
+    // The history is a widget, but it's looked for under the notifications' settings: their child in the menu.
+    ...plugins.filter((p) => p.id === HISTORY).map((p) => widgetItem(p, "nav-child")),
+    item("shortcuts"),
     h("div", { class: "nav-group" }, "Widgets"),
     navItem("All widgets", GRID, at("widgets"), () => openWidget(null), { "data-section": "widgets" }),
-    ...plugins.map((p) =>
-      navItem(p.label, p.icon || GRID, !page && !query && section === "widgets" && widget === p.id, () => openWidget(p.id), { "data-widget": p.id, class: "nav-sub" }, [
-        setupDot(p.id, p.options ?? {}),
-      ]),
-    ),
+    ...plugins.filter((p) => p.id !== HISTORY).map((p) => widgetItem(p)),
     h("div", { class: "nav-group" }, "Integrations"),
     item("providers"),
     item("plugins"),
   );
   navFoot.replaceChildren(item("about"), status);
+}
+
+/** The notification history's widget id: listed under Notifications rather than with the other widgets. */
+const HISTORY = "notifications";
+
+function widgetItem(p: AnyPlugin, kind = "nav-sub") {
+  return navItem(p.label, p.icon || GRID, !page && !query && section === "widgets" && widget === p.id, () => openWidget(p.id), { "data-widget": p.id, class: kind }, [
+    setupDot(p.id, p.options ?? {}),
+  ]);
 }
 
 // ---------- drawing ----------

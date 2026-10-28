@@ -23,6 +23,8 @@ export const commands = {
 	setAutostart: (enabled: boolean) => __TAURI_INVOKE<null>("plugin:settings|set_autostart", { enabled }),
 	/**  Plays the startup animation `id` on the island, e.g. "sparkle". */
 	playGreeting: (id: string) => __TAURI_INVOKE<null>("plugin:settings|play_greeting", { id }),
+	/**  Shows a sample notification on the island, as the notification settings have it. */
+	testNotification: () => __TAURI_INVOKE<null>("plugin:settings|test_notification"),
 };
 
 /** Events */
@@ -30,6 +32,7 @@ export const events = {
 	navigate: makeEvent<Navigate>("plugin:settings:navigate"),
 	playGreeting: makeEvent<PlayGreeting>("plugin:settings:play-greeting"),
 	settingsChanged: makeEvent<SettingsChanged>("plugin:settings:settings-changed"),
+	testNotification: makeEvent<TestNotification>("plugin:settings:test-notification"),
 };
 
 /* Types */
@@ -47,6 +50,9 @@ export type Raw = unknown;
 
 /**  The settings, as saved; sent to every window (and backend listeners) after each save. */
 export type SettingsChanged = Raw;
+
+/**  Asks the island to show a sample notification: the Test button in Settings → Notifications. */
+export type TestNotification = null;
 
 /* Tauri Specta runtime */
 type EventEmit<T> = [T] extends [null] ? () => Promise<void> : (payload: T) => Promise<void>;

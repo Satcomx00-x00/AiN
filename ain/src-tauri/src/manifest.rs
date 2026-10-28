@@ -21,7 +21,7 @@ macro_rules! manifest {
                     raw: [],
                     events: [Shown, BindingsChanged, Action]
                 }
-                settings: shell::settings { typed: [get, set, open, quit, autostart, set_autostart, play_greeting], raw: [], events: [SettingsChanged, Navigate, PlayGreeting] }
+                settings: shell::settings { typed: [get, set, open, quit, autostart, set_autostart, play_greeting, test_notification], raw: [], events: [SettingsChanged, Navigate, PlayGreeting, TestNotification] }
                 capture: shell::capture { typed: [], raw: [latest, problem, save_png], events: [] }
                 extensions: shell::extensions { typed: [list, open_dir], raw: [], events: [] }
                 store: shell::store { typed: [catalog, install, open_repo], raw: [], events: [] }
@@ -32,7 +32,7 @@ macro_rules! manifest {
                 updates: shell::updater { typed: [status, check, install, open_releases], raw: [], events: [UpdateChanged] }
             }
             features {
-                clipboard: features::clipboard { typed: [history, copy, clear], raw: [copy_image], events: [] }
+                clipboard: features::clipboard { typed: [history, copy, restore, clear], raw: [copy_image], events: [] }
                 dictation: features::dictation {
                     typed: [state, model_status, microphones, control, download_model, delete_model, open_model_dir],
                     raw: [],

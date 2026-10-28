@@ -36,6 +36,14 @@ describe("the corner toast window", () => {
     expect(port.place).toHaveBeenLastCalledWith("bottom-left", expect.any(Number), expect.any(Number));
   });
 
+  it("places the window while it is still hidden, when the page gets no frames", () => {
+    const { port, stack } = setup();
+    // A hidden WebKitGTK page: frames never come.
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    stack.sync(state(["a"], { corner: "bottom-left" }));
+    expect(port.place).toHaveBeenCalledWith("bottom-left", TOAST_WIDTH + 2 * GUTTER, expect.any(Number));
+  });
+
   it("tells the island what the user did", () => {
     const { root, port, stack } = setup();
     stack.sync(state(["a"]));

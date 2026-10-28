@@ -1,13 +1,21 @@
-//! Clipboard history: a watcher thread records new text, commands read and copy.
+//! Clipboard history: a watcher thread records new text and images, commands read and copy.
+// A lock held through a `match` would deadlock `restore`, and with it the main thread reading the history.
+#![warn(clippy::significant_drop_in_scrutinee)]
 
 use std::{
     collections::VecDeque,
+    hash::{DefaultHasher, Hash, Hasher},
     io,
     sync::{Arc, Mutex, MutexGuard},
     thread,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
+use base64::Engine as _;
+use image::{
+    ExtendedColorType, ImageEncoder, ImageFormat, RgbaImage,
+    codecs::png::{CompressionType, FilterType, PngEncoder},
+};
 use serde::Serialize;
 use specta::Type;
 use tauri::{
@@ -19,52 +27,216 @@ use tauri::{
 use crate::{Error, Res};
 
 pub const CAPACITY: usize = 25;
+/// Images kept at most, the oldest leaving first: a few screenshots would otherwise hold hundreds of MB.
+pub const MAX_IMAGES: usize = 5;
 const MAX_BYTES: usize = 100 * 1024;
+/// Bigger images (an 8K capture and up) are left out: their pixels alone are over 130 MB.
+const MAX_PIXELS: usize = 40_000_000;
+/// The thumbnail's longer side, in px: twice what the list shows, for high-density screens.
+const THUMB: u32 = 160;
 const POLL: Duration = Duration::from_millis(500);
+/// Off Windows nothing says the clipboard changed, and reading an image means fetching and decoding
+/// it, so images are looked at every this many polls rather than every one.
+#[cfg(not(windows))]
+const IMAGE_EVERY: u32 = 4;
+
+#[derive(Debug, Clone, PartialEq, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct Picture {
+    pub width: u32,
+    pub height: u32,
+    /// A PNG data URL, at most 160 px on its longer side.
+    pub thumb: String,
+}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Clip {
+    /// Stable while the clip is in the history, for `restore`.
+    pub id: u32,
+    /// Empty for an image.
     pub text: String,
+    pub image: Option<Picture>,
     /// Unix time in milliseconds.
     pub copied_at: u64,
 }
 
+/// What the clipboard held when read.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Copied {
+    Text(String),
+    Image { width: usize, height: usize, rgba: Vec<u8> },
+}
+
+/// An image as the history keeps it: compressed, with what the list shows of it.
+#[derive(Debug, Clone)]
+pub struct Stored {
+    png: Arc<Vec<u8>>,
+    width: u32,
+    height: u32,
+    hash: u64,
+    thumb: String,
+}
+
+#[derive(Debug, Clone)]
+enum Content {
+    Text(String),
+    Image(Stored),
+}
+
+/// What makes two clips the same one, copied again.
+#[derive(PartialEq)]
+enum Key<'a> {
+    Text(&'a str),
+    Image(u64),
+}
+
+impl Content {
+    fn key(&self) -> Key<'_> {
+        match self {
+            Content::Text(t) => Key::Text(t),
+            Content::Image(i) => Key::Image(i.hash),
+        }
+    }
+}
+
+#[derive(Debug)]
+struct Entry {
+    id: u32,
+    content: Content,
+    copied_at: u64,
+}
+
 #[derive(Debug, Default)]
-pub struct History(VecDeque<Clip>);
+pub struct History {
+    entries: VecDeque<Entry>,
+    next: u32,
+}
 
 impl History {
     /// Moves `text` to the front; returns false when nothing changed.
     pub fn push(&mut self, text: String, now: u64) -> bool {
-        if text.trim().is_empty() || text.len() > MAX_BYTES || self.0.front().is_some_and(|c| c.text == text) {
+        if text.trim().is_empty() || text.len() > MAX_BYTES {
             return false;
         }
-        self.0.retain(|c| c.text != text);
-        self.0.push_front(Clip { text, copied_at: now });
-        self.0.truncate(CAPACITY);
+        self.put(Content::Text(text), now)
+    }
+
+    /// Moves an image to the front; returns false when it already was.
+    pub fn push_image(&mut self, image: Stored, now: u64) -> bool {
+        self.put(Content::Image(image), now)
+    }
+
+    fn put(&mut self, content: Content, now: u64) -> bool {
+        if self.entries.front().is_some_and(|e| e.content.key() == content.key()) {
+            return false;
+        }
+        // Copied again: the same entry (and id) comes back to the front.
+        let id = match self.entries.iter().position(|e| e.content.key() == content.key()) {
+            Some(at) => self.entries.remove(at).map_or(self.fresh(), |e| e.id),
+            None => self.fresh(),
+        };
+        self.entries.push_front(Entry { id, content, copied_at: now });
+        self.entries.truncate(CAPACITY);
+        let mut images = 0;
+        self.entries.retain(|e| {
+            !matches!(e.content, Content::Image(_)) || {
+                images += 1;
+                images <= MAX_IMAGES
+            }
+        });
         true
     }
 
+    fn fresh(&mut self) -> u32 {
+        self.next = self.next.wrapping_add(1);
+        self.next
+    }
+
+    /// True when an image with this hash is already first: copying it again changes nothing.
+    pub fn leads_with(&self, hash: u64) -> bool {
+        self.entries.front().is_some_and(|e| e.content.key() == Key::Image(hash))
+    }
+
+    /// Brings a kept image back to the front by its hash, without encoding it again.
+    pub fn bump_image(&mut self, hash: u64, now: u64) -> bool {
+        let Some(at) = self.entries.iter().position(|e| e.content.key() == Key::Image(hash)) else { return false };
+        let Some(mut entry) = self.entries.remove(at) else { return false };
+        entry.copied_at = now;
+        self.entries.push_front(entry);
+        true
+    }
+
+    fn get(&self, id: u32) -> Option<Content> {
+        self.entries.iter().find(|e| e.id == id).map(|e| e.content.clone())
+    }
+
     pub fn items(&self) -> Vec<Clip> {
-        self.0.iter().cloned().collect()
+        self.entries
+            .iter()
+            .map(|e| match &e.content {
+                Content::Text(text) => Clip { id: e.id, text: text.clone(), image: None, copied_at: e.copied_at },
+                Content::Image(i) => Clip {
+                    id: e.id,
+                    text: String::new(),
+                    image: Some(Picture { width: i.width, height: i.height, thumb: i.thumb.clone() }),
+                    copied_at: e.copied_at,
+                },
+            })
+            .collect()
     }
 
     pub fn clear(&mut self) {
-        self.0.clear();
+        self.entries.clear();
     }
 }
 
-/// Where new clipboard text comes from; `None` means nothing new or nothing readable.
+/// A fingerprint of an image's pixels, to tell a new image from the one already kept.
+pub fn hash_of(width: usize, height: usize, rgba: &[u8]) -> u64 {
+    let mut h = DefaultHasher::new();
+    (width, height).hash(&mut h);
+    rgba.hash(&mut h);
+    h.finish()
+}
+
+/// Compresses an image for the history and makes its thumbnail; `None` if it is too big or malformed.
+pub fn store(width: usize, height: usize, rgba: Vec<u8>, hash: u64) -> Option<Stored> {
+    if width == 0 || height == 0 || width.checked_mul(height)? > MAX_PIXELS {
+        return None;
+    }
+    let image = RgbaImage::from_raw(u32::try_from(width).ok()?, u32::try_from(height).ok()?, rgba)?;
+    let png = encode(&image)?;
+    let scale = (f64::from(THUMB) / f64::from(image.width().max(image.height()))).min(1.0);
+    let size = |n: u32| ((f64::from(n) * scale).round() as u32).max(1);
+    let thumb = image::imageops::thumbnail(&image, size(image.width()), size(image.height()));
+    let thumb = format!("data:image/png;base64,{}", base64::engine::general_purpose::STANDARD.encode(encode(&thumb)?));
+    Some(Stored { png: Arc::new(png), width: image.width(), height: image.height(), hash, thumb })
+}
+
+/// PNG, compressed for speed: it runs on every new image copied.
+fn encode(image: &RgbaImage) -> Option<Vec<u8>> {
+    let mut out = Vec::new();
+    PngEncoder::new_with_quality(&mut out, CompressionType::Fast, FilterType::Adaptive)
+        .write_image(image.as_raw(), image.width(), image.height(), ExtendedColorType::Rgba8)
+        .ok()?;
+    Some(out)
+}
+
+/// Where new clipboard content comes from; `None` means nothing new or nothing readable.
 pub trait Source {
-    fn read(&mut self) -> Option<String>;
+    fn read(&mut self) -> Option<Copied>;
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum CopyError {
     #[error("clipboard unavailable")]
     Unavailable,
+    #[error("that clip is no longer in the history")]
+    Gone,
     #[error(transparent)]
     Backend(#[from] arboard::Error),
+    #[error(transparent)]
+    Image(#[from] image::ImageError),
 }
 
 impl From<CopyError> for Error {
@@ -73,10 +245,26 @@ impl From<CopyError> for Error {
     }
 }
 
+/// Where copies go: the OS clipboard, or a stand-in in tests.
+pub trait Writer: Send {
+    fn text(&mut self, text: &str) -> Result<(), arboard::Error>;
+    fn image(&mut self, image: arboard::ImageData<'static>) -> Result<(), arboard::Error>;
+}
+
+impl Writer for arboard::Clipboard {
+    fn text(&mut self, text: &str) -> Result<(), arboard::Error> {
+        self.set_text(text)
+    }
+
+    fn image(&mut self, image: arboard::ImageData<'static>) -> Result<(), arboard::Error> {
+        self.set_image(image)
+    }
+}
+
 #[derive(Default)]
 pub struct Clipboard {
     history: Mutex<History>,
-    writer: Mutex<Option<arboard::Clipboard>>,
+    writer: Mutex<Option<Box<dyn Writer>>>,
 }
 
 fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -90,7 +278,12 @@ fn now_ms() -> u64 {
 impl Clipboard {
     /// Backed by the OS clipboard; copying fails gracefully if it can't be opened.
     pub fn system() -> Self {
-        Self { history: Mutex::default(), writer: Mutex::new(arboard::Clipboard::new().ok()) }
+        Self::writing_to(arboard::Clipboard::new().ok().map(|c| Box::new(c) as Box<dyn Writer>))
+    }
+
+    /// Copying to `writer`, if any.
+    pub fn writing_to(writer: Option<Box<dyn Writer>>) -> Self {
+        Self { history: Mutex::default(), writer: Mutex::new(writer) }
     }
 
     pub fn items(&self) -> Vec<Clip> {
@@ -105,34 +298,78 @@ impl Clipboard {
         lock(&self.history).push(text, now)
     }
 
+    /// Records an image; compressing it (the slow part) happens outside the lock, and only for a new one.
+    pub fn record_image(&self, width: usize, height: usize, rgba: Vec<u8>, now: u64) -> bool {
+        let hash = hash_of(width, height, &rgba);
+        {
+            let mut history = lock(&self.history);
+            if history.leads_with(hash) {
+                return false;
+            }
+            if history.bump_image(hash, now) {
+                return true;
+            }
+        }
+        store(width, height, rgba, hash).is_some_and(|image| lock(&self.history).push_image(image, now))
+    }
+
     /// Puts an RGBA image on the OS clipboard. Blocking, like `copy`.
     pub fn copy_image(&self, width: usize, height: usize, rgba: Vec<u8>) -> Result<(), CopyError> {
         let image = arboard::ImageData { width, height, bytes: rgba.into() };
-        lock(&self.writer).as_mut().ok_or(CopyError::Unavailable)?.set_image(image)?;
+        lock(&self.writer).as_mut().ok_or(CopyError::Unavailable)?.image(image)?;
         Ok(())
     }
 
     /// Blocking: another app may be holding the OS clipboard.
     pub fn copy(&self, text: String) -> Result<(), CopyError> {
-        lock(&self.writer).as_mut().ok_or(CopyError::Unavailable)?.set_text(text.as_str())?;
+        lock(&self.writer).as_mut().ok_or(CopyError::Unavailable)?.text(text.as_str())?;
         self.record(text, now_ms());
         Ok(())
+    }
+
+    /// Puts a clip from the history back on the clipboard, text or image, and moves it to the front. Blocking.
+    pub fn restore(&self, id: u32) -> Result<(), CopyError> {
+        // Taken out first: the history's lock must be let go before copying, which takes it again.
+        let content = lock(&self.history).get(id).ok_or(CopyError::Gone)?;
+        match content {
+            Content::Text(text) => self.copy(text),
+            Content::Image(stored) => {
+                let rgba = image::load_from_memory_with_format(&stored.png, ImageFormat::Png)?.into_rgba8();
+                self.copy_image(stored.width as usize, stored.height as usize, rgba.into_raw())?;
+                lock(&self.history).bump_image(stored.hash, now_ms());
+                Ok(())
+            }
+        }
     }
 }
 
 /// Reads the source once and records anything new.
 pub fn poll(source: &mut impl Source, clipboard: &Clipboard, now: u64) -> bool {
-    source.read().is_some_and(|text| clipboard.record(text, now))
+    match source.read() {
+        Some(Copied::Text(text)) => clipboard.record(text, now),
+        Some(Copied::Image { width, height, rgba }) => clipboard.record_image(width, height, rgba, now),
+        None => false,
+    }
 }
 
 struct System {
     cb: arboard::Clipboard,
     #[cfg(windows)]
     seq: Option<std::num::NonZeroU32>,
+    #[cfg(not(windows))]
+    polls: u32,
+}
+
+impl System {
+    /// An image, when the clipboard holds one rather than text.
+    fn image(&mut self) -> Option<Copied> {
+        let image = self.cb.get_image().ok()?;
+        Some(Copied::Image { width: image.width, height: image.height, rgba: image.bytes.into_owned() })
+    }
 }
 
 impl Source for System {
-    fn read(&mut self) -> Option<String> {
+    fn read(&mut self) -> Option<Copied> {
         // Windows bumps a sequence number on every change, so we only open the clipboard
         // when something changed, and skip what password managers mark as secret.
         #[cfg(windows)]
@@ -148,7 +385,17 @@ impl Source for System {
                 return None;
             }
         }
-        self.cb.get_text().ok()
+        if let Ok(text) = self.cb.get_text() {
+            return Some(Copied::Text(text));
+        }
+        #[cfg(not(windows))]
+        {
+            self.polls = self.polls.wrapping_add(1);
+            if !self.polls.is_multiple_of(IMAGE_EVERY) {
+                return None;
+            }
+        }
+        self.image()
     }
 }
 
@@ -159,6 +406,8 @@ pub fn watch(clipboard: Arc<Clipboard>) -> io::Result<()> {
             cb,
             #[cfg(windows)]
             seq: None,
+            #[cfg(not(windows))]
+            polls: 0,
         };
         loop {
             poll(&mut source, &clipboard, now_ms());
@@ -186,6 +435,15 @@ fn clear(clipboard: State<'_, Arc<Clipboard>>) {
 async fn copy(clipboard: State<'_, Arc<Clipboard>>, text: String) -> Res<()> {
     let clipboard = Arc::clone(&clipboard);
     tauri::async_runtime::spawn_blocking(move || clipboard.copy(text)).await??;
+    Ok(())
+}
+
+/// Puts a history clip back on the clipboard, text or image; off the main thread, like `copy`.
+#[tauri::command]
+#[specta::specta]
+async fn restore(clipboard: State<'_, Arc<Clipboard>>, id: u32) -> Res<()> {
+    let clipboard = Arc::clone(&clipboard);
+    tauri::async_runtime::spawn_blocking(move || clipboard.restore(id)).await??;
     Ok(())
 }
 
@@ -266,9 +524,117 @@ mod tests {
     struct Fake(Vec<Option<&'static str>>);
 
     impl Source for Fake {
-        fn read(&mut self) -> Option<String> {
-            self.0.pop().flatten().map(String::from)
+        fn read(&mut self) -> Option<Copied> {
+            self.0.pop().flatten().map(|t| Copied::Text(t.into()))
         }
+    }
+
+    /// A `w`×`h` image of one color.
+    fn pixels(w: usize, h: usize, shade: u8) -> Vec<u8> {
+        [shade, 0, 0, 255].repeat(w * h)
+    }
+
+    fn image(w: usize, h: usize, shade: u8) -> Stored {
+        let rgba = pixels(w, h, shade);
+        let hash = hash_of(w, h, &rgba);
+        store(w, h, rgba, hash).unwrap()
+    }
+
+    #[test]
+    fn stores_an_image_with_a_thumbnail_that_keeps_its_shape() {
+        let clipboard = Clipboard::default();
+        assert!(clipboard.record_image(640, 320, pixels(640, 320, 9), 5));
+        let [clip] = clipboard.items().try_into().unwrap();
+        let picture = clip.image.unwrap();
+        assert_eq!((clip.text.as_str(), picture.width, picture.height, clip.copied_at), ("", 640, 320, 5));
+        let png = base64::engine::general_purpose::STANDARD.decode(picture.thumb.strip_prefix("data:image/png;base64,").unwrap()).unwrap();
+        let thumb = image::load_from_memory(&png).unwrap();
+        assert_eq!((thumb.width(), thumb.height()), (160, 80));
+    }
+
+    #[test]
+    fn the_same_image_again_is_not_a_new_clip() {
+        let clipboard = Clipboard::default();
+        assert!(clipboard.record_image(4, 4, pixels(4, 4, 1), 0));
+        assert!(!clipboard.record_image(4, 4, pixels(4, 4, 1), 1));
+        clipboard.record("text".into(), 2);
+        let id = clipboard.items()[1].id;
+        // Copied again after some text: back to the front, same entry.
+        assert!(clipboard.record_image(4, 4, pixels(4, 4, 1), 3));
+        assert_eq!(
+            clipboard.items().iter().map(|c| (c.id, c.image.is_some())).collect::<Vec<_>>(),
+            [(id, true), (clipboard.items()[1].id, false)]
+        );
+    }
+
+    #[test]
+    fn keeps_the_newest_images_only() {
+        let mut h = History::default();
+        h.push("note".into(), 0);
+        (0..MAX_IMAGES + 2).for_each(|i| _ = h.push_image(image(2, 2, i as u8), i as u64 + 1));
+        let items = h.items();
+        assert_eq!(items.iter().filter(|c| c.image.is_some()).count(), MAX_IMAGES);
+        assert_eq!(items.last().unwrap().text, "note");
+        assert_eq!(items[0].copied_at, MAX_IMAGES as u64 + 2);
+    }
+
+    #[test]
+    fn leaves_out_images_too_big_or_empty() {
+        assert!(store(0, 10, vec![], 0).is_none());
+        assert!(store(MAX_PIXELS + 1, 1, vec![], 0).is_none());
+        assert!(store(2, 2, vec![0; 3], 0).is_none());
+    }
+
+    #[test]
+    fn ids_stay_put_while_clips_move() {
+        let mut h = with(&["b", "a"]);
+        let a = h.items()[1].id;
+        h.push("a".into(), 1);
+        assert_eq!(h.items()[0].id, a);
+        assert_ne!(h.items()[1].id, a);
+    }
+
+    /// A clipboard that keeps what is copied to it: the last text, or the last image's size.
+    #[derive(Clone, Default)]
+    struct Kept(Arc<Mutex<Vec<String>>>);
+
+    impl Writer for Kept {
+        fn text(&mut self, text: &str) -> Result<(), arboard::Error> {
+            lock(&self.0).push(text.into());
+            Ok(())
+        }
+
+        fn image(&mut self, image: arboard::ImageData<'static>) -> Result<(), arboard::Error> {
+            lock(&self.0).push(format!("{}x{} image", image.width, image.height));
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn restores_text_and_images_and_lets_the_history_be_read_after() {
+        let kept = Kept::default();
+        let clipboard = Arc::new(Clipboard::writing_to(Some(Box::new(kept.clone()))));
+        clipboard.record("note".into(), 1);
+        clipboard.record_image(3, 2, pixels(3, 2, 7), 2);
+        clipboard.record("later".into(), 3);
+        let ids: Vec<u32> = clipboard.items().iter().map(|c| c.id).collect();
+        // On a thread with a deadline: a lock kept while copying would hang here, as it froze the app.
+        let (done, wait) = std::sync::mpsc::channel();
+        let c = Arc::clone(&clipboard);
+        thread::spawn(move || {
+            let results = [c.restore(ids[1]).is_ok(), c.restore(ids[2]).is_ok()];
+            done.send((results, c.items().len())).unwrap();
+        });
+        let (results, count) = wait.recv_timeout(Duration::from_secs(5)).expect("restore must not deadlock");
+        assert_eq!((results, count), ([true, true], 3));
+        assert_eq!(*lock(&kept.0), ["3x2 image", "note"]);
+        let items = clipboard.items();
+        assert_eq!((items[0].text.as_str(), items[1].image.is_some()), ("note", true));
+    }
+
+    #[test]
+    fn restoring_a_clip_no_longer_kept_is_an_error() {
+        assert!(matches!(Clipboard::default().restore(42), Err(CopyError::Gone)));
     }
 
     #[test]

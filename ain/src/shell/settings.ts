@@ -96,7 +96,7 @@ export function adopt(layout: Layout, fallback: Layout, seen: readonly string[])
   };
 }
 
-export const DEFAULT_GENERAL: General = { openDelay: 140, closeDelay: 260, pillWidth: 200, pillSize: "normal", style: "pill", pillCurve: 100, theme: "island", pillColor: "#000000", accentColor: "#0a84ff", greeting: "hello", revealDelay: 500, acceptAnyCertificate: false, modelsSource: "", screen: null };
+export const DEFAULT_GENERAL: General = { openDelay: 140, closeDelay: 260, pillWidth: 400, pillSize: "normal", style: "pill", pillCurve: 100, theme: "island", pillColor: "#000000", accentColor: "#0a84ff", greeting: "hello", revealDelay: 500, acceptAnyCertificate: false, modelsSource: "", screen: null };
 export const PILL_SIZE_IDS = ["low", "normal", "large"] as const satisfies readonly PillSize[];
 /** The style that keeps the pill hidden until the cursor rests on its spot. */
 export const HIDDEN_STYLE = "hidden";
@@ -185,6 +185,10 @@ export interface SettingsPort {
   playGreeting(id: string): Promise<void>;
   /** Calls `onPlay` with the id of each startup animation the island is asked to play. */
   onPlayGreeting(onPlay: (id: string) => void): Promise<() => void>;
+  /** Asks the island to show a sample notification, as the notification settings have it. */
+  testNotification(): Promise<void>;
+  /** Calls `onTest` each time a sample notification is asked for. */
+  onTestNotification(onTest: () => void): Promise<() => void>;
   autostart(): Promise<boolean>;
   setAutostart(enabled: boolean): Promise<void>;
 }
@@ -197,6 +201,8 @@ export const tauriSettings: SettingsPort = {
   quit: async () => void (await commands.quit()),
   playGreeting: async (id) => void (await commands.playGreeting(id)),
   onPlayGreeting: (onPlay) => events.playGreeting.listen((e) => onPlay(e.payload)),
+  testNotification: async () => void (await commands.testNotification()),
+  onTestNotification: (onTest) => events.testNotification.listen(() => onTest()),
   autostart: () => commands.autostart(),
   setAutostart: async (enabled) => void (await commands.setAutostart(enabled)),
 };
@@ -207,6 +213,7 @@ export function memorySettings(): SettingsPort {
   let autostart = false;
   const listeners = new Set<(raw: unknown) => void>();
   const players = new Set<(id: string) => void>();
+  const testers = new Set<() => void>();
   return {
     watch: async (onChange) => {
       listeners.add(onChange);
@@ -224,6 +231,11 @@ export function memorySettings(): SettingsPort {
     onPlayGreeting: async (onPlay) => {
       players.add(onPlay);
       return () => players.delete(onPlay);
+    },
+    testNotification: async () => testers.forEach((t) => t()),
+    onTestNotification: async (onTest) => {
+      testers.add(onTest);
+      return () => testers.delete(onTest);
     },
     autostart: async () => autostart,
     setAutostart: async (enabled) => {

@@ -6,7 +6,11 @@ const { clipboard } = await import(".");
 const { matching, picker } = await import("./picker");
 
 const NOW = 1_000_000;
-const clip = (text: string, ago = 1000): Clip => ({ text, copiedAt: NOW - ago });
+/** Ids as the history keeps them: the same text is the same clip, whenever it's read. */
+const ids = new Map<string, number>();
+const idOf = (key: string) => ids.get(key) ?? (ids.set(key, ids.size + 1), ids.size);
+const clip = (text: string, ago = 1000): Clip => ({ id: idOf(text), text, image: null, copiedAt: NOW - ago });
+const picture = (ago = 1000): Clip => ({ id: idOf("image"), text: "", image: { width: 1920, height: 1080, thumb: "data:image/png;base64,AA==" }, copiedAt: NOW - ago });
 
 beforeEach(() => {
   vi.useFakeTimers({ now: NOW });
@@ -18,7 +22,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-/** A clipboard holding `clips`, recording what is copied. */
+/** A clipboard holding `clips`, recording what is copied: a clip put back is recorded by its text, or "image <id>". */
 function port(clips: Clip[]): ClipboardPort & { copied: string[] } {
   const copied: string[] = [];
   let held = clips;
@@ -26,6 +30,11 @@ function port(clips: Clip[]): ClipboardPort & { copied: string[] } {
     copied,
     history: async () => held,
     copy: async (text) => void copied.push(text),
+    restore: async (id) => {
+      const c = held.find((x) => x.id === id);
+      if (!c) throw new Error("gone");
+      copied.push(c.image ? `image ${id}` : c.text);
+    },
     copyImage: async () => {},
     clear: async () => void (held = []),
   };
@@ -100,6 +109,23 @@ describe("the clipboard popup", () => {
     p.rows()[1]?.click();
     await vi.advanceTimersByTimeAsync(0);
     expect(p.clipboard.copied).toEqual(["c", "b"]);
+  });
+
+  it("shows an image by its thumbnail and size, finds it by those words, and pastes it", async () => {
+    const shot = picture();
+    const p = await open([clip("note"), shot]);
+    const row = p.rows()[1]!;
+    expect([row.dataset.kind, row.querySelector<HTMLImageElement>("img.thumb")?.getAttribute("src"), row.querySelector(".pk-text")?.textContent]).toEqual([
+      "image",
+      "data:image/png;base64,AA==",
+      "Image · 1920 × 1080",
+    ]);
+    p.search.value = "image 1920";
+    p.search.dispatchEvent(new Event("input"));
+    expect(p.rows()).toHaveLength(1);
+    p.key({ key: "Enter" });
+    await vi.advanceTimersByTimeAsync(0);
+    expect([p.clipboard.copied, p.ctx.paste.mock.calls.length]).toEqual([[`image ${shot.id}`], 1]);
   });
 
   it("only copies, and closes, when pasting is turned off", async () => {
@@ -177,7 +203,7 @@ describe("the clipboard popup", () => {
 describe("the clipboard tab", () => {
   async function tab(clips: Clip[], copyFails = false) {
     const p = port(clips);
-    if (copyFails) p.copy = async () => Promise.reject(new Error("busy"));
+    if (copyFails) p.restore = async () => Promise.reject(new Error("busy"));
     const widget = clipboard.setup({ clipboard: p }, { refresh() {}, options: () => ({ paste: true }), setOptions() {}, secret: async () => "", openSettings() {}, openPage() {}, appearance: () => ({ style: "pill", size: "normal", theme: "island", tone: "dark", notch: false }) as const, notify: () => ({ id: "", update() {}, dismiss() {} }), on: () => () => {} });
     const root = document.createElement("section");
     widget.panel?.(root);
@@ -200,6 +226,21 @@ describe("the clipboard tab", () => {
     expect([t.rows()[0]?.dataset.copied, t.rows()[0]?.querySelector(".clip-meta")?.textContent]).toEqual(["true", "Copied"]);
     await vi.advanceTimersByTimeAsync(1500);
     expect(t.rows()[0]?.dataset.copied).toBeUndefined();
+  });
+
+  it("lists an image with its thumbnail, and puts it back on the clipboard when clicked", async () => {
+    const shot = picture(30_000);
+    const t = await tab([shot, clip("hello")]);
+    const row = t.rows()[0]!;
+    expect([row.dataset.kind, row.querySelector("img.thumb") !== null, row.querySelector(".clip-text")?.textContent, row.querySelector(".clip-meta")?.textContent]).toEqual([
+      "image",
+      true,
+      "Image · 1920 × 1080",
+      "30s",
+    ]);
+    row.click();
+    await vi.advanceTimersByTimeAsync(0);
+    expect([t.port.copied, row.querySelector(".clip-meta")?.textContent]).toEqual([[`image ${shot.id}`], "Copied"]);
   });
 
   it("says when copying failed", async () => {

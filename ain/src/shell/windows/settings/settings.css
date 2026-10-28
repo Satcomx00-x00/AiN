@@ -238,6 +238,30 @@ button {
   opacity: 0.85;
 }
 
+/* A page under the one above it (Notification history under Notifications): indented to its
+   label, joined to it by a guide line under its icon, and a little smaller. */
+.nav button.nav-child {
+  height: 28px;
+  padding-left: 36px;
+  font-size: 12.5px;
+}
+
+.nav-child .icon {
+  display: none;
+}
+
+.nav button.nav-child::after {
+  content: "";
+  position: absolute;
+  left: 18px;
+  top: -4px;
+  bottom: 50%;
+  width: 10px;
+  border-left: 1px solid var(--line-strong);
+  border-bottom: 1px solid var(--line-strong);
+  border-bottom-left-radius: 6px;
+}
+
 /* A widget that needs setting up. */
 .nav-dot {
   flex: none;
@@ -1239,8 +1263,7 @@ h1 {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
-  padding: 0 16px 16px;
+  padding: 0 16px 18px;
 }
 
 .pp-pill {
@@ -1266,7 +1289,6 @@ h1 {
 }
 
 .pp-end,
-.pp-queue,
 .pp-tabs {
   display: flex;
   align-items: center;
@@ -1289,7 +1311,8 @@ h1 {
 }
 
 .pp-end:empty::after,
-.pp-tabs:empty::after {
+.pp-tabs:empty::after,
+.side-list:empty::after {
   content: attr(data-empty);
   padding: 0 6px;
   font-size: 11.5px;
@@ -1297,37 +1320,12 @@ h1 {
   color: var(--faint);
 }
 
-.pp-queues {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  width: max(var(--pill-w), 100%);
-  max-width: 100%;
-}
-
-/* Each takes half, or all of it when the other has nothing waiting. */
-.pp-queue {
-  flex: 1 1 0;
-  flex-wrap: wrap;
-}
-
-/* An empty one shows only while dragging, as somewhere to drop. */
-.pill-editor:not(.dragging) .pp-queue[hidden] {
-  display: none;
-}
-
-.pp-queue[data-zone="right"] {
-  justify-content: flex-end;
-  margin-left: auto;
-}
-
-.pp-tabs {
-  flex-wrap: wrap;
-  justify-content: center;
-  padding: 4px;
-  background: #000;
-  border-radius: 12px;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
+.pp-item,
+.pp-tab,
+.side-row {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
 }
 
 .pp-item,
@@ -1335,25 +1333,11 @@ h1 {
   display: inline-flex;
   align-items: center;
   border-radius: 7px;
-  cursor: grab;
-  touch-action: none;
-  user-select: none;
 }
 
 .pp-item {
   height: 26px;
   padding: 0 6px;
-}
-
-.pp-item[data-spare="true"] {
-  opacity: 0.45;
-}
-
-.pp-tab {
-  justify-content: center;
-  width: 32px;
-  height: 28px;
-  color: #c8c8cf;
 }
 
 .pp-item:hover,
@@ -1364,6 +1348,174 @@ h1 {
 .pp-item.selected,
 .pp-tab.selected {
   box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+
+/* ---- the two sides: each an ordered list, the pill's share first ---- */
+
+.pill-sides {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pill-help {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.pill-sides-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 14px;
+}
+
+.pill-sides-grid .card,
+.tabs-card {
+  margin-bottom: 0;
+}
+
+.card-hint {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.side-card .card-head,
+.tabs-card .card-head {
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.side-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 44px;
+  margin: 0 10px 10px;
+  padding: 4px;
+  border-radius: 8px;
+  transition:
+    background 0.12s,
+    box-shadow 0.12s;
+}
+
+.side-list:empty {
+  display: grid;
+  place-items: center;
+  border: 1px dashed var(--line-strong);
+}
+
+.side-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 6px 4px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: var(--soft);
+}
+
+.side-row:hover {
+  background: var(--hover);
+}
+
+.side-row.selected {
+  border-color: var(--accent);
+}
+
+.side-row .ico {
+  width: 26px;
+  height: 26px;
+}
+
+.side-n {
+  width: 14px;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--faint);
+}
+
+.side-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Waiting their turn: still in the list, quieter than what the pill shows now. */
+.side-row[data-waiting="true"] {
+  background: none;
+  border-style: dashed;
+  border-color: var(--line);
+  color: var(--muted);
+}
+
+.side-row[data-waiting="true"].selected {
+  border-style: solid;
+  border-color: var(--accent);
+}
+
+/* Where the pill's share ends. */
+.side-split {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 2px 2px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.side-split::after {
+  content: "";
+  flex: 1;
+  border-top: 1px solid var(--line);
+}
+
+.side-list .pp-caret {
+  width: auto;
+  height: 3px;
+  flex: none;
+}
+
+/* ---- the tabs ---- */
+
+.tabs-card .pp-tabs {
+  flex-wrap: wrap;
+  justify-content: center;
+  margin: 0 10px 12px;
+  padding: 4px;
+  background: #000;
+  border-radius: 12px;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.pp-tab {
+  justify-content: center;
+  width: 32px;
+  height: 28px;
+  color: #c8c8cf;
+}
+
+.pp-tab[data-spare="true"] {
+  opacity: 0.5;
+}
+
+/* Where the island's bar ends and its More tab begins. */
+.pp-more {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 28px;
+  margin: 0 2px;
+  border-left: 1px solid rgba(255, 255, 255, 0.14);
+  color: var(--faint);
 }
 
 /* The glance itself, drawn as on the island. */
@@ -1520,6 +1672,27 @@ h1 {
   margin-bottom: 0;
 }
 
+/*
+ * A narrow column: a control too wide to sit beside its label goes under it, instead of squeezing
+ * the label to a word a line or running out of the card. A switch or a short choice still fits beside.
+ */
+.pill-inspector .field:not(.wide) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.pill-inspector .field:not(.wide) > :first-child {
+  flex: 1 1 8em;
+  min-width: 0;
+}
+
+.pill-inspector .field:not(.wide) > :last-child {
+  max-width: 100%;
+  margin-left: auto;
+}
+
 .pill-shelf {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
@@ -1657,6 +1830,12 @@ h1 {
   }
 }
 
+@container pill (max-width: 480px) {
+  .pill-sides-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 @container pill (max-width: 420px) {
   .pp {
     padding: 0 8px 12px;
@@ -1684,6 +1863,33 @@ h1 {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+/* A widget's shortcut in its page's head: named above the recorder, which needs no room for an empty name. */
+.page-actions:has(.page-shortcut) {
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.page-shortcut {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.page-shortcut-label {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.page-shortcut[data-failed="true"] .page-shortcut-label {
+  color: var(--hot);
+}
+
+.page-shortcut .keys {
+  min-width: 0;
 }
 
 .keys {

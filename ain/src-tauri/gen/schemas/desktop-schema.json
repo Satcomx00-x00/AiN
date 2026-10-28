@@ -261,10 +261,10 @@
           "markdownDescription": "Denies the save_png command without any pre-configured scope."
         },
         {
-          "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-history`\n- `allow-copy`\n- `allow-clear`\n- `allow-copy-image`",
+          "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-history`\n- `allow-copy`\n- `allow-restore`\n- `allow-clear`\n- `allow-copy-image`",
           "type": "string",
           "const": "clipboard:default",
-          "markdownDescription": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-history`\n- `allow-copy`\n- `allow-clear`\n- `allow-copy-image`"
+          "markdownDescription": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-history`\n- `allow-copy`\n- `allow-restore`\n- `allow-clear`\n- `allow-copy-image`"
         },
         {
           "description": "Enables the clear command without any pre-configured scope.",
@@ -291,6 +291,12 @@
           "markdownDescription": "Enables the history command without any pre-configured scope."
         },
         {
+          "description": "Enables the restore command without any pre-configured scope.",
+          "type": "string",
+          "const": "clipboard:allow-restore",
+          "markdownDescription": "Enables the restore command without any pre-configured scope."
+        },
+        {
           "description": "Denies the clear command without any pre-configured scope.",
           "type": "string",
           "const": "clipboard:deny-clear",
@@ -313,6 +319,12 @@
           "type": "string",
           "const": "clipboard:deny-history",
           "markdownDescription": "Denies the history command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the restore command without any pre-configured scope.",
+          "type": "string",
+          "const": "clipboard:deny-restore",
+          "markdownDescription": "Denies the restore command without any pre-configured scope."
         },
         {
           "description": "Default core plugins set.\n#### This default permission set includes:\n\n- `core:path:default`\n- `core:event:default`\n- `core:window:default`\n- `core:webview:default`\n- `core:app:default`\n- `core:image:default`\n- `core:resources:default`\n- `core:menu:default`\n- `core:tray:default`",
@@ -3051,10 +3063,10 @@
           "markdownDescription": "Denies the set command without any pre-configured scope."
         },
         {
-          "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-get`\n- `allow-set`\n- `allow-open`\n- `allow-quit`\n- `allow-autostart`\n- `allow-set-autostart`\n- `allow-play-greeting`",
+          "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-get`\n- `allow-set`\n- `allow-open`\n- `allow-quit`\n- `allow-autostart`\n- `allow-set-autostart`\n- `allow-play-greeting`\n- `allow-test-notification`",
           "type": "string",
           "const": "settings:default",
-          "markdownDescription": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-get`\n- `allow-set`\n- `allow-open`\n- `allow-quit`\n- `allow-autostart`\n- `allow-set-autostart`\n- `allow-play-greeting`"
+          "markdownDescription": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-get`\n- `allow-set`\n- `allow-open`\n- `allow-quit`\n- `allow-autostart`\n- `allow-set-autostart`\n- `allow-play-greeting`\n- `allow-test-notification`"
         },
         {
           "description": "Enables the autostart command without any pre-configured scope.",
@@ -3099,6 +3111,12 @@
           "markdownDescription": "Enables the set_autostart command without any pre-configured scope."
         },
         {
+          "description": "Enables the test_notification command without any pre-configured scope.",
+          "type": "string",
+          "const": "settings:allow-test-notification",
+          "markdownDescription": "Enables the test_notification command without any pre-configured scope."
+        },
+        {
           "description": "Denies the autostart command without any pre-configured scope.",
           "type": "string",
           "const": "settings:deny-autostart",
@@ -3139,6 +3157,12 @@
           "type": "string",
           "const": "settings:deny-set-autostart",
           "markdownDescription": "Denies the set_autostart command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the test_notification command without any pre-configured scope.",
+          "type": "string",
+          "const": "settings:deny-test-notification",
+          "markdownDescription": "Denies the test_notification command without any pre-configured scope."
         },
         {
           "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-state`\n- `allow-model-status`\n- `allow-fix`\n- `allow-check`\n- `allow-download-model`\n- `allow-delete-model`\n- `allow-open-model-dir`",

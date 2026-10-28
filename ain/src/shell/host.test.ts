@@ -309,7 +309,7 @@ describe("pill styles", () => {
   it("sizes the pill from the style, within limits", async () => {
     const thin = recording("thin", { size: (p) => ({ width: p.width * 0.7, height: 6 }) });
     const { el } = await startWith(withGeneral({ style: "thin" }), [], [thin.style]);
-    expect([el.style.getPropertyValue("--w"), el.style.getPropertyValue("--h")]).toEqual(["140px", "6px"]);
+    expect([el.style.getPropertyValue("--w"), el.style.getPropertyValue("--h")]).toEqual(["280px", "6px"]);
     const huge = recording("huge", { size: () => ({ width: 5000, height: 5000 }) });
     const { el: big } = await startWith(withGeneral({ style: "huge" }), [], [huge.style]);
     expect([big.style.getPropertyValue("--w"), big.style.getPropertyValue("--h")]).toEqual(["960px", "120px"]);
@@ -347,9 +347,9 @@ describe("pill styles", () => {
 describe("pill sizes", () => {
   it("scales the pill, its content and its ears", async () => {
     const sizes = [
-      ["low", "160px", "20px", "0.625"],
-      ["normal", "200px", "32px", "1"],
-      ["large", "260px", "44px", "1.375"],
+      ["low", "320px", "20px", "0.625"],
+      ["normal", "400px", "32px", "1"],
+      ["large", "520px", "44px", "1.375"],
     ] as const;
     for (const [size, w, h, scale] of sizes) {
       const { el } = await start(withGeneral({ pillSize: size }));
@@ -376,7 +376,7 @@ describe("pill sizes", () => {
     const stages: Stage[] = [];
     const greeting: Greeting = { id: "one", label: "one", play: (s) => void stages.push(s) };
     await start(withGeneral({ pillSize: "large", greeting: "one" }), greeting);
-    expect(stages[0]).toMatchObject({ size: { width: 260, height: 44 }, scale: 1.375 });
+    expect(stages[0]).toMatchObject({ size: { width: 520, height: 44 }, scale: 1.375 });
   });
 
   it("opens below the folded pill, whatever its size", async () => {
@@ -410,7 +410,7 @@ describe("short and textless styles", () => {
     await mount(el, [media as never], {}, win.port, { ...base, layout: { glance: { left: [], right: ["media"] }, tabs: [] } }, { styles: [s.style] });
     await settleAll();
     expect(el.dataset.wide).toBe("true");
-    expect(el.style.getPropertyValue("--w")).toBe("200px");
+    expect(el.style.getPropertyValue("--w")).toBe("400px");
   });
 
   it("open to the same panel as the pill, below a row as tall as the pill", async () => {

@@ -2,6 +2,7 @@ import "./island.css";
 import { catalogue, extensionRules } from "../../../features";
 import { greetings } from "../../../features/greetings";
 import { layout } from "../../../features/layout";
+import { BELL } from "../../../features/notifications";
 import { styles } from "../../../features/styles";
 import { type Services, notificationCenter, tauriServices } from "../../../features/services";
 import type { Greeting } from "../../../sdk/greeting";
@@ -51,6 +52,15 @@ export function extensionLoader(port: ExtensionsPort, importer: Importer = impor
     },
   };
 }
+
+/** Who sends the sample notification, and what it says. */
+const TEST_SOURCE = { id: "ain", label: "AiN", icon: BELL };
+const TEST_NOTICE = {
+  title: "This is a test notification",
+  body: "Yours show like this: where, for how long and how they move are set in Settings → Notifications.",
+  actions: [{ id: "ok", label: "Got it" }],
+  tag: "test",
+};
 
 /** Composition root: the catalogue of plugins, the stored settings, and what backend they talk to. */
 export async function start(
@@ -130,6 +140,8 @@ export async function start(
   const quit = () => void store.quit().catch((e: unknown) => console.error("[island] could not quit", e));
   // The Play button in Settings.
   await store.onPlayGreeting((id) => island?.play(id));
+  // The Test button in Settings → Notifications: one like any other, so it shows as they're set.
+  await store.onTestNotification(() => void notices.post(TEST_SOURCE, TEST_NOTICE));
   island = await mount(root, plugins, services, win, effective(initial), { openSettings, saveOptions, readSecret, quit, greetings: choices, styles: looks, notices, toasts, notifiers });
   // Shortcuts of plugins from the plugins folder ("action" commands) reach their widget.
   await popup.onAction((command, kind) => island?.command(command, kind));
