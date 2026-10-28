@@ -1,12 +1,12 @@
-//! Model downloads shared by the features that run models on this machine (dictation, read aloud):
-//! streamed over HTTPS, hashed on the fly, stoppable, reporting progress along the way.
+//! Model downloads shared by the features that run models on this machine (dictation, read aloud,
+//! spelling): streamed over HTTPS, hashed on the fly, stoppable, reporting progress along the way.
 //!
 //! Without internet, they come from the models source instead (`shell::net::models_source`): a
 //! folder (or `file://` URL) or an HTTP server laid out like the models folder, e.g. the models
 //! folder of a connected machine, copied. Each file is checked against its known hash all the same.
 
 use std::{
-    fs,
+    fs::{self, File},
     io::{self, Read, Write},
     path::{Path, PathBuf},
     sync::atomic::{AtomicBool, Ordering},
@@ -113,6 +113,72 @@ pub fn fetch(url: &str, out: &mut impl Write, cancel: &AtomicBool, mut progress:
     }
     out.flush()?;
     Ok(Fetched { size: received, sha256: hex(&hash.finalize()) })
+}
+
+/// A file known in advance by its size and SHA-256, as served at a pinned revision.
+pub struct Pinned {
+    pub name: &'static str,
+    pub size: u64,
+    pub sha256: &'static str,
+}
+
+pub const fn pinned(name: &'static str, size: u64, sha256: &'static str) -> Pinned {
+    Pinned { name, size, sha256 }
+}
+
+/// Whether every file is in `dir` at its full size (hashes were checked when it was downloaded).
+pub fn complete(dir: &Path, files: &[Pinned]) -> bool {
+    files.iter().all(|f| fs::metadata(dir.join(f.name)).is_ok_and(|m| m.len() == f.size))
+}
+
+/// Downloads the files missing from `dir`, each from `url(file)`, calling `progress(received, total)`
+/// along the way; each must match its size and hash.
+pub fn fetch_pinned(
+    dir: &Path,
+    files: &[Pinned],
+    url: impl Fn(&Pinned) -> String,
+    cancel: &AtomicBool,
+    mut progress: impl FnMut(u64, u64),
+) -> Result<(), DownloadError> {
+    let total = files.iter().map(|f| f.size).sum();
+    let mut done = 0;
+    for file in files {
+        if !fs::metadata(dir.join(file.name)).is_ok_and(|m| m.len() == file.size) {
+            let matches = |fetched: &Fetched| fetched.size == file.size && fetched.sha256 == file.sha256;
+            fetch_file(dir, file.name, &url(file), matches, cancel, |received| progress(done + received, total))?;
+        }
+        done += file.size;
+        progress(done, total);
+    }
+    Ok(())
+}
+
+/// Downloads `url` into `dir` as `name`: it streams into `<name>.part`, is hashed on the fly, and is
+/// renamed only once `matches` accepts what came.
+pub fn fetch_file(
+    dir: &Path,
+    name: &'static str,
+    url: &str,
+    matches: impl FnOnce(&Fetched) -> bool,
+    cancel: &AtomicBool,
+    progress: impl FnMut(u64),
+) -> Result<(), DownloadError> {
+    fs::create_dir_all(dir)?;
+    let part = dir.join(format!("{name}.part"));
+    let result = (|| {
+        let mut out = io::BufWriter::new(File::create(&part)?);
+        let fetched = fetch(url, &mut out, cancel, progress)?;
+        drop(out);
+        if !matches(&fetched) {
+            return Err(DownloadError::Corrupt(name));
+        }
+        fs::rename(&part, dir.join(name))?;
+        Ok(())
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(&part);
+    }
+    result
 }
 
 pub fn hex(bytes: &[u8]) -> String {

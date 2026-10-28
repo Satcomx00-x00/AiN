@@ -3,6 +3,25 @@
 All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.16.0](https://github.com/Satcomx00-x00/AiN/compare/v0.15.1..v0.16.0) - 2026-10-28
+
+### Features
+
+- **spelling:** Correct the selection in French or English ([#39](https://github.com/Satcomx00-x00/AiN/pull/39)) ([007c5c2](https://github.com/Satcomx00-x00/AiN/commit/007c5c2d13a0d7fbb3fd72075c2f5d9ddc23f323))
+## [0.15.1](https://github.com/Satcomx00-x00/AiN/compare/v0.15.0..v0.15.1) - 2026-10-28
+
+### Bug fixes
+
+- **transcript:** Record the system's sound through PipeWire in-process ([#43](https://github.com/Satcomx00-x00/AiN/pull/43)) ([d8f5bfa](https://github.com/Satcomx00-x00/AiN/commit/d8f5bfa5bae511eb254f17b860323d8b26b9fe3b))
+## [0.15.0](https://github.com/Satcomx00-x00/AiN/compare/v0.14.0..v0.15.0) - 2026-10-28
+
+### Features
+
+- **config:** Override every built-in URL and folder with AIN_* env vars ([#41](https://github.com/Satcomx00-x00/AiN/pull/41)) ([fb06e9b](https://github.com/Satcomx00-x00/AiN/commit/fb06e9ba00e278afd96742346ab4deb536896b5f))
+
+### Bug fixes
+
+- **linux:** Offline Fedora 44 — certificates, offline models, AZERTY dictation, Quit ([#42](https://github.com/Satcomx00-x00/AiN/pull/42)) ([1660d6d](https://github.com/Satcomx00-x00/AiN/commit/1660d6dfebd40bebfe135d57f55e2a8e279a4f38))
 ## [0.14.0](https://github.com/Satcomx00-x00/AiN/compare/v0.13.0..v0.14.0) - 2026-10-27
 
 ### Features

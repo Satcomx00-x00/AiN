@@ -1,6 +1,6 @@
 [package]
 name = "ain"
-version = "0.14.0"
+version = "0.16.0"
 edition = "2024"
 
 [lib]
@@ -41,6 +41,10 @@ sha2 = "0.11.1"
 tar = "0.4.46"
 bzip2 = { version = "0.5.2", default-features = false, features = ["libbz2-rs-sys"] }
 tauri-plugin-dialog = "2"
+# Spelling's dictionaries on this machine: Hunspell's .aff/.dic, read in pure Rust.
+spellbook = "0.4.2"
+# Spelling's language model on this machine: llama.cpp, built from source (needs CMake), on the CPU.
+llama-cpp-2 = { version = "0.1.160", default-features = false }
 # Typed TypeScript bindings for commands and events; pinned exactly while specta 2 is a release candidate.
 specta = { version = "=2.0.0-rc.25", features = ["derive"] }
 specta-typescript = "=0.0.12"
@@ -59,6 +63,8 @@ objc2-app-kit = { version = "0.3", features = ["NSWindow", "NSScreen", "NSRespon
 arboard = { version = "3.6.1", default-features = false, features = ["image-data", "wayland-data-control"] }
 gtk = "0.18"
 gtk-layer-shell = { version = "0.8", features = ["v0_6"] }
+# Transcript records the default sink's monitor through PipeWire, in-process (no `parec`).
+cpal = { version = "0.18.2", features = ["pipewire"] }
 # So helper processes (pactl) end with the app, however it ends.
 libc = "0.2"
 # Dictation's Ctrl+V on Wayland through the desktop's Remote Desktop portal: nothing to install.

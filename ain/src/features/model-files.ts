@@ -92,8 +92,8 @@ export function modelSetup(info: ModelState): { detail: string; action: "downloa
 export const fieldRow = (label: string, control: HTMLElement): HTMLElement =>
   h("div", { class: "field wide" }, h("div", {}, h("div", { class: "field-label" }, label)), control);
 
-/** Settings' "Model files" row: the model's state and folder, and the buttons to show, download, stop or remove it. */
-export function modelFiles(port: ModelFilesPort): { readonly el: HTMLElement; draw(info: ModelInfo): void } {
+/** Settings' "Model files" row (or another `label`): the model's state and folder, and the buttons to show, download, stop or remove it. */
+export function modelFiles(port: ModelFilesPort, label = "Model files"): { readonly el: HTMLElement; draw(info: ModelInfo): void } {
   let model: ModelInfo | null = null;
   const detail = h("div", { class: "field-hint" });
   const bar = h("div", { class: "progress" }, h("i"));
@@ -103,7 +103,7 @@ export function modelFiles(port: ModelFilesPort): { readonly el: HTMLElement; dr
     run?.catch((e: unknown) => reportProblem(setup?.action === "download" ? "Couldn't download the model" : "Couldn't stop or remove the model", e, "MODEL_FILES"));
   }, { class: "secondary" });
   const folder = button("Show folder", () => void port.openFolder().catch((e: unknown) => reportProblem("Couldn't open the model folder", e, "FOLDER_OPEN")), { class: "secondary" });
-  const el = h("div", { class: "field" }, h("div", {}, h("div", { class: "field-label" }, "Model files"), detail, bar), h("div", { class: "recorder" }, folder, action));
+  const el = h("div", { class: "field" }, h("div", {}, h("div", { class: "field-label" }, label), detail, bar), h("div", { class: "recorder" }, folder, action));
   const speed = speedometer();
   const draw = (info: ModelInfo) => {
     model = info;

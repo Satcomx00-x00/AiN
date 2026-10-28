@@ -1,32 +1,29 @@
-//! Recording what the computer plays. Windows (WASAPI) and macOS 14.6+ (a Core Audio process tap)
-//! record the default output device through cpal; Linux records the default sink's monitor with
-//! `parec`, which PulseAudio and PipeWire both serve.
+//! Recording what the computer plays, through cpal: WASAPI loopback on Windows, a Core Audio process
+//! tap on macOS 14.6+, and on Linux a PipeWire stream capturing the default sink (its monitor), in
+//! the app's own process: nothing else to install.
 
 use std::sync::{Arc, Mutex};
 
-use crate::features::{lock, microphone::Captured};
+use cpal::traits::{DeviceTrait, HostTrait};
 
-/// What keeps a recording going: dropped, it stops.
-enum Source {
-    #[cfg(not(target_os = "linux"))]
-    Device { _stream: cpal::Stream },
-    #[cfg(target_os = "linux")]
-    Monitor(super::linux::Monitor),
-}
+use crate::features::{lock, microphone::Captured};
 
 /// The system's sound, recorded as mono samples at `rate` until dropped.
 pub struct Loopback {
     captured: Captured,
     rate: u32,
-    source: Source,
+    _stream: cpal::Stream,
 }
 
 impl Loopback {
     /// Starts recording the default output.
     pub fn open() -> Result<Self, String> {
         let captured: Captured = Arc::new(Mutex::new(Vec::new()));
-        let (source, rate) = start(Arc::clone(&captured))?;
-        Ok(Self { captured, rate, source })
+        let device = host()?.default_output_device().ok_or("No speakers or headphones found")?;
+        let supported = device.default_output_config().map_err(|e| e.to_string())?;
+        let (stream, rate) = crate::features::microphone::record(&device, &supported, Arc::clone(&captured))
+            .map_err(|e| format!("The system's sound can't be recorded: {e}"))?;
+        Ok(Self { captured, rate, _stream: stream })
     }
 
     pub fn rate(&self) -> u32 {
@@ -37,31 +34,29 @@ impl Loopback {
     pub fn take(&self) -> Vec<f32> {
         std::mem::take(&mut *lock(&self.captured))
     }
+}
 
-    /// False once the recording ended by itself (the sound server went away).
-    pub fn alive(&self) -> bool {
-        match &self.source {
-            #[cfg(not(target_os = "linux"))]
-            Source::Device { .. } => true,
-            #[cfg(target_os = "linux")]
-            Source::Monitor(monitor) => monitor.alive(),
-        }
+/// Where the output is recorded from: PipeWire on Linux (ALSA can't record a sink), the system's host elsewhere.
+fn host() -> Result<cpal::Host, String> {
+    #[cfg(target_os = "linux")]
+    {
+        cpal::host_from_id(cpal::HostId::PipeWire).map_err(|_| "Recording the system's sound needs PipeWire".to_string())
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        Ok(cpal::default_host())
     }
 }
 
-#[cfg(not(target_os = "linux"))]
-fn start(captured: Captured) -> Result<(Source, u32), String> {
-    use cpal::traits::{DeviceTrait, HostTrait};
-
-    let device = cpal::default_host().default_output_device().ok_or("No speakers or headphones found")?;
-    let supported = device.default_output_config().map_err(|e| e.to_string())?;
-    let (stream, rate) = crate::features::microphone::record(&device, &supported, captured)
-        .map_err(|e| format!("The system's sound can't be recorded: {e}"))?;
-    Ok((Source::Device { _stream: stream }, rate))
-}
-
-#[cfg(target_os = "linux")]
-fn start(captured: Captured) -> Result<(Source, u32), String> {
-    let monitor = super::linux::Monitor::start(captured)?;
-    Ok((Source::Monitor(monitor), super::linux::RATE))
+#[cfg(test)]
+mod tests {
+    #[test]
+    #[ignore = "records this machine's sound for a second"]
+    fn smoke_records_what_plays() {
+        let loopback = super::Loopback::open().expect("loopback opens");
+        std::thread::sleep(std::time::Duration::from_secs(1));
+        let samples = loopback.take();
+        println!("{} samples at {} Hz", samples.len(), loopback.rate());
+        assert!(!samples.is_empty(), "no audio recorded");
+    }
 }
