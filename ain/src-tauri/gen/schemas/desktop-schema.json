@@ -219,16 +219,22 @@
           "markdownDescription": "Denies the is_enabled command without any pre-configured scope."
         },
         {
-          "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-latest`\n- `allow-save-png`",
+          "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-latest`\n- `allow-problem`\n- `allow-save-png`",
           "type": "string",
           "const": "capture:default",
-          "markdownDescription": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-latest`\n- `allow-save-png`"
+          "markdownDescription": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-latest`\n- `allow-problem`\n- `allow-save-png`"
         },
         {
           "description": "Enables the latest command without any pre-configured scope.",
           "type": "string",
           "const": "capture:allow-latest",
           "markdownDescription": "Enables the latest command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the problem command without any pre-configured scope.",
+          "type": "string",
+          "const": "capture:allow-problem",
+          "markdownDescription": "Enables the problem command without any pre-configured scope."
         },
         {
           "description": "Enables the save_png command without any pre-configured scope.",
@@ -241,6 +247,12 @@
           "type": "string",
           "const": "capture:deny-latest",
           "markdownDescription": "Denies the latest command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the problem command without any pre-configured scope.",
+          "type": "string",
+          "const": "capture:deny-problem",
+          "markdownDescription": "Denies the problem command without any pre-configured scope."
         },
         {
           "description": "Denies the save_png command without any pre-configured scope.",

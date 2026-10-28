@@ -100,6 +100,7 @@ describe("the capture overlay", () => {
   it("in the preview, pretends to save and copy, touching nothing", async () => {
     const { services, tauriServices } = await load();
     expect(await services.capture.save(new Uint8Array(), "capture.png")).toBe("C:\\Users\\you\\Pictures\\AiN\\capture.png");
+    expect(await services.capture.problem()).toBeNull();
     await expect(services.clipboard.copyImage(new ImageData(1, 1))).resolves.toBeUndefined();
     expect(services.clipboard.history).toBe(tauriServices.clipboard.history);
     expect(services.stats).toBe(tauriServices.stats);

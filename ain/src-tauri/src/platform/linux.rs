@@ -24,6 +24,11 @@ pub fn prefer_xwayland() {
     }
 }
 
+/// A Wayland session, whether our own windows go through XWayland or not.
+pub fn wayland() -> bool {
+    std::env::var_os("WAYLAND_DISPLAY").is_some_and(|d| !d.is_empty())
+}
+
 /// Our windows are X11 ones in a Wayland session: placed like on X11, but the cursor is still out
 /// of sight outside them.
 pub fn xwayland() -> bool {
@@ -147,9 +152,7 @@ pub mod portal {
 pub mod keys {
     use std::process::{Command, Stdio};
 
-    fn wayland() -> bool {
-        std::env::var_os("WAYLAND_DISPLAY").is_some_and(|d| !d.is_empty())
-    }
+    use super::wayland;
 
     /// Runs a tool; its output when it ran and succeeded.
     fn run(program: &str, args: &[&str]) -> Option<String> {

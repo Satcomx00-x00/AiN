@@ -54,6 +54,8 @@ const MIN_AREA = 8;
 const EDIT_TOP = 76;
 const EDIT_MARGIN = 32;
 const TOAST_MS = 1600;
+/** Shown when there is no capture, and the backend gave no reason. */
+export const NOTHING = "No capture to edit.";
 
 /** Where a shape's dragged corner lands; with `square`, its sides are made equal (a square or a circle). */
 export function shapeEnd(from: Point, to: Point, square: boolean): Point {
@@ -158,7 +160,7 @@ export function editor(root: HTMLElement, ctx: Ctx): PopupView {
   const hint = h("div", { class: "ed-hint", role: "status" }, "Drag to capture an area · Click for the whole screen · Esc to cancel");
   const stage = h("div", { class: "ed-stage", "data-phase": phase }, sheet, dim, selection, hint);
   const toast = h("div", { class: "ed-toast", role: "status", "aria-live": "polite" });
-  const empty = h("p", { class: "ed-empty", hidden: "" }, "No capture to edit.");
+  const empty = h("p", { class: "ed-empty", hidden: "" }, NOTHING);
 
   /** Image pixels per CSS pixel, so strokes look the same whatever the zoom. */
   const scale = () => (base.clientWidth ? base.width / base.clientWidth : 1);
@@ -433,11 +435,13 @@ export function editor(root: HTMLElement, ctx: Ctx): PopupView {
     show() {
       full = null;
       toast.dataset.on = "false";
+      empty.textContent = NOTHING;
       ctx.services.capture.latest().then(
         (image) => {
           empty.hidden = !!image;
           stage.hidden = !image;
-          if (!image) return;
+          // A failed capture says why (on Wayland, often a screenshot permission declined).
+          if (!image) return void ctx.services.capture.problem().then((why) => (empty.textContent = why ?? NOTHING), () => {});
           full = image;
           startSelect();
         },

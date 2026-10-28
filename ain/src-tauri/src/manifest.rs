@@ -22,7 +22,7 @@ macro_rules! manifest {
                     events: [Shown, BindingsChanged, Action]
                 }
                 settings: shell::settings { typed: [get, set, open, quit, autostart, set_autostart, play_greeting], raw: [], events: [SettingsChanged, Navigate, PlayGreeting] }
-                capture: shell::capture { typed: [], raw: [latest, save_png], events: [] }
+                capture: shell::capture { typed: [], raw: [latest, problem, save_png], events: [] }
                 extensions: shell::extensions { typed: [list, open_dir], raw: [], events: [] }
                 store: shell::store { typed: [catalog, install, open_repo], raw: [], events: [] }
                 secrets: shell::secrets { typed: [get, set, saved_keys], raw: [], events: [SecretChanged] }

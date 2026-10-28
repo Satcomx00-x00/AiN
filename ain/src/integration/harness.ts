@@ -111,7 +111,7 @@ export function system() {
     media: { watch: media.watch, artwork: async () => null, control: async (c) => void controls.push(c) },
     volume: { watch: output.watch, watchSources: sources.watch, peak: async () => 0, setLevel: async () => {}, setMuted: async () => {} },
     privacy: { watch: usage.watch },
-    capture: { latest: async () => null, save: async () => "" },
+    capture: { latest: async () => null, problem: async () => null, save: async () => "" },
     dictation: {
       watch: phase.watch,
       watchModel: model.watch,

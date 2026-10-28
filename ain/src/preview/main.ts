@@ -125,7 +125,7 @@ const fake: Services = {
     setLevel: async () => {},
     setMuted: async () => {},
   },
-  capture: { latest: async () => null, save: async () => "" },
+  capture: { latest: async () => null, problem: async () => null, save: async () => "" },
   dictation: {
     watch: async (onChange) => {
       const mode = params.get("dictate");
