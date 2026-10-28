@@ -12,6 +12,7 @@
     "dictation:default",
     "tts:default",
     "persona:default",
+    "spelling:default",
     "dialog:allow-open",
     "popup:allow-failures",
     "popup:allow-open",

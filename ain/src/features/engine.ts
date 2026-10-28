@@ -50,6 +50,9 @@ export function remoteName(providers: readonly AiProvider[], options: EngineValu
   return `${provider?.name ?? "Removed provider"} · ${options.remoteModel || "no model chosen"}`;
 }
 
+/** What the model box shows while empty. */
+const PLACEHOLDERS: Readonly<Record<Capability, string>> = { stt: "whisper-1", tts: "tts-1", s2s: "", text: "gpt-4.1-mini" };
+
 let lists = 0;
 
 /** A text box offering `options` as it is typed in, saved on change. */
@@ -78,7 +81,7 @@ export function enginePanel(
   const picksModel = capability !== "s2s";
   let providers: readonly AiProvider[] = [];
   const chosen = () => providers.find((p) => p.id === host.options().engine);
-  const model = suggestBox(host.options().remoteModel, "Provider model", capability === "stt" ? "whisper-1" : "tts-1", (v) => host.setOptions({ remoteModel: v }));
+  const model = suggestBox(host.options().remoteModel, "Provider model", PLACEHOLDERS[capability], (v) => host.setOptions({ remoteModel: v }));
   const voice = suggestBox(host.options().remoteVoice ?? "", "Provider voice", "The provider's default", (v) => host.setOptions({ remoteVoice: v }));
   const hint = h("p", { class: "field-hint" });
   const picker = select(engineChoices([], host.options().engine, own), host.options().engine, (id) => {

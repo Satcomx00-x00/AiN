@@ -2,27 +2,15 @@
 //! from Hugging Face at a pinned revision (or from the models source, as `<folder>/<file>`), checked
 //! against known hashes, into its own folder.
 
-use std::{
-    fs::{self, File},
-    io,
-    path::Path,
-    sync::atomic::AtomicBool,
-};
+use std::{path::Path, sync::atomic::AtomicBool};
 
 #[cfg(test)]
 use crate::features::download::remove;
 pub use crate::features::download::{DownloadError, Status};
-use crate::features::{download, models::Downloadable};
-
-pub struct ModelFile {
-    pub name: &'static str,
-    pub size: u64,
-    pub sha256: &'static str,
-}
-
-const fn file(name: &'static str, size: u64, sha256: &'static str) -> ModelFile {
-    ModelFile { name, size, sha256 }
-}
+use crate::features::{
+    download::{self, Pinned as ModelFile, pinned as file},
+    models::Downloadable,
+};
 
 /// How sherpa-onnx runs a model; its files are listed in the order the kind expects.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -161,7 +149,7 @@ impl Model {
 
     /// Ready once every file is there at its full size (hashes were checked when it was downloaded).
     pub fn installed(&self, dir: &Path) -> bool {
-        self.files.iter().all(|f| fs::metadata(dir.join(f.name)).is_ok_and(|m| m.len() == f.size))
+        download::complete(dir, self.files)
     }
 
     pub fn status(&self, dir: &Path) -> Status {
@@ -192,42 +180,9 @@ impl Downloadable for Model {
     }
 
     fn download(&self, base: &Path, cancel: &AtomicBool, progress: &mut dyn FnMut(u64, u64)) -> Result<(), DownloadError> {
-        download(self, &base.join(self.folder), cancel, progress)
+        let url = |f: &ModelFile| download::source(self.url(f.name), &format!("{}/{}", self.folder, f.name));
+        download::fetch_pinned(&base.join(self.folder), self.files, url, cancel, progress)
     }
-}
-
-/// Downloads the model's missing files into `dir`, calling `progress(received, total)` along the way.
-/// Each file streams into `<name>.part`, is hashed on the fly, and is renamed only if it matches.
-fn download(model: &Model, dir: &Path, cancel: &AtomicBool, mut progress: impl FnMut(u64, u64)) -> Result<(), DownloadError> {
-    fs::create_dir_all(dir)?;
-    let total = model.total_size();
-    let mut done = 0;
-    for file in model.files {
-        let path = dir.join(file.name);
-        if fs::metadata(&path).is_ok_and(|m| m.len() == file.size) {
-            done += file.size;
-            continue;
-        }
-        let part = dir.join(format!("{}.part", file.name));
-        let result = (|| {
-            let mut out = io::BufWriter::new(File::create(&part)?);
-            let url = download::source(model.url(file.name), &format!("{}/{}", model.folder, file.name));
-            let fetched = download::fetch(&url, &mut out, cancel, |received| progress(done + received, total))?;
-            drop(out);
-            if fetched.size != file.size || fetched.sha256 != file.sha256 {
-                return Err(DownloadError::Corrupt(file.name));
-            }
-            fs::rename(&part, &path)?;
-            Ok(())
-        })();
-        if result.is_err() {
-            let _ = fs::remove_file(&part);
-        }
-        result?;
-        done += file.size;
-        progress(done, total);
-    }
-    Ok(())
 }
 
 #[cfg(test)]
@@ -276,8 +231,8 @@ mod tests {
         let dir = base.join(model.folder);
         let _ = remove(&base);
         assert_eq!(model.status(&dir), Status::Missing { size: model.total_size() });
-        fs::create_dir_all(&dir).unwrap();
-        fs::write(dir.join("tokens.txt"), "partial").unwrap();
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("tokens.txt"), "partial").unwrap();
         assert!(!model.installed(&dir));
         assert!(crate::features::models::installed_in(MODELS, &base).is_empty());
         remove(&base).unwrap();

@@ -40,6 +40,11 @@ macro_rules! manifest {
                 media: features::media { typed: [state, artwork, control], raw: [], events: [TrackChanged] }
                 persona: features::persona { typed: [state, control, local_status, install_local, download_model, cancel_download, test_local, stop_test, remove_local, open_local_dir], raw: [], events: [PhaseChanged, LocalChanged, TestProgress] }
                 privacy: features::privacy { typed: [state], raw: [], events: [UsageChanged] }
+                spelling: features::spelling {
+                    typed: [state, model_status, fix, check, download_model, delete_model, open_model_dir],
+                    raw: [],
+                    events: [PhaseChanged, ModelChanged]
+                }
                 stats: features::stats { typed: [latest], raw: [], events: [] }
                 transcript: features::transcript { typed: [state, lines, control], raw: [], events: [PhaseChanged, LinesChanged] }
                 tts: features::tts {
