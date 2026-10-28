@@ -241,7 +241,20 @@ See [docs/offline.md](docs/offline.md): servers with a self-signed or internal c
 ## Development
 
 Requirements: [Bun](https://bun.sh) 1.3+, Rust stable, and the [Tauri prerequisites](https://tauri.app/start/prerequisites/) for your OS
-(on Debian/Ubuntu: `.github/scripts/linux-deps.sh`).
+(on Debian/Ubuntu: `.github/scripts/linux-deps.sh`; on Fedora: `.github/scripts/fedora-deps.sh`).
+
+On Fedora, the system libraries to build the app are:
+
+```sh
+sudo dnf install gcc-c++ cmake pkgconf-pkg-config clang clang-devel \
+    webkit2gtk4.1-devel gtk3-devel gtk-layer-shell-devel \
+    libayatana-appindicator-gtk3-devel librsvg2-devel openssl-devel \
+    alsa-lib-devel libxdo-devel dbus-devel pipewire-devel wayland-devel \
+    mesa-libgbm-devel mesa-libEGL-devel libxcb-devel libXrandr-devel file patchelf
+```
+
+`fedora-deps.sh` installs these plus what CI needs to package the `.rpm` and launch-check it (`rpm-build`, Xvfb, …);
+keep the two in step.
 
 ```sh
 cd ain
