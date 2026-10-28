@@ -135,7 +135,7 @@ fn parse(yaml: &str) -> Res<Vec<Listed>> {
 }
 
 fn get(url: &str) -> Res<String> {
-    let mut response = ureq::get(url).call().map_err(|e| Error::msg(format!("couldn't reach {url}: {e}")))?;
+    let mut response = super::net::agent().get(url).call().map_err(|e| Error::msg(format!("couldn't reach {url}: {e}")))?;
     response.body_mut().with_config().limit(MAX_BYTES).read_to_string().map_err(|e| Error::msg(format!("couldn't read {url}: {e}")))
 }
 

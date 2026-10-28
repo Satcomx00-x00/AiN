@@ -14,6 +14,10 @@ export const commands = {
 	 *  callback; creating it inside one deadlocks on Windows.
 	 */
 	open: (target: string | null) => __TAURI_INVOKE<null>("plugin:settings|open", { target }),
+	/**
+	 *  Async, so quitting starts off the main thread: there, with the IPC callback still running,
+	 *  `exit` could wait on the event loop it holds up.
+	 */
 	quit: () => __TAURI_INVOKE<void>("plugin:settings|quit"),
 	autostart: () => __TAURI_INVOKE<boolean>("plugin:settings|autostart"),
 	setAutostart: (enabled: boolean) => __TAURI_INVOKE<null>("plugin:settings|set_autostart", { enabled }),

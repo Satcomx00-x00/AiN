@@ -59,6 +59,10 @@ pub const CUSTOM_URL: Var = Var::new("AIN_PROVIDER_CUSTOM_URL", "http://localhos
 pub const CONFIG_DIR: Var = Var::new("AIN_CONFIG_DIR", "");
 /// The downloaded models (under `models/`); the OS's app data folder by default.
 pub const DATA_DIR: Var = Var::new("AIN_DATA_DIR", "");
+/// Turns certificate checks off when `1`, `true`, `yes` or `on`, whatever the settings say (see docs/offline.md).
+pub const INSECURE_TLS: Var = Var::new("AIN_INSECURE_TLS", "");
+/// A folder or URL laid out like the models folder, used instead of the internet; wins over the settings' one.
+pub const MODELS_SOURCE: Var = Var::new("AIN_MODELS_SOURCE", "");
 
 /// Every variable, for the tests.
 #[cfg(test)]
@@ -77,6 +81,8 @@ const ALL: &[Var] = &[
     CUSTOM_URL,
     CONFIG_DIR,
     DATA_DIR,
+    INSECURE_TLS,
+    MODELS_SOURCE,
 ];
 
 /// An address without its trailing `/`, to join paths onto.

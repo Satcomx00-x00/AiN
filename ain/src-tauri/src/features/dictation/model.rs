@@ -1,5 +1,6 @@
 //! The speech models the user can pick from, all run by sherpa-onnx. Each is downloaded on request
-//! from Hugging Face at a pinned revision, checked against known hashes, into its own folder.
+//! from Hugging Face at a pinned revision (or from the models source, as `<folder>/<file>`), checked
+//! against known hashes, into its own folder.
 
 use std::{
     fs::{self, File},
@@ -210,7 +211,8 @@ fn download(model: &Model, dir: &Path, cancel: &AtomicBool, mut progress: impl F
         let part = dir.join(format!("{}.part", file.name));
         let result = (|| {
             let mut out = io::BufWriter::new(File::create(&part)?);
-            let fetched = download::fetch(&model.url(file.name), &mut out, cancel, |received| progress(done + received, total))?;
+            let url = download::source(model.url(file.name), &format!("{}/{}", model.folder, file.name));
+            let fetched = download::fetch(&url, &mut out, cancel, |received| progress(done + received, total))?;
             drop(out);
             if fetched.size != file.size || fetched.sha256 != file.sha256 {
                 return Err(DownloadError::Corrupt(file.name));

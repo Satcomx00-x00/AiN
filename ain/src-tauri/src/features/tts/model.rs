@@ -1,5 +1,6 @@
 //! The voice models the user can pick from, all run by sherpa-onnx. Each comes as one `.tar.bz2`
-//! from sherpa-onnx's `tts-models` release, downloaded on request and unpacked into its own folder.
+//! from sherpa-onnx's `tts-models` release (or from the models source: `<folder>.tar.bz2`, or the
+//! `<folder>` unpacked), downloaded on request and unpacked into its own folder.
 
 use std::{
     fs::{self, File},
@@ -232,26 +233,39 @@ fn download(model: &Model, base: &Path, cancel: &AtomicBool, mut progress: impl 
     let archive = base.join(format!("{}.tar.bz2.part", model.folder));
     let staging = base.join(format!("{}.unpack", model.folder));
     let result = (|| {
+        // A local models source may hold the voice unpacked, as in a models folder.
+        if let Some(from) = download::local_folder(model.folder).filter(|d| model.installed(d)) {
+            progress(0, model.size);
+            remove(&staging)?;
+            download::copy_dir(&from, &staging.join(model.folder))?;
+            return install(model, base, &staging);
+        }
         let mut out = io::BufWriter::new(File::create(&archive)?);
-        let fetched = download::fetch(&model.url(), &mut out, cancel, |received| progress(received, model.size.max(received)))?;
+        let url = download::source(model.url(), &format!("{}.tar.bz2", model.folder));
+        let fetched = download::fetch(&url, &mut out, cancel, |received| progress(received, model.size.max(received)))?;
         drop(out);
         if model.sha256.is_some_and(|sha| sha != fetched.sha256) {
             return Err(DownloadError::Corrupt(model.folder));
         }
         progress(fetched.size, fetched.size);
         unpack(&archive, &staging)?;
-        let unpacked = staging.join(model.folder);
-        if !model.installed(&unpacked) {
-            return Err(DownloadError::Corrupt(model.folder));
-        }
-        let dir = base.join(model.folder);
-        remove(&dir)?;
-        fs::rename(&unpacked, &dir)?;
-        Ok(())
+        install(model, base, &staging)
     })();
     let _ = fs::remove_file(&archive);
     let _ = remove(&staging);
     result
+}
+
+/// Moves the voice unpacked in `staging` into the models folder `base`, once it is complete.
+fn install(model: &Model, base: &Path, staging: &Path) -> Result<(), DownloadError> {
+    let unpacked = staging.join(model.folder);
+    if !model.installed(&unpacked) {
+        return Err(DownloadError::Corrupt(model.folder));
+    }
+    let dir = base.join(model.folder);
+    remove(&dir)?;
+    fs::rename(&unpacked, &dir)?;
+    Ok(())
 }
 
 /// Unpacks a `.tar.bz2` into `into`, which it empties first. Entries reaching outside are refused.

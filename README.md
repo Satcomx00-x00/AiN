@@ -126,7 +126,7 @@ Each widget can show on the pill, in its own tab, or both.
 | **Volume** | A mixer for your outputs and apps; pin the ones you want. A pop-up shows on the pill when the volume changes | ✅ outputs and apps, with a level meter | ⚠️ outputs only (macOS has no per-app volume), no level meter | ⚠️ outputs and apps, no level meter |
 | **Mic & camera** | Which apps use the microphone (orange) or the camera (green) right now | ✅ | ⚠️ apps on the mic from macOS 14; for the camera, only that one is in use | ✅ your own apps |
 | **Clipboard** | Your recently copied text, one click to copy it again; kept in memory only, never written to disk | ✅ | ✅ | ✅ |
-| **Dictation** | Speak, and the words are typed where your cursor is. Recognized on your computer by one of 7 models you download once (Parakeet, Whisper, SenseVoice, Moonshine) | ✅ | ⚠️ typing needs Accessibility access | ⚠️ typing needs `xdotool` (X11), `wtype` or `ydotool` (Wayland) |
+| **Dictation** | Speak, and the words are typed where your cursor is. Recognized on your computer by one of 7 models you download once (Parakeet, Whisper, SenseVoice, Moonshine) | ✅ | ⚠️ typing needs Accessibility access | ✅ pasted through the desktop's Remote Desktop portal (asks once), any keyboard layout; or `xdotool`, `wtype`, `ydotool` |
 | **Transcript** | Writes down what your computer plays (a video, a call, a chat app) as it is heard, with the time of each line; copy it in one click. Recognized by dictation's speech model on your computer, or by one of your AI providers | ✅ | ⚠️ macOS 14.6+, asks once to record the system's audio | ⚠️ needs `parec` (pulseaudio-utils; PulseAudio or PipeWire) |
 | **Read aloud** | Select text in any app, press the shortcut, and it is read out loud. Spoken on your computer by one of 6 voice models you download once (Kokoro, Kitten, Piper in English, French, German and Spanish), with a choice of voice and speed | ✅ | ⚠️ reading the selection needs Accessibility access | ✅ |
 | **Conversation** | Talk with NVIDIA [PersonaPlex](https://github.com/NVIDIA/personaplex), a full-duplex speech-to-speech model: it listens while it speaks, so you can interrupt it. Pick one of its 18 voices and the persona it plays. The model runs on this computer, where the app installs PersonaPlex (with [uv](https://docs.astral.sh/uv/)), starts its server when you talk and stops it once unused (an NVIDIA GPU with 24 GB, or less with CPU offload; a Hugging Face token for its weights), or on a server behind one of your AI providers, which brings its token | ✅ | ✅ | ✅ |
@@ -229,8 +229,13 @@ with no keys pressed.
 | OS | What it needs |
 | --- | --- |
 | macOS | Allow AiN under **System Settings → Privacy & Security → Accessibility** (macOS asks the first time). Now playing asks once to control Spotify or Music, dictation to use the microphone, and transcript to record the system's audio. |
-| Linux, X11 | [`xdotool`](https://github.com/jordansissel/xdotool) |
-| Linux, Wayland | [`wtype`](https://github.com/atx/wtype) (wlroots compositors, KDE), or [`ydotool`](https://github.com/ReimuNotMoe/ydotool) with its daemon running and its socket open to you (any compositor, GNOME included; Fedora's `ydotool.service` keeps its socket root-only in `/tmp`, where the client doesn't look: run `ydotoold --socket-path=$XDG_RUNTIME_DIR/.ydotool_socket --socket-own=$(id -u):$(id -g)` instead) |
+| Linux | Dictation pastes its text (so AZERTY and other layouts come out right) by pressing Ctrl+V through the desktop's Remote Desktop portal (GNOME, KDE): nothing to install, the desktop asks once and remembers. Pick **Typing keys** in Dictation's settings to type instead. |
+| Linux, X11 | [`xdotool`](https://github.com/jordansissel/xdotool) (else the portal) |
+| Linux, Wayland | The portal, [`wtype`](https://github.com/atx/wtype) (wlroots compositors, KDE), or [`ydotool`](https://github.com/ReimuNotMoe/ydotool) with its daemon running and its socket open to you (any compositor, GNOME included; Fedora's `ydotool.service` keeps its socket root-only in `/tmp`, where the client doesn't look: run `ydotoold --socket-path=$XDG_RUNTIME_DIR/.ydotool_socket --socket-own=$(id -u):$(id -g)` instead) |
+
+## Closed networks and offline machines
+
+See [docs/offline.md](docs/offline.md): servers with a self-signed or internal certificate, and models without internet.
 
 ## Development
 
