@@ -62,6 +62,7 @@ export const transcript = definePlugin({
   description: "Writes down the computer's sound: videos, calls, chats.",
   icon: EAR,
   slots: ["glance", "tab"],
+  sample: () => ({ text: "1:20", mark: "rec", level: 0.4 }),
   options: {
     ...engineOptions(),
     times: toggle("Show times", true),

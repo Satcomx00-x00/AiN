@@ -14,6 +14,12 @@ export interface Pill {
   readonly scale: number;
 }
 
+/** One glance and the plugin saying it. */
+export interface Spoken {
+  readonly glance: Glance;
+  readonly from: string;
+}
+
 /** What the folded island has to show, given to a style on every beat. */
 export interface Folded {
   /** What the plugins in each glance spot say, or null when they have nothing. */
@@ -22,6 +28,12 @@ export interface Folded {
   /** The plugin speaking in each spot; a new speaker can pop in rather than morph. */
   readonly leftFrom?: string | undefined;
   readonly rightFrom?: string | undefined;
+  /**
+   * Everything each spot shows side by side, in priority order: up to the number per side picked in
+   * Settings → Pill (`left`/`right` are the first). Styles drawing one glance per spot can ignore it.
+   */
+  readonly leftAll?: readonly Spoken[] | undefined;
+  readonly rightAll?: readonly Spoken[] | undefined;
   /** The tint of whatever is in focus (album art…), or null for the accent. */
   readonly ambient: string | null;
   /** True while a glance asks for attention (a timer that ended…). */
