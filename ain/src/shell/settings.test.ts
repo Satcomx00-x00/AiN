@@ -52,6 +52,12 @@ describe("settings", () => {
     expect(s.layout).toEqual(layout);
   });
 
+  it("keeps how the pill dresses its glances, within range", () => {
+    expect(parseSettings({ pill: { perSide: 3, icons: ["clock", "clock"], idle: ["privacy"] } }, fallback).pill).toEqual({ perSide: 3, icons: ["clock"], idle: ["privacy"] });
+    expect(parseSettings({ pill: { perSide: 9, icons: "clock" } }, fallback).pill).toEqual({ perSide: 1, icons: [], idle: [] });
+    expect(parseSettings({}, fallback).pill).toEqual({ perSide: 1, icons: [], idle: [] });
+  });
+
   it("keeps the pill's shape within range", () => {
     expect(parseSettings({ general: { pillWidth: 320, pillCurve: 40 } }, fallback).general).toMatchObject({ pillWidth: 320, pillCurve: 40 });
     expect(parseSettings({ general: { pillWidth: 5000, pillCurve: -1 } }, fallback).general).toEqual(DEFAULT_GENERAL);

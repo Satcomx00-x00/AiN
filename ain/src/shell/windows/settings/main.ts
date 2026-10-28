@@ -8,6 +8,7 @@ import {
   CURVE_RANGE,
   DELAY_RANGE,
   type General,
+  type PillLook,
   REVEAL_RANGE,
   WIDTH_RANGE,
   type Settings,
@@ -36,7 +37,7 @@ import { type SecretAccess, aroundPanel, colorPicker, field, folderControl, opti
 import type { Field, Fields } from "../../../sdk/options";
 import { memorySecrets } from "../../secrets";
 import { settingsPorts } from "./ports";
-import { slotList } from "./slots";
+import { pillEditor } from "./pill-editor";
 import { PROVIDERS_ICON, PROVIDERS_LEAD, providersSection } from "./providers";
 import { PRESETS, type Preset, builtInPresets } from "../../providers";
 import { type Report, type Tone, demoUpdater, describe, noteLines } from "../../updater";
@@ -71,7 +72,7 @@ const SECTIONS = {
     label: "Appearance",
     icon: `<path d="M8 1.75a6.25 6.25 0 1 0 0 12.5c.9 0 1.4-.6 1.4-1.3 0-.9-.8-1.2-.8-2 0-.7.6-1.2 1.3-1.2h1.5a2.85 2.85 0 0 0 2.85-2.85C14.25 4.1 11.45 1.75 8 1.75z"/><circle cx="4.9" cy="7.4" r=".9"/><circle cx="7.2" cy="4.7" r=".9"/><circle cx="10.4" cy="5.2" r=".9"/>`,
   },
-  layout: { label: "Layout", icon: `<rect x="2.5" y="3" width="11" height="10" rx="2"/><path d="M2.5 7h11M7 7v6"/>` },
+  layout: { label: "Pill", icon: `<path d="M2.5 4.5h11v1.5a3 3 0 0 1-3 3h-5a3 3 0 0 1-3-3z"/><path d="M4.5 12h7"/>` },
   shortcuts: { label: "Shortcuts", icon: `<rect x="1.75" y="4" width="12.5" height="8" rx="1.75"/><path d="M4.5 6.75h.01M7 6.75h.01M9.5 6.75h.01M12 6.75h-.5M5 9.5h6"/>` },
   widgets: { label: "Widgets", icon: GRID },
   providers: { label: "AI providers", icon: PROVIDERS_ICON },
@@ -194,8 +195,8 @@ const resetShortcut = (id: string) => {
   const { [id]: _, ...rest } = settings.shortcuts;
   commit({ ...settings, shortcuts: rest }, true);
 };
-const setOption = (id: string, key: string, value: unknown) => {
-  commit({ ...settings, options: { ...settings.options, [id]: { ...settings.options[id], [key]: value } } });
+const setOption = (id: string, key: string, value: unknown, redraw = false) => {
+  commit({ ...settings, options: { ...settings.options, [id]: { ...settings.options[id], [key]: value } } }, redraw);
   repaintSetup(id);
 };
 /** Back to the defaults: every option of the plugin but its secrets, which have their own Remove. */
@@ -405,40 +406,34 @@ function appearance(): Page {
   };
 }
 
+/** A plugin's or a style's current option values. */
+const valuesOf = (p: { readonly id: string; readonly options?: Fields | undefined }): Record<string, unknown> => resolve(p.options ?? {}, settings.options[p.id]) as Record<string, unknown>;
+
+/** The widget whose settings show on the Pill page. */
+let pillSelected: string | null = null;
+
 function layout(): Page {
-  const { glance, tabs } = settings.layout;
-  const glanceable = plugins.filter((p) => p.slots.includes("glance"));
   return {
-    title: "Layout",
-    lead: "What the island shows, and in which order: drag the widgets, or use their arrows. When space runs out, the first ones stay.",
-    actions: [button("Restore default layout", () => setLayout(defaultLayout), { class: "secondary" })],
-    body: [
-      h(
-        "div",
-        { class: "slots" },
-        slotList({
-          title: "Left of the pill",
-          hint: "In priority order.",
-          ids: glance.left,
-          candidates: glanceable,
-          onChange: (left) => setLayout({ ...settings.layout, glance: { ...glance, left } }),
-        }),
-        slotList({
-          title: "Right of the pill",
-          hint: "In priority order.",
-          ids: glance.right,
-          candidates: glanceable,
-          onChange: (right) => setLayout({ ...settings.layout, glance: { ...glance, right } }),
-        }),
-        slotList({
-          title: "Tabs",
-          hint: "When the island opens.",
-          ids: tabs,
-          candidates: plugins.filter((p) => p.slots.includes("tab")),
-          onChange: (next) => setLayout({ ...settings.layout, tabs: next }),
-        }),
-      ),
-    ],
+    title: "Pill",
+    lead: "Drag widgets onto the pill, or select one to set it up.",
+    actions: [button("Restore default layout", () => commit({ ...settings, layout: defaultLayout, pill: fallback.pill }, true), { class: "secondary" })],
+    body: pillEditor({
+      plugins,
+      layout: settings.layout,
+      look: settings.pill,
+      width: settings.general.pillWidth,
+      selected: pillSelected,
+      values: valuesOf,
+      optionControl: (p, key, f) => optionControl(f, valuesOf(p)[key], (v) => setOption(p.id, key, v, f.kind === "toggle" || f.kind === "choice"), pickFolder),
+      select: (id) => {
+        pillSelected = id;
+        render();
+      },
+      setLayout,
+      setLook: (pill: PillLook) => commit({ ...settings, pill }, true),
+      setWidth: (pillWidth) => setGeneral({ pillWidth }),
+      openWidget,
+    }),
   };
 }
 
@@ -587,7 +582,7 @@ function resetRow(id: string, fields: Fields): Node[] {
 /** A plugin's option controls, with its own settings panel among them, then a way back to the defaults. */
 function optionRows(p: AnyPlugin | AnyStyle | { readonly id: string; readonly options: Fields }): Node[] {
   const { before, after } = aroundPanel(p.options ?? {});
-  const values = resolve(p.options ?? {}, settings.options[p.id]) as Record<string, unknown>;
+  const values = valuesOf(p);
   const control = ([key, f]: [string, Field]) =>
     optionControl(f, values[key], (v) => setOption(p.id, key, v), pickFolder, f.kind === "secret" ? secretAccess(p.id, key) : undefined);
   // A plugin's own controls, under its options: given services in the app only (not the preview).
@@ -614,15 +609,15 @@ function optionRows(p: AnyPlugin | AnyStyle | { readonly id: string; readonly op
 function placedText(id: string): string {
   const names: Record<string, string> = { Left: "Left of the pill", Right: "Right of the pill", Tabs: "Tabs" };
   const places = placesOf(id);
-  return places.length ? places.map((p) => names[p]).join(" · ") : "Not on the island yet: add it in Layout.";
+  return places.length ? places.map((p) => names[p]).join(" · ") : "Not on the island yet: add it in Pill.";
 }
 
 /** Every widget, one per row: what it is, where it shows, whether it needs setting up. */
 function widgetList(): Page {
   return {
     title: "Widgets",
-    lead: "Everything the island can show. Open one to set it up; choose where it shows in Layout.",
-    actions: [button("Edit layout", () => goTo("layout"), { class: "secondary" })],
+    lead: "Everything the island can show. Open one to set it up; choose where it shows in Pill.",
+    actions: [button("Edit in Pill", () => goTo("layout"), { class: "secondary" })],
     body: [
       h(
         "div",
@@ -658,7 +653,7 @@ function widgetPage(p: AnyPlugin): Page {
     icon: p.icon,
     badges: [setupBadge(p.id, p.options ?? {})],
     body: [
-      group("On the island", field("Shows in", placedText(p.id), button("Edit layout", () => goTo("layout"), { class: "secondary" }))),
+      group("On the island", field("Shows in", placedText(p.id), button("Edit in Pill", () => ((pillSelected = p.id), goTo("layout")), { class: "secondary" }))),
       titled(
         "Options",
         h("section", { class: "card", id: `card-${p.id}`, "data-title": p.label }, ...(rows.length ? rows : [h("p", { class: "no-options" }, "No options.")])),
@@ -1059,9 +1054,8 @@ const SEARCHABLE: Partial<Record<Section, readonly (readonly [label: string, hin
     ["Startup animation", "Played on the island when AiN starts", "greeting hello intro"],
   ],
   layout: [
-    ["Left of the pill", "Glances shown left of the pill", "order priority"],
-    ["Right of the pill", "Glances shown right of the pill", "order priority"],
-    ["Tabs", "Tabs when the island opens", "order"],
+    ["Width", "The pill's width at the Normal size", "layout size"],
+    ["Per side", "How many widgets each end of the pill shows side by side", "layout left right priority order glance"],
   ],
   providers: [["Add a provider", "An online service or your own OpenAI-compatible server", "openai groq api key token server"]],
   plugins: [

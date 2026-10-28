@@ -37,9 +37,20 @@ export interface General {
   readonly modelsSource: string;
 }
 
+/** How the collapsed pill dresses its glances (Settings → Pill). */
+export interface PillLook {
+  /** How many glances each end shows side by side, in priority order; 1 shows only the first with something to say. */
+  readonly perSide: number;
+  /** Plugins whose glance starts with their icon. */
+  readonly icons: readonly string[];
+  /** Plugins that show their icon, dimmed, while they have nothing to say. */
+  readonly idle: readonly string[];
+}
+
 export interface Settings {
   readonly version: 1;
   readonly layout: Layout;
+  readonly pill: PillLook;
   readonly general: General;
   /** Raw option values per plugin id; each plugin validates its own. */
   readonly options: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
@@ -90,8 +101,10 @@ export const DELAY_RANGE = { min: 0, max: 1000, step: 20 } as const;
 export const REVEAL_RANGE = { min: 100, max: 2000, step: 100 } as const;
 export const WIDTH_RANGE = { min: 120, max: 480, step: 10 } as const;
 export const CURVE_RANGE = { min: 0, max: 100, step: 5 } as const;
+export const PER_SIDE_RANGE = { min: 1, max: 4, step: 1 } as const;
+export const DEFAULT_PILL: PillLook = { perSide: 1, icons: [], idle: [] };
 
-export const defaults = (layout: Layout): Settings => ({ version: 1, layout, general: DEFAULT_GENERAL, options: {}, shortcuts: {}, seen: placed(layout), extensions: [], providers: [] });
+export const defaults = (layout: Layout): Settings => ({ version: 1, layout, pill: DEFAULT_PILL, general: DEFAULT_GENERAL, options: {}, shortcuts: {}, seen: placed(layout), extensions: [], providers: [] });
 
 const ids = z.array(z.string()).transform((list) => [...new Set(list)]);
 const ID = /^[a-z][a-z0-9-]{1,31}$/;
@@ -118,6 +131,9 @@ export function parseSettings(raw: unknown, fallback: Settings): Settings {
     layout: z
       .object({ glance: z.object({ left: ids, right: ids }), tabs: ids })
       .catch(() => ({ glance: { left: [...layout.glance.left], right: [...layout.glance.right] }, tabs: [...layout.tabs] })),
+    pill: z
+      .object({ perSide: within(PER_SIDE_RANGE)(fallback.pill.perSide), icons: ids.catch([...fallback.pill.icons]), idle: ids.catch([...fallback.pill.idle]) })
+      .catch(() => ({ perSide: fallback.pill.perSide, icons: [...fallback.pill.icons], idle: [...fallback.pill.idle] })),
     general: z
       .object({
         openDelay: delay(fallback.general.openDelay),

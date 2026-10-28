@@ -83,6 +83,7 @@ export const dictation = definePlugin({
   description: "Speech to text, on this computer or by an AI provider.",
   icon: MIC,
   slots: ["glance", "tab"],
+  sample: () => ({ text: "0:04", mark: "rec", level: 0.6 }),
   options: {
     mode: choice("Shortcut", "toggle", [
       ["toggle", "Press to start and stop"],
