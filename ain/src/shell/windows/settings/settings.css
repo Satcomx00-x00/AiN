@@ -1210,7 +1210,9 @@ h1 {
 
 /* ---------- Pill: a live preview to drag widgets onto ---------- */
 
+/* Sized by the room the page gives it, not the window's: the menu beside it takes a share. */
 .pill-editor {
+  container: pill / inline-size;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -1303,9 +1305,15 @@ h1 {
   max-width: 100%;
 }
 
+/* Each takes half, or all of it when the other has nothing waiting. */
 .pp-queue {
+  flex: 1 1 0;
   flex-wrap: wrap;
-  max-width: 50%;
+}
+
+/* An empty one shows only while dragging, as somewhere to drop. */
+.pill-editor:not(.dragging) .pp-queue[hidden] {
+  display: none;
 }
 
 .pp-queue[data-zone="right"] {
@@ -1495,15 +1503,17 @@ h1 {
 
 .pill-work {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 340px);
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 340px);
   gap: 14px;
   align-items: start;
 }
 
-@media (max-width: 900px) {
-  .pill-work {
-    grid-template-columns: 1fr;
-  }
+/* Beside a long list, the selected widget's settings stay in view while it scrolls. */
+.pill-inspector {
+  position: sticky;
+  top: 96px;
+  max-height: calc(100vh - 112px);
+  overflow-y: auto;
 }
 
 .pill-work .card {
@@ -1613,6 +1623,48 @@ h1 {
   width: 30px;
   height: 30px;
   padding: 0;
+}
+
+/* Short of room, the settings go under a compact list, so a widget picked there has them just below. */
+@container pill (max-width: 640px) {
+  .pill-work {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pill-inspector {
+    position: static;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .pill-shelf {
+    grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+    gap: 4px;
+  }
+
+  .pill-widget {
+    padding: 4px 6px 4px 2px;
+  }
+
+  .pill-widget .grip,
+  .pill-widget .list-detail {
+    display: none;
+  }
+
+  .pill-widget .ico {
+    width: 24px;
+    height: 24px;
+  }
+}
+
+@container pill (max-width: 420px) {
+  .pp {
+    padding: 0 8px 12px;
+  }
+
+  .pp-tab {
+    width: 30px;
+  }
 }
 
 .grip {
@@ -2358,5 +2410,9 @@ kbd {
 
 /* The widget's settings sit in a narrow column: labels keep to one line. */
 .pill-inspector .field-label {
+  white-space: nowrap;
+}
+
+.pill-inspector .seg button {
   white-space: nowrap;
 }

@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import type { AnyPlugin } from "../../../sdk/plugin";
 import type { Layout } from "../../placement";
-import { placed, previewGlance, removed, sideOf, toggled, zonesOf } from "./pill-editor";
+import { edgeSpeed, placed, previewGlance, removed, scrollerOf, sideOf, toggled, zonesOf } from "./pill-editor";
 
 const layout: Layout = { glance: { left: ["clock"], right: ["media", "stats"] }, tabs: ["media", "clock"] };
 const plugin = (sample?: AnyPlugin["sample"]): AnyPlugin => ({ id: "clock", label: "Clock", description: "", icon: "<circle/>", slots: ["glance"], setup: () => ({}), ...(sample ? { sample } : {}) });
@@ -43,6 +43,22 @@ describe("Settings → Pill: placing widgets", () => {
     expect(toggled(["a"], "b", true)).toEqual(["a", "b"]);
     expect(toggled(["a", "b"], "a", true)).toEqual(["a", "b"]);
     expect(toggled(["a", "b"], "a", false)).toEqual(["b"]);
+  });
+});
+
+describe("Settings → Pill: scrolling while dragging", () => {
+  it("scrolls toward the edge the pointer is near, faster nearer it", () => {
+    expect([edgeSpeed(400, 0, 800), edgeSpeed(0, 0, 800), edgeSpeed(24, 0, 800), edgeSpeed(-50, 0, 800)]).toEqual([0, -14, -7, -14]);
+    expect([edgeSpeed(800, 0, 800), edgeSpeed(776, 0, 800), edgeSpeed(900, 0, 800)]).toEqual([14, 7, 14]);
+  });
+
+  it("scrolls the nearest ancestor that scrolls, else the document", () => {
+    const page = document.createElement("div");
+    page.style.overflowY = "auto";
+    const el = page.appendChild(document.createElement("div")).appendChild(document.createElement("span"));
+    document.body.append(page);
+    expect([scrollerOf(el), scrollerOf(page)]).toEqual([page, document.documentElement]);
+    page.remove();
   });
 });
 
@@ -232,6 +248,34 @@ describe("Settings → Pill: the editor", async () => {
     pointer("pointerup", window, 40, 40);
     expect(ed.setLayout.mock.lastCall?.[0].tabs).toEqual(["clock", "gone"]);
     expect([root.classList.contains("dragging"), document.querySelector(".pp-ghost")]).toEqual([false, null]);
+  });
+
+  it("scrolls the page while a drag is near its edge, and stops when it leaves it or ends", () => {
+    const { $ } = editor();
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal("requestAnimationFrame", (f: FrameRequestCallback) => frames.push(f));
+    const stop = vi.fn();
+    vi.stubGlobal("cancelAnimationFrame", stop);
+    const page = document.documentElement;
+    vi.spyOn(page, "getBoundingClientRect").mockReturnValue({ top: -100, bottom: 5000 } as DOMRect);
+    const scrollBy = vi.fn();
+    page.scrollBy = scrollBy as typeof page.scrollBy;
+    vi.spyOn(document, "elementFromPoint").mockReturnValue(null);
+    pointer("pointerdown", $(".pill-widget[data-drag=stats]"), 300, 300);
+    pointer("pointermove", window, 300, 2);
+    pointer("pointermove", window, 300, 0);
+    expect(frames).toHaveLength(1);
+    frames.shift()!(0);
+    frames.shift()!(0);
+    expect(scrollBy.mock.calls).toEqual([[0, -14], [0, -14]]);
+    pointer("pointermove", window, 300, 300);
+    frames.shift()!(0);
+    expect([scrollBy.mock.calls.length, frames.length]).toEqual([2, 0]);
+    pointer("pointermove", window, 300, innerHeight);
+    expect(frames).toHaveLength(1);
+    pointer("pointerup", window, 300, innerHeight);
+    expect(stop).toHaveBeenCalledWith(1);
+    vi.unstubAllGlobals();
   });
 
   it("ignores drops that change nothing or can't be done", () => {

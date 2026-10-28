@@ -240,7 +240,23 @@ function inspect(ed: PillEditor, p: AnyPlugin | undefined): Node[] {
   ];
 }
 
-/** Drag and drop with the pointer (mouse, pen or touch); a press without moving selects. */
+/** How near the top or bottom of the page a drag scrolls it, and how fast at the very edge (px a frame). */
+const EDGE = 48;
+const SPEED = 14;
+
+/** The nearest ancestor that scrolls up and down, else the document. */
+export function scrollerOf(el: Element): Element {
+  for (let p = el.parentElement; p; p = p.parentElement) if (/auto|scroll/.test(getComputedStyle(p).overflowY)) return p;
+  return document.documentElement;
+}
+
+/** How far to scroll a frame with the pointer at `y`: toward the edge it's near, faster nearer it. */
+export function edgeSpeed(y: number, top: number, bottom: number): number {
+  const into = y < top + EDGE ? y - top - EDGE : y > bottom - EDGE ? y - bottom + EDGE : 0;
+  return Math.round((Math.max(-EDGE, Math.min(EDGE, into)) / EDGE) * SPEED);
+}
+
+/** Drag and drop with the pointer (mouse, pen or touch); a press without moving selects. A drag near the page's top or bottom scrolls it, so the list reaches the pill in a short window. */
 function dragging(root: HTMLElement, ed: PillEditor): void {
   const caret = h("span", { class: "pp-caret", "aria-hidden": "true" });
   root.addEventListener("pointerdown", (down) => {
@@ -251,6 +267,9 @@ function dragging(root: HTMLElement, ed: PillEditor): void {
     let ghost: HTMLElement | null = null;
     /** Where it would land: in `zone`, before or after a neighbour, or at the zone's start. */
     let target: { zone: HTMLElement; before?: string; after?: string } | null = null;
+    const page = scrollerOf(root);
+    let at = { x: down.clientX, y: down.clientY };
+    let frame = 0;
 
     const over = (x: number, y: number) => {
       caret.remove();
@@ -278,13 +297,27 @@ function dragging(root: HTMLElement, ed: PillEditor): void {
         root.classList.add("dragging");
         root.dataset.from = from ?? "shelf";
       }
-      ghost.style.translate = `${e.clientX}px ${e.clientY}px`;
-      target = over(e.clientX, e.clientY);
+      at = { x: e.clientX, y: e.clientY };
+      ghost.style.translate = `${at.x}px ${at.y}px`;
+      target = over(at.x, at.y);
+      if (!frame) frame = requestAnimationFrame(scroll);
+    };
+    const scroll = () => {
+      const r = page.getBoundingClientRect();
+      const by = edgeSpeed(at.y, Math.max(r.top, 0), Math.min(r.bottom, innerHeight));
+      if (!by) {
+        frame = 0;
+        return;
+      }
+      page.scrollBy(0, by);
+      target = over(at.x, at.y);
+      frame = requestAnimationFrame(scroll);
     };
     const end = (commit: boolean) => {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", up);
       window.removeEventListener("pointercancel", cancel);
+      cancelAnimationFrame(frame);
       caret.remove();
       // A press without a drag: a widget-list row selects on its click, which the keyboard gives too.
       if (!ghost) return item.matches("button") ? undefined : ed.select(id);
