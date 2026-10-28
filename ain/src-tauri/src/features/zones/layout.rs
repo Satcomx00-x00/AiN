@@ -8,7 +8,7 @@ use specta::Type;
 /// The most zones a layout has: the zone picker numbers them 1 to 9.
 pub const MAX_ZONES: u32 = 9;
 
-/// A rectangle in the desktop's coordinates: physical pixels on Windows and X11, points on macOS.
+/// A rectangle in the desktop's coordinates, in physical pixels.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Rect {
     pub x: i32,

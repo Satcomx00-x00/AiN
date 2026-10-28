@@ -1,5 +1,5 @@
 import { h, icon } from "../../sdk/dom";
-import { isMac, keycaps } from "../../sdk/platform";
+import { keycaps } from "../../sdk/platform";
 import type { PopupContext, PopupView } from "../../sdk/plugin";
 import type { ClipboardPort } from "../clipboard/service";
 import { type Action, type Item, type Kind, type Mode, type Provider, parseQuery, rank } from "./items";
@@ -123,7 +123,7 @@ export function paletteView(root: HTMLElement, ctx: PaletteContext, recent: Rece
     const item = selected();
     const parts: (Node | string)[] = [kbd("↑"), kbd("↓"), " "];
     if (item) parts.push(kbd("↵"), ` ${item.primary.label} `);
-    if (item?.secondary) parts.push(kbd(isMac() ? "⌘" : "Ctrl"), kbd("↵"), ` ${item.secondary.label} `);
+    if (item?.secondary) parts.push(kbd("Ctrl"), kbd("↵"), ` ${item.secondary.label} `);
     if (item?.complete) parts.push(kbd("Tab"), " Open folder ");
     keys.replaceChildren(...parts, kbd("Esc"));
   };
@@ -153,7 +153,7 @@ export function paletteView(root: HTMLElement, ctx: PaletteContext, recent: Rece
       moved = true;
       select(i);
     });
-    li.addEventListener("click", (e) => void execute(item, e.ctrlKey || e.metaKey ? item.secondary : item.primary));
+    li.addEventListener("click", (e) => void execute(item, e.ctrlKey ? item.secondary : item.primary));
     return li;
   };
 
@@ -237,7 +237,7 @@ export function paletteView(root: HTMLElement, ctx: PaletteContext, recent: Rece
       disarm();
       moved = true;
       select(index + (e.key === "ArrowDown" ? 1 : -1));
-    } else if (e.key === "Enter") void execute(item, (isMac() ? e.metaKey : e.ctrlKey) ? item?.secondary : item?.primary);
+    } else if (e.key === "Enter") void execute(item, e.ctrlKey ? item?.secondary : item?.primary);
     else if (e.key === "Tab") {
       if (item?.complete) {
         search.value = item.complete;

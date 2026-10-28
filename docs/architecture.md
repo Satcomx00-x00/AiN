@@ -48,20 +48,20 @@ none: the feature then reports "unsupported" (or nothing) instead of failing. Th
 (`Shared::poll`) is plain code tested against a fake backend, so recovering when a device
 disappears is tested on every platform.
 
-| Feature | Windows | Linux | macOS |
-| --- | --- | --- | --- |
-| media | Media transport controls | MPRIS (D-Bus) | Spotify and Music, scripted through `osascript` |
-| volume | Core Audio | PipeWire/PulseAudio (`pactl`) | Core Audio (output devices; macOS has no per-app volume) |
-| privacy | Capability Access Manager | recording streams (`pactl`) and open `/dev/video*` | Core Audio's process list (macOS 14+) and Core Media IO (camera on or off) |
-| dictation | types the text | pastes it (Ctrl+V through the Remote Desktop portal, `xdotool`, `wtype` or `ydotool`), or types it when asked, else copies it | types it once Accessibility is allowed, else copies it |
-| transcript | records the default output in loopback (WASAPI, through cpal) | records the default sink through PipeWire, in-process (cpal's PipeWire host; microphones and speakers stay on ALSA) | records the default output through a Core Audio process tap (cpal, macOS 14.6+) |
-| tts (read aloud), spelling | copies the selection (Ctrl+C), then puts the clipboard back | reads the primary selection | copies the selection (Cmd+C) once Accessibility is allowed, then puts the clipboard back |
-| spelling's correction | types it over the selection | pastes it over the selection, as dictation does | types it once Accessibility is allowed, else copies it |
-| popup paste | `SendInput` | the same tools | Cmd+V, once Accessibility is allowed |
-| palette | the shell's Applications folder (Start menu apps), PowerShell, `shutdown.exe` and the power API | desktop entries, the first terminal found, logind and the session manager | `.app` bundles, Terminal, `pmset`, System Events and the Finder |
-| zones | the foreground window, its frame from the DWM, `SetWindowPos` | EWMH through the X server; on GNOME's Wayland, AiN's GNOME Shell extension over D-Bus | the Accessibility API, once allowed |
-| shortcuts | the global-shortcut plugin | the same on X11; on Wayland, the desktop's GlobalShortcuts portal | the global-shortcut plugin |
-| clipboard, stats, capture | all platforms | | |
+| Feature | Windows | Linux |
+| --- | --- | --- |
+| media | Media transport controls | MPRIS (D-Bus) |
+| volume | Core Audio | PipeWire/PulseAudio (`pactl`) |
+| privacy | Capability Access Manager | recording streams (`pactl`) and open `/dev/video*` |
+| dictation | types the text | pastes it (Ctrl+V through the Remote Desktop portal, `xdotool`, `wtype` or `ydotool`), or types it when asked, else copies it |
+| transcript | records the default output in loopback (WASAPI, through cpal) | records the default sink through PipeWire, in-process (cpal's PipeWire host; microphones and speakers stay on ALSA) |
+| tts (read aloud), spelling | copies the selection (Ctrl+C), then puts the clipboard back | reads the primary selection |
+| spelling's correction | types it over the selection | pastes it over the selection, as dictation does |
+| popup paste | `SendInput` | the same tools |
+| palette | the shell's Applications folder (Start menu apps), PowerShell, `shutdown.exe` and the power API | desktop entries, the first terminal found, logind and the session manager |
+| zones | the foreground window, its frame from the DWM, `SetWindowPos` | EWMH through the X server; on GNOME's Wayland, AiN's GNOME Shell extension over D-Bus |
+| shortcuts | the global-shortcut plugin | the same on X11; on Wayland, the desktop's GlobalShortcuts portal |
+| clipboard, stats, capture | all platforms | |
 
 Zones follow the pointer on a paced worker (`worker::spawn_paced`): every 15 ms while a window
 is pressed, every 45 ms otherwise, not at all when dragging is off. The drag itself is a state
@@ -80,9 +80,8 @@ on a thread of its own: AiN registers its app id, then binds every command with 
 preferred trigger, and the desktop asks the user once. A press carries an activation token, which
 the window it opens is given (`popup::focus`) so the desktop lets it take the focus.
 
-Helpers several backends share live in `platform/`: `pactl` and the key tools on Linux, Core Audio's
-property API and synthetic keys on macOS. macOS permission prompts are explained by the strings in
-`src-tauri/Info.plist`.
+Helpers several backends share live in `platform/`: `pactl` and the key tools on Linux, COM
+and synthetic keys on Windows.
 
 ## AI providers
 

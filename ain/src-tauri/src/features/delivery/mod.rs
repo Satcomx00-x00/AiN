@@ -1,7 +1,6 @@
 //! Handing text to the app in front, shared by dictation and spelling: typed at the cursor
-//! (`windows.rs`; on macOS and Linux, the platform's key helpers), which also replaces a selection,
-//! or put on the clipboard when the system won't let us type: macOS until the user allows
-//! Accessibility access, Wayland without `wtype` or `ydotool`, X11 without `xdotool`. On Linux it
+//! (`windows.rs`; on Linux, the platform's key helpers), which also replaces a selection,
+//! or put on the clipboard when the system won't let us type: Wayland without `wtype` or `ydotool`, X11 without `xdotool`. On Linux it
 //! is pasted by default (a feature's "typing" option): the typing tools press keys of the US layout,
 //! or of whichever layout they assume, so on AZERTY the words would come out wrong without any error.
 
@@ -35,11 +34,9 @@ fn type_text(text: &str) -> bool {
         windows::type_text(text);
         true
     }
-    #[cfg(target_os = "macos")]
-    return crate::platform::macos::keys::type_text(text);
     #[cfg(target_os = "linux")]
     return crate::platform::linux::keys::type_text(text);
-    #[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
+    #[cfg(not(any(windows, target_os = "linux")))]
     {
         let _ = text;
         false

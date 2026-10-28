@@ -1,5 +1,4 @@
 import { choice, list, toggle } from "../../sdk/options";
-import { isMac } from "../../sdk/platform";
 import { definePlugin } from "../../sdk/plugin";
 import type { ClipboardPort } from "../clipboard/service";
 import { ENGINES } from "./providers";
@@ -12,9 +11,6 @@ const ICON = `<rect x="2" y="2.75" width="12" height="10.5" rx="2.25"/><path d="
  * One shortcut to start apps, open files, calculate, search the web, run a command line, lock or
  * shut down the computer, and run the app's own commands. A tool only: no tab, no glance.
  */
-/** Option+Space, as launchers use on macOS (Cmd+Space is Spotlight's); Win+Alt+Space elsewhere. */
-export const shortcutFor = (mac = isMac()): string => (mac ? "Alt+Space" : "Super+Alt+Space");
-
 export const palette = definePlugin({
   id: "palette",
   label: "Command palette",
@@ -36,7 +32,7 @@ export const palette = definePlugin({
       id: "open",
       label: "Command palette",
       description: "> runs a command line, ? searches the web, = calculates.",
-      shortcut: shortcutFor(),
+      shortcut: "Super+Alt+Space",
       popup: paletteView,
     },
   ],

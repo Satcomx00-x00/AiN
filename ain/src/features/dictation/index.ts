@@ -1,6 +1,5 @@
 import { button, h, icon } from "../../sdk/dom";
 import { choice, folder, text, toggle } from "../../sdk/options";
-import { primaryKey } from "../../sdk/platform";
 import { type Glance, definePlugin } from "../../sdk/plugin";
 import { type SelectOption, select } from "../../sdk/select";
 import type { ClipboardPort } from "../clipboard/service";
@@ -70,7 +69,7 @@ export function statusText(phase: Phase): string {
       return "Transcribing…";
     case "done":
       if (!phase.text) return "Nothing heard. Try again a little closer to the mic.";
-      return phase.delivery === "copied" ? `“${phase.text}” — copied, paste it with ${primaryKey()}+V.` : `“${phase.text}”`;
+      return phase.delivery === "copied" ? `“${phase.text}” — copied, paste it with Ctrl+V.` : `“${phase.text}”`;
     case "error":
       return phase.message;
   }
@@ -83,6 +82,7 @@ export const dictation = definePlugin({
   description: "Speech to text, on this computer or by an AI provider.",
   icon: MIC,
   slots: ["glance", "tab"],
+  sample: () => ({ text: "0:04", mark: "rec", level: 0.6 }),
   options: {
     mode: choice("Shortcut", "toggle", [
       ["toggle", "Press to start and stop"],

@@ -37,11 +37,15 @@ export const stats = definePlugin({
   icon: `<path d="M2 12.5l3.5-4 3 2.5 5.5-7"/>`,
   slots: ["glance", "tab"],
   options: {
-    show: choice("On the pill", "cpu", [
-      ["cpu", "CPU load"],
-      ["memory", "Memory use"],
-    ]),
+    show: {
+      ...choice("On the pill", "cpu", [
+        ["cpu", "CPU load"],
+        ["memory", "Memory use"],
+      ]),
+      pill: true,
+    },
   },
+  sample: (o) => (o.show === "cpu" ? { text: "24%", spark: [12, 30, 18, 40, 24, 35, 20, 28, 22, 30, 26, 24] } : { text: "51%", progress: 0.51 }),
   setup({ stats: port }: { stats: StatsPort }, host) {
     let last: Stats | null = null;
     const cpuHistory: number[] = [];

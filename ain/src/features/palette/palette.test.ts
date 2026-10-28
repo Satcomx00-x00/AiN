@@ -5,12 +5,12 @@ import type { ClipboardPort } from "../clipboard/service";
 import { calculate, plain, pretty } from "./calc";
 import { best, fuzzy, startsWord } from "./fuzzy";
 import { type Item, parseQuery, rank } from "./items";
-import { appsProvider, asLink, commandsProvider, filesProvider, revealLabel, systemProvider, trashTitle, webProvider } from "./providers";
+import { appsProvider, asLink, commandsProvider, filesProvider, systemProvider, trashTitle, webProvider } from "./providers";
 import { type Recent, localRecent, recentIn } from "./recent";
 import { type App, type Hit, type PalettePort, idlePalette } from "./service";
 import { SELF, highlight, paletteView } from "./view";
 
-const { palette, shortcutFor } = await import(".");
+const { palette } = await import(".");
 
 beforeEach(() => {
   vi.spyOn(window, "matchMedia").mockReturnValue({ matches: true } as MediaQueryList);
@@ -366,18 +366,6 @@ describe("the palette popup", () => {
     await vi.waitFor(() => expect(browsed).toEqual(["/home/me/Documents/"]));
   });
 
-  it("takes ⌘ for Ctrl on macOS", async () => {
-    vi.spyOn(navigator, "userAgent", "get").mockReturnValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5)");
-    const p = await open({ files: true, port: { files: async () => [report] } });
-    await p.type("report");
-    await vi.waitFor(() => expect(p.titles()[0]).toBe("report.pdf"));
-    expect(p.footer()).toContain("⌘↵ Show in Finder");
-    p.key({ key: "Enter", ctrlKey: true });
-    await vi.waitFor(() => expect(p.did).toEqual(["open /home/me/report.pdf"]));
-    p.key({ key: "Enter", metaKey: true });
-    await vi.waitFor(() => expect(p.did).toEqual(["open /home/me/report.pdf", "reveal /home/me/report.pdf"]));
-  });
-
   it("follows the pointer, and runs what is clicked, its second action with Ctrl", async () => {
     const p = await open({ files: true, port: { files: async () => [report] } });
     await p.type("report");
@@ -503,8 +491,6 @@ describe("the palette's providers, further", () => {
 
   it("names things as each system does", () => {
     expect([trashTitle(true), trashTitle(false)]).toEqual(["Empty the Recycle Bin", "Empty the Trash"]);
-    expect([revealLabel(true), revealLabel(false)]).toEqual(["Show in Finder", "Show in folder"]);
-    expect([shortcutFor(true), shortcutFor(false)]).toEqual(["Alt+Space", "Super+Alt+Space"]);
   });
 
   it("needs nothing set up", () => {

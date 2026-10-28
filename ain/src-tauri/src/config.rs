@@ -48,7 +48,7 @@ pub const UPDATE_URL: Var = Var::new("AIN_UPDATE_URL", "");
 pub const HF_URL: Var = Var::new("AIN_HF_URL", "https://huggingface.co");
 /// The sherpa-onnx release holding the read-aloud voices: `{base}/{model}.tar.bz2`.
 pub const TTS_MODELS_URL: Var = Var::new("AIN_TTS_MODELS_URL", "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models");
-/// PyTorch's package index for PersonaPlex; CUDA 12.4's by default, PyPI's on macOS.
+/// PyTorch's package index for PersonaPlex; CUDA 12.4's by default.
 pub const TORCH_INDEX_URL: Var = Var::new("AIN_TORCH_INDEX_URL", "https://download.pytorch.org/whl/cu124");
 /// The AI provider presets' addresses, as Settings fills them in.
 pub const OPENAI_URL: Var = Var::new("AIN_PROVIDER_OPENAI_URL", "https://api.openai.com/v1");

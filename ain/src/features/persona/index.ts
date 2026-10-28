@@ -202,6 +202,7 @@ export const persona = definePlugin({
   description: "Talk with NVIDIA PersonaPlex, both at once, like on a call.",
   icon: TALK,
   slots: ["glance", "tab"],
+  sample: () => ({ text: "Listening", mark: "mic", level: 0.5 }),
   options: {
     // Drawn by the settings panel: this computer, or an AI provider whose server and token it uses.
     ...engineOptions(),

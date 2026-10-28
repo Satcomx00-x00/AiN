@@ -5,7 +5,6 @@
  * canvas gets a fake context that records what is drawn on it.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { primaryKey } from "../../sdk/platform";
 import type { ClipboardPort } from "../clipboard/service";
 import { CRAYONS, editor } from "./editor";
 import type { CapturePort } from "./service";
@@ -87,7 +86,7 @@ const settle = () => vi.advanceTimersByTimeAsync(0);
 const frames = () => {
   for (const cb of pendingFrames.splice(0)) cb(0);
 };
-const mod = primaryKey();
+const mod = "Ctrl";
 
 async function open(opts: { image?: ImageData | null; closeAfterCopy?: boolean; latest?: () => Promise<ImageData | null> } = {}) {
   const image = opts.image === undefined ? new ImageData(200, 100) : opts.image;
@@ -463,7 +462,7 @@ describe("drawing", () => {
       ["arc", 1, 1, 3, 0, TAU],
       ["arc", 2, 2, 3, 0, TAU],
     ]);
-    press("KeyZ", { metaKey: true });
+    press("KeyZ", { ctrlKey: true });
     expect(ed.drawn().filter(([op]) => op === "arc")).toEqual([["arc", 1, 1, 3, 0, TAU]]);
     drag(ed.ink, [4, 4]);
     ed.button(`Undo (${mod}+Z)`).click();
@@ -560,7 +559,7 @@ describe("copying", () => {
   it("says why copying failed, and stays open", async () => {
     const ed = await editing();
     ed.clipboard.copyImage.mockRejectedValueOnce(new Error("Clipboard busy"));
-    press("KeyC", { metaKey: true });
+    press("KeyC", { ctrlKey: true });
     await vi.advanceTimersByTimeAsync(1000);
     expect(ed.toast.textContent).toBe("Couldn't copy: Error: Clipboard busy");
     expect(ed.close).not.toHaveBeenCalled();

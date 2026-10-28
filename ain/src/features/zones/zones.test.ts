@@ -139,13 +139,13 @@ describe("the layout preview", () => {
     const p: ZonesPort = {
       ...idleZones,
       layout: async (template, count) => (asked.push(`${template} ${count}`), idleZones.layout(template, count, false)),
-      support: async () => ({ moves: true, drags: true, note: "Allow AiN under Accessibility.", install: false }),
+      support: async () => ({ moves: true, drags: true, note: "Log out and back in to start the helper.", install: false }),
     };
     const root = document.createElement("div");
     document.body.append(root);
     const stop = zones.settingsPanel!(root, { zones: p }, { options: () => options, setOptions: () => {}, openPage: () => {} }) as () => void;
     await vi.waitFor(() => expect(root.querySelectorAll(".zn-cell")).toHaveLength(2));
-    expect(root.querySelector(".zn-note")?.textContent).toBe("Allow AiN under Accessibility.");
+    expect(root.querySelector(".zn-note")?.textContent).toBe("Log out and back in to start the helper.");
     options = { ...options, count: 4 };
     document.dispatchEvent(new Event("input"));
     await vi.waitFor(() => expect(root.querySelectorAll(".zn-cell")).toHaveLength(4));

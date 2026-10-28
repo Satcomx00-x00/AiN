@@ -58,11 +58,6 @@ describe("recording a shortcut", () => {
     expect(keycaps("Ctrl+Alt+Digit1")).toEqual(["Ctrl", "Alt", "1"]);
     expect(keycaps("Ctrl+Alt+Super+ArrowLeft")).toEqual(["Ctrl", "Alt", "Win", "←"]);
   });
-
-  it("names keys the macOS way on macOS", () => {
-    expect(keycaps("Super+Shift+KeyB", true)).toEqual(["Cmd", "Shift", "B"]);
-    expect(keycaps("Ctrl+Alt+KeyD", true)).toEqual(["Control", "Option", "D"]);
-  });
 });
 
 describe("clipboard picker search", () => {

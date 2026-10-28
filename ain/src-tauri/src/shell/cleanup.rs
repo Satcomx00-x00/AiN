@@ -45,7 +45,6 @@ pub fn run(request: &Request) -> i32 {
         .set_app_name(AUTOSTART_NAME)
         // Removal goes by name; the path only has to be set.
         .set_app_path(&std::env::current_exe().map(|p| p.display().to_string()).unwrap_or_default())
-        .set_macos_launch_mode(auto_launch::MacOSLaunchMode::LaunchAgent)
         .build();
     match autostart {
         Ok(entry) if entry.is_enabled().unwrap_or(false) => match entry.disable() {

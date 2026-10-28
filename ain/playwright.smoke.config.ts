@@ -13,7 +13,7 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   reporter: "list",
   use: { baseURL: `http://localhost:${PORT}`, trace: "retain-on-failure" },
-  // The engines of the app's web views: WebView2 on Windows; WKWebView and WebKitGTK on macOS and Linux.
+  // The engines of the app's web views: WebView2 on Windows; WebKitGTK on Linux.
   projects: [
     { name: "chromium", use: { ...devices["Desktop Chrome"], viewport: { width: 1280, height: 720 } } },
     { name: "webkit", use: { ...devices["Desktop Safari"], viewport: { width: 1280, height: 720 } } },

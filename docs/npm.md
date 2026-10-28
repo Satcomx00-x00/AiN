@@ -9,7 +9,6 @@
 | --- | --- |
 | `@satcomx00/ain` | the `ain` command ([`npm/ain/bin/ain.js`](../npm/ain/bin/ain.js)), and one optional dependency per platform |
 | `@satcomx00/ain-win32-x64` | `ain.exe` |
-| `@satcomx00/ain-darwin-x64` | `AiN.app` |
 | `@satcomx00/ain-linux-x64` | `AiN.AppImage` |
 | `@satcomx00/ain-fedora43`, `@satcomx00/ain-fedora44` | `ain`, built on that Fedora against its WebKitGTK; never picked automatically |
 
@@ -30,8 +29,7 @@ which removes the launch-at-login entry (and with `--purge` the app's folders), 
 `bun remove -g` or `npm rm -g` for the package it came from.
 
 Two copies would share settings and the launch-at-login entry, so `ain` refuses to start when an
-installer's copy exists: `%LOCALAPPDATA%\AiN` or `%ProgramFiles%\AiN` (Windows),
-`/Applications/AiN.app` or `~/Applications/AiN.app` (macOS), `/usr/bin/ain` (`.deb`, `.rpm`).
+installer's copy exists: `%LOCALAPPDATA%\AiN` or `%ProgramFiles%\AiN` (Windows), `/usr/bin/ain` (`.deb`, `.rpm`).
 
 ## Release
 

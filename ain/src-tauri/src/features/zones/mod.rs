@@ -2,7 +2,7 @@
 //! snapped into them by dragging them with Shift held (Ctrl spans several zones), from a zone
 //! picker (a zone's number, or a click), or by a shortcut to the next or previous zone, on to the
 //! next screen. Each OS reads the pointer and moves windows its own way (`windows.rs`,
-//! `macos.rs`, `linux.rs`); where none can, zones report so and do nothing.
+//! `linux.rs`); where none can, zones report so and do nothing.
 //!
 //! One worker thread owns the OS backend: it follows the pointer while a window is dragged, runs
 //! the shortcuts, and shows the `zones` overlay window, which only draws what it is sent.
@@ -13,20 +13,16 @@ mod gnome;
 mod layout;
 #[cfg(target_os = "linux")]
 mod linux;
-#[cfg(target_os = "macos")]
-mod macos;
 #[cfg(windows)]
 mod windows;
 
 #[cfg(target_os = "linux")]
 use linux as os;
-#[cfg(target_os = "macos")]
-use macos as os;
 #[cfg(windows)]
 use windows as os;
 
 /// Elsewhere no window can be moved.
-#[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
+#[cfg(not(any(windows, target_os = "linux")))]
 mod os {
     use super::{Desktop, Support};
 
@@ -93,11 +89,7 @@ const SETTLE: Duration = Duration::from_millis(40);
 /// How near a zone the pointer still picks it, in CSS pixels, when the spacing is smaller.
 const REACH: f64 = 12.0;
 
-/// Windows and X11 place windows in physical pixels; macOS in points.
-const POINTS: bool = cfg!(target_os = "macos");
-
-/// A window, as the OS backend names it: a window handle, an X11 window, or on macOS the
-/// process whose focused window it is.
+/// A window, as the OS backend names it: a window handle or an X11 window.
 pub type Handle = isize;
 
 /// Where the pointer is, in the desktop's coordinates, and what is held down.
@@ -200,24 +192,18 @@ impl Config {
 #[derive(Debug, Clone, PartialEq)]
 struct Screen {
     zones: drag::Zones,
-    /// Desktop pixels per CSS pixel of the overlay.
+    /// Physical pixels per CSS pixel of the overlay.
     unit: f64,
-    /// The work area in physical pixels, as our windows are placed.
-    physical: Rect,
 }
 
 impl Screen {
     fn new(work: &PhysicalRect<i32, u32>, scale: f64, config: &Config) -> Self {
-        let (to_desktop, unit) = if POINTS { (scale, 1.0) } else { (1.0, scale) };
-        let at = |v: f64| (v / to_desktop).round() as i32;
-        let area =
-            Rect::new(at(work.position.x.into()), at(work.position.y.into()), at(work.size.width.into()), at(work.size.height.into()));
+        let area = Rect::new(work.position.x, work.position.y, work.size.width as i32, work.size.height as i32);
         let portrait = config.rotate && area.h > area.w;
-        let spacing = (f64::from(config.spacing) * unit).round() as i32;
+        let spacing = (f64::from(config.spacing) * scale).round() as i32;
         let zones = layout::fit(area, &layout::fractions(config.template, config.count, portrait), spacing);
-        let reach = spacing.max((REACH * unit).round() as i32);
-        let physical = Rect::new(work.position.x, work.position.y, work.size.width as i32, work.size.height as i32);
-        Self { zones: drag::Zones { area, zones, reach }, unit, physical }
+        let reach = spacing.max((REACH * scale).round() as i32);
+        Self { zones: drag::Zones { area, zones, reach }, unit: scale }
     }
 
     /// Its zones as the overlay draws them.
@@ -403,7 +389,7 @@ impl Zones {
         if self.overlay.set(content.clone()) {
             report("draw", content.emit(&self.app));
         }
-        let shown = (screen.physical, picking);
+        let shown = (screen.zones.area, picking);
         if self.shown == Some(shown) {
             return;
         }
@@ -415,10 +401,10 @@ impl Zones {
             window.set_focusable(picking)?;
             if picking {
                 window.set_ignore_cursor_events(false)?;
-                cover(&window, &screen.physical)?;
+                cover(&window, &screen.zones.area)?;
                 popup::focus(&self.app, &window).map_err(|e| tauri::Error::Io(std::io::Error::other(e.to_string())))
             } else {
-                os::show_passive(&window, &screen.physical)?;
+                os::show_passive(&window, &screen.zones.area)?;
                 // Once shown: on Linux a window that was never on screen can't let clicks through.
                 window.set_ignore_cursor_events(true)
             }
@@ -606,8 +592,7 @@ mod tests {
     fn fits_zones_to_a_screen_in_the_desktops_units() {
         let config = Config { template: Template::Columns, count: 2, spacing: 10, ..Config::read(&Value::Null) };
         let screen = Screen::new(&work(0, 0, 2000, 1000), 2.0, &config);
-        let expected = if POINTS { Rect::new(0, 0, 1000, 500) } else { Rect::new(0, 0, 2000, 1000) };
-        assert_eq!(screen.zones.area, expected, "points on macOS, physical pixels elsewhere");
+        assert_eq!(screen.zones.area, Rect::new(0, 0, 2000, 1000), "in physical pixels");
         let css = screen.css();
         assert_eq!(css.iter().map(|z| (z.x, z.w)).collect::<Vec<_>>(), [(10.0, 485.0), (505.0, 485.0)], "the same in CSS pixels");
         let portrait = Screen::new(&work(0, 0, 1000, 2000), 1.0, &config);

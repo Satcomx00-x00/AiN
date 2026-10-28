@@ -22,9 +22,7 @@ const FRESH: Duration = Duration::from_secs(5 * 60);
 const MAX_ITEMS: usize = 60_000;
 const MAX_DEPTH: usize = 6;
 /// Folders that tools build, download or manage: many files, none the user is looking for.
-const SKIPPED: &[&str] = &["node_modules", "__pycache__", "site-packages", "venv", "target", "AppData", "Library"];
-/// Folders that are one document or app (macOS packages): listed, not entered.
-const PACKAGES: &[&str] = &["app", "bundle", "framework", "photoslibrary", "musiclibrary", "tvlibrary", "xcodeproj", "xcworkspace"];
+const SKIPPED: &[&str] = &["node_modules", "__pycache__", "site-packages", "venv", "target", "AppData"];
 
 /// A file or folder found, as the palette shows it.
 #[derive(Debug, Clone, PartialEq, Serialize, Type)]
@@ -68,10 +66,6 @@ fn hidden(name: &str, _entry: &fs::DirEntry) -> bool {
     name.starts_with('.') || name.starts_with('$')
 }
 
-fn package(name: &str) -> bool {
-    Path::new(name).extension().is_some_and(|ext| PACKAGES.iter().any(|p| ext.eq_ignore_ascii_case(p)))
-}
-
 /// Everything under `roots`, shallowest first, up to `max` items. Symbolic links are listed but
 /// not followed, so a loop can't trap the walk.
 pub fn walk(roots: &[PathBuf], max: usize) -> Vec<Item> {
@@ -89,7 +83,7 @@ pub fn walk(roots: &[PathBuf], max: usize) -> Vec<Item> {
             }
             let Ok(kind) = entry.file_type() else { continue };
             let path = entry.path();
-            if kind.is_dir() && depth < MAX_DEPTH && !package(&name) {
+            if kind.is_dir() && depth < MAX_DEPTH {
                 queue.push_back((path.clone(), depth + 1));
             }
             items.push(Item { path, dir: kind.is_dir(), name: name.to_lowercase(), depth });
@@ -258,12 +252,11 @@ mod tests {
 
     #[test]
     fn walks_shallow_first_skipping_hidden_and_generated_folders() {
-        let tree = Tree::new("walk", &["a/b/deep.txt", "top.txt", ".secret/key.txt", "node_modules/x/index.js", "Notes.app/Contents/x"]);
+        let tree = Tree::new("walk", &["a/b/deep.txt", "top.txt", ".secret/key.txt", "node_modules/x/index.js"]);
         let items = walk(std::slice::from_ref(&tree.0), MAX_ITEMS);
         let found: Vec<(&str, usize)> = items.iter().map(|i| (i.name.as_str(), i.depth)).collect();
         assert!(found.contains(&("top.txt", 1)) && found.contains(&("deep.txt", 3)));
-        assert!(found.contains(&("notes.app", 1)), "a package is listed");
-        for gone in ["key.txt", ".secret", "node_modules", "index.js", "contents"] {
+        for gone in ["key.txt", ".secret", "node_modules", "index.js"] {
             assert!(!found.iter().any(|(n, _)| *n == gone), "{gone} should be skipped");
         }
         let depths: Vec<usize> = items.iter().map(|i| i.depth).collect();

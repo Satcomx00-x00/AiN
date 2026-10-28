@@ -106,3 +106,12 @@
 #island[data-open="true"] .sliver-in {
   opacity: 0;
 }
+
+/* Pill: each end holds its glances side by side, clipped when the pill is too narrow for them all. */
+.g-end {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(10px * var(--scale));
+  min-width: 0;
+  overflow: hidden;
+}

@@ -49,7 +49,7 @@ jobs:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
-      - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2
+      - uses: taiki-e/install-action@a4d3f3f761dcd95cce1b72cb61cb6d1963438177 # v2
         with:
           tool: git-cliff
 
@@ -111,7 +111,7 @@ jobs:
         with:
           ref: ${{ needs.plan.outputs.sha }}
           fetch-depth: 0
-      - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2
+      - uses: taiki-e/install-action@a4d3f3f761dcd95cce1b72cb61cb6d1963438177 # v2
         with:
           tool: git-cliff
 
@@ -179,10 +179,6 @@ jobs:
             os: windows-latest
             target: x86_64-pc-windows-msvc
             npm: win32-x64
-          - name: macOS x64
-            os: macos-15-intel
-            target: x86_64-apple-darwin
-            npm: darwin-x64
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -198,7 +194,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
         with:
           targets: ${{ matrix.target }}
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           workspaces: ain/src-tauri -> target
           key: release
@@ -252,7 +248,6 @@ jobs:
           rm -rf npm && mkdir npm
           case "$PLATFORM" in
             win32-*) cp ain.exe npm/ ;;
-            darwin-*) cp -R bundle/macos/*.app npm/ ;;
             linux-*) cp bundle/appimage/*.AppImage npm/AiN.AppImage ;;
           esac
           tar -czf "npm-$PLATFORM.tgz" -C npm .
@@ -341,7 +336,7 @@ jobs:
           gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" \
             --jq '[.assets[] | {key: (.id | tostring), value: .name}] | from_entries' > "$ASSET_IDS"
           "$RUNNER_TEMP/venv/bin/python" .github/scripts/check-update-manifest.py "$assets/latest.json" "$assets" \
-            ain/src-tauri/tauri.conf.json "$VERSION" windows-x86_64 darwin-x86_64 linux-x86_64
+            ain/src-tauri/tauri.conf.json "$VERSION" windows-x86_64 linux-x86_64
       - env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.plan.outputs.tag }}

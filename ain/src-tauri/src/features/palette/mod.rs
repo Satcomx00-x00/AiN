@@ -1,27 +1,23 @@
 //! The command palette's backend: the installed apps, an index of the user's files, and what the
 //! palette does with them (open, show in their folder, run a command in a terminal, lock, sleep…).
 //! The frontend ranks and draws; each OS lists and starts its apps its own way (`windows.rs`,
-//! `macos.rs`, `linux.rs`).
+//! `linux.rs`).
 
 #[cfg(any(target_os = "linux", test))]
 mod desktop;
 mod files;
 #[cfg(target_os = "linux")]
 mod linux;
-#[cfg(target_os = "macos")]
-mod macos;
 #[cfg(windows)]
 mod windows;
 
 #[cfg(target_os = "linux")]
 use linux as os;
-#[cfg(target_os = "macos")]
-use macos as os;
 #[cfg(windows)]
 use windows as os;
 
 /// Elsewhere there are no apps to list, and nothing to run commands or system actions with.
-#[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
+#[cfg(not(any(windows, target_os = "linux")))]
 mod os {
     use std::{io, path::Path};
 

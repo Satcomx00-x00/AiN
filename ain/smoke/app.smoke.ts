@@ -31,7 +31,7 @@ test("the island starts with stored settings: a large Stub", async ({ page }) =>
 test("the settings window draws every section and saves a change", async ({ page }) => {
   await withBackend(page);
   await page.goto("/settings.html");
-  for (const section of ["General", "Appearance", "Layout", "Shortcuts", "Widgets", "Plugins", "About"]) {
+  for (const section of ["General", "Appearance", "Pill", "Shortcuts", "Widgets", "Plugins", "About"]) {
     await page.locator("nav button", { hasText: section }).click();
     await expect(page.locator("main h1")).toHaveText(section);
   }

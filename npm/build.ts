@@ -8,7 +8,7 @@
 // <binaries>/<platform>/ holds what release.yml staged for that platform (see `PLATFORMS`); missing
 // platforms are skipped. Writes <out>/<package>/ for each package and prints their folders, the
 // main package last: publish them in that order, so it never points at a version that isn't out.
-import { access, cp, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { access, cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 const SCOPE = "@satcomx00";
@@ -23,16 +23,6 @@ interface Platform {
   readonly automatic: boolean;
   readonly description: string;
 }
-
-/** macOS: the `.app` bundle, launched through the executable its Info.plist names. */
-const macApp = async (staged: string): Promise<string> => {
-  const app = (await readdir(staged)).find((f) => f.endsWith(".app"));
-  if (!app) throw new Error(`no .app in ${staged}`);
-  const plist = await readFile(join(staged, app, "Contents", "Info.plist"), "utf8");
-  const name = /<key>CFBundleExecutable<\/key>\s*<string>([^<]+)<\/string>/.exec(plist)?.[1];
-  if (!name) throw new Error(`${app} has no CFBundleExecutable`);
-  return `${app}/Contents/MacOS/${name}`;
-};
 
 const fedora = (release: number): Platform => ({
   os: "linux",
@@ -49,13 +39,6 @@ const PLATFORMS = {
     executable: async () => "ain.exe",
     automatic: true,
     description: "AiN for Windows x64.",
-  },
-  "darwin-x64": {
-    os: "darwin",
-    cpu: "x64",
-    executable: macApp,
-    automatic: true,
-    description: "AiN for macOS x64.",
   },
   // The AppImage carries WebKitGTK and the rest: it runs on any distro.
   "linux-x64": {

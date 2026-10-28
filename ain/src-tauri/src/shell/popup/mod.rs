@@ -3,13 +3,11 @@
 //!
 //! The frontend owns which commands exist and their shortcuts (they live in settings); this plugin
 //! registers them, shows the popup for whichever fires, and does the paste (`windows.rs`,
-//! `macos.rs`, `linux.rs`). On Wayland, which lets no app grab keys, the desktop portal binds the
+//! `linux.rs`). On Wayland, which lets no app grab keys, the desktop portal binds the
 //! shortcuts instead (`portal.rs`).
 
 #[cfg(target_os = "linux")]
 mod linux;
-#[cfg(target_os = "macos")]
-mod macos;
 #[cfg(target_os = "linux")]
 mod portal;
 #[cfg(windows)]
@@ -17,13 +15,11 @@ mod windows;
 
 #[cfg(target_os = "linux")]
 use linux as os;
-#[cfg(target_os = "macos")]
-use macos as os;
 #[cfg(windows)]
 use windows as os;
 
 /// Elsewhere, the item is only copied.
-#[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
+#[cfg(not(any(windows, target_os = "linux")))]
 mod os {
     pub fn foreground() -> Option<isize> {
         None
@@ -66,7 +62,7 @@ const TOP: f64 = 0.22;
 struct Popup {
     /// Command id → why its shortcut couldn't be registered.
     failures: Mutex<BTreeMap<String, String>>,
-    /// The window (on macOS, the app) that had focus before the popup, to paste into.
+    /// The window that had focus before the popup, to paste into.
     previous: Mutex<Option<isize>>,
     /// The token the desktop sent with the last shortcut, which a window it shows needs to get the
     /// focus on Wayland; used once.
@@ -278,8 +274,8 @@ fn hide(window: WebviewWindow) -> Res<()> {
     Ok(())
 }
 
-/// Hides the asking window, gives focus back to the previous app and pastes (Ctrl+V; Cmd+V on
-/// macOS) into it. Async: it waits briefly for focus to settle, off the main thread.
+/// Hides the asking window, gives focus back to the previous app and pastes (Ctrl+V) into
+/// it. Async: it waits briefly for focus to settle, off the main thread.
 #[tauri::command]
 #[specta::specta]
 async fn paste(window: WebviewWindow, popup: State<'_, Popup>) -> Res<()> {

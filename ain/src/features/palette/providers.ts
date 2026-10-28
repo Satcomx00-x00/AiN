@@ -1,4 +1,4 @@
-import { isMac, isWindows } from "../../sdk/platform";
+import { isWindows } from "../../sdk/platform";
 import type { CommandInfo } from "../../sdk/plugin";
 import { calculate, plain, pretty } from "./calc";
 import { best, fuzzy } from "./fuzzy";
@@ -213,10 +213,9 @@ export function shellProvider(port: PalettePort): Provider {
 const separator = (path: string) => (/^[a-z]:\\|^\\\\/i.test(path) ? "\\" : "/");
 
 /** What showing a file in its folder is called on this system. */
-export const revealLabel = (mac = isMac()): string => (mac ? "Show in Finder" : "Show in folder");
 
 function fileItem(port: PalettePort, hit: Hit, text: string, score: number): Item {
-  const reveal: Action = { label: revealLabel(), run: () => port.reveal(hit.path) };
+  const reveal: Action = { label: "Show in folder", run: () => port.reveal(hit.path) };
   return {
     key: `file:${hit.path}`,
     kind: hit.dir ? "folder" : "file",

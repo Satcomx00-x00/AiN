@@ -52,6 +52,12 @@ describe("settings", () => {
     expect(s.layout).toEqual(layout);
   });
 
+  it("keeps how the pill dresses its glances, within range", () => {
+    expect(parseSettings({ pill: { perSide: 3, icons: ["clock", "clock"], idle: ["privacy"] } }, fallback).pill).toEqual({ perSide: 3, icons: ["clock"], idle: ["privacy"] });
+    expect(parseSettings({ pill: { perSide: 9, icons: "clock" } }, fallback).pill).toEqual({ perSide: 1, icons: [], idle: [] });
+    expect(parseSettings({}, fallback).pill).toEqual({ perSide: 1, icons: [], idle: [] });
+  });
+
   it("keeps the pill's shape within range", () => {
     expect(parseSettings({ general: { pillWidth: 320, pillCurve: 40 } }, fallback).general).toMatchObject({ pillWidth: 320, pillCurve: 40 });
     expect(parseSettings({ general: { pillWidth: 5000, pillCurve: -1 } }, fallback).general).toEqual(DEFAULT_GENERAL);
@@ -89,6 +95,12 @@ describe("settings", () => {
     expect(DEFAULT_GENERAL.pillSize).toBe("normal");
     for (const size of ["low", "normal", "large"]) expect(parseSettings({ general: { pillSize: size } }, fallback).general.pillSize).toBe(size);
     for (const bad of ["huge", 2, null]) expect(parseSettings({ general: { pillSize: bad } }, fallback).general.pillSize).toBe("normal");
+  });
+
+  it("keeps the pill on the primary screen unless one was picked", () => {
+    expect(DEFAULT_GENERAL.screen).toBeNull();
+    expect(parseSettings({ general: { screen: "DELL U2720Q #2" } }, fallback).general.screen).toBe("DELL U2720Q #2");
+    for (const bad of ["", 3, "x".repeat(257), undefined]) expect(parseSettings({ general: { screen: bad } }, fallback).general.screen).toBeNull();
   });
 
   it("removes duplicate ids in a placement", () =>

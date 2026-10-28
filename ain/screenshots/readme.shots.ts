@@ -64,17 +64,19 @@ test("settings: appearance", async ({ page }) => {
   await page.screenshot({ path: `${IMG}/settings-appearance.png`, clip: { x: 0, y: 0, width: 1000, height } });
 });
 
-for (const [section, file, width] of [
-  ["General", "settings-general.png", 1000],
-  // Wider, so the three lists show whole names.
-  ["Layout", "settings-layout.png", 1240],
-  ["Shortcuts", "settings-shortcuts.png", 1000],
-  ["Widgets", "settings-widgets.png", 1000],
+for (const [section, hash, file, width] of [
+  ["General", "general", "settings-general.png", 1000],
+  // Wider, so the preview and the widget's settings sit side by side.
+  ["Pill", "layout", "settings-pill.png", 1240],
+  ["Shortcuts", "shortcuts", "settings-shortcuts.png", 1000],
+  ["Widgets", "widgets", "settings-widgets.png", 1000],
 ] as const)
   test(`settings: ${section.toLowerCase()}`, async ({ page }) => {
     await page.setViewportSize({ width, height: 760 });
-    await page.goto(`/settings.html#${section.toLowerCase()}`);
+    await page.goto(`/settings.html#${hash}`);
     await expect(page.locator("main h1")).toHaveText(section);
+    // The Pill page with a widget's settings beside the preview.
+    if (hash === "layout") await page.locator('.pill-widget[data-drag="clock"]').click();
     await page.waitForTimeout(400);
     // Down to the end of the section, at most a window's height.
     const end = await page.evaluate(() => Math.max(...[...document.querySelectorAll("main > *")].map((e) => e.getBoundingClientRect().bottom)));

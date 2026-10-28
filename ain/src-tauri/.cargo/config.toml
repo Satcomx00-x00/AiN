@@ -9,9 +9,6 @@ CXXFLAGS_x86_64_unknown_linux_gnu = "-D_GLIBCXX_USE_CXX11_ABI=0"
 LLAMA_STATIC_CRT = "1"
 # llama.cpp's CMake policies pick the runtime from CMAKE_MSVC_RUNTIME_LIBRARY, not the /MT flag.
 CMAKE_TOOLCHAIN_FILE_x86_64_pc_windows_msvc = { value = "cmake/msvc-static-crt.cmake", relative = true }
-# llama.cpp uses std::filesystem, which macOS has from 10.15: the same as
-# bundle.macOS.minimumSystemVersion in tauri.conf.json, which `tauri build` sets this from.
-MACOSX_DEPLOYMENT_TARGET = "10.15"
 
 # The static CRT on Windows for everything else built from source (llama-cpp-sys-2's C++ wrapper,
 # compiled by cc), as sherpa-onnx's libraries; the app then needs no Visual C++ runtime installed.

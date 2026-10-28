@@ -24,7 +24,7 @@ export interface Item {
   readonly score: number;
   /** On Enter or a click. */
   readonly primary: Action;
-  /** On Ctrl+Enter (Cmd+Enter on macOS), when there is one. */
+  /** On Ctrl+Enter, when there is one. */
   readonly secondary?: Action;
   /** Asked before `primary` runs, for what can't be undone: Enter must be pressed again. */
   readonly confirm?: string;

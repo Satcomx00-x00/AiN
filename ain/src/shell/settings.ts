@@ -29,15 +29,28 @@ export interface General {
   readonly greeting: string;
   /** How long the cursor must rest at the top center to show a hidden pill (the Hidden style). */
   readonly revealDelay: number;
+  /** The screen the pill sits on, by id (see shell/screens.ts); null for the primary. While it's unplugged, the pill sits on the primary. */
+  readonly screen: string | null;
   /** Trust any server certificate (self-signed, unknown CA): for closed networks only. */
   readonly acceptAnyCertificate: boolean;
   /** A folder or URL laid out like the models folder, to get models from without internet; "" for the internet. */
   readonly modelsSource: string;
 }
 
+/** How the collapsed pill dresses its glances (Settings → Pill). */
+export interface PillLook {
+  /** How many glances each end shows side by side, in priority order; 1 shows only the first with something to say. */
+  readonly perSide: number;
+  /** Plugins whose glance starts with their icon. */
+  readonly icons: readonly string[];
+  /** Plugins that show their icon, dimmed, while they have nothing to say. */
+  readonly idle: readonly string[];
+}
+
 export interface Settings {
   readonly version: 1;
   readonly layout: Layout;
+  readonly pill: PillLook;
   readonly general: General;
   /** Raw option values per plugin id; each plugin validates its own. */
   readonly options: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
@@ -80,7 +93,7 @@ export function adopt(layout: Layout, fallback: Layout, seen: readonly string[])
   };
 }
 
-export const DEFAULT_GENERAL: General = { openDelay: 140, closeDelay: 260, pillWidth: 200, pillSize: "normal", style: "pill", pillCurve: 100, theme: "island", pillColor: "#000000", accentColor: "#0a84ff", greeting: "hello", revealDelay: 500, acceptAnyCertificate: false, modelsSource: "" };
+export const DEFAULT_GENERAL: General = { openDelay: 140, closeDelay: 260, pillWidth: 200, pillSize: "normal", style: "pill", pillCurve: 100, theme: "island", pillColor: "#000000", accentColor: "#0a84ff", greeting: "hello", revealDelay: 500, acceptAnyCertificate: false, modelsSource: "", screen: null };
 export const PILL_SIZE_IDS = ["low", "normal", "large"] as const satisfies readonly PillSize[];
 /** The style that keeps the pill hidden until the cursor rests on its spot. */
 export const HIDDEN_STYLE = "hidden";
@@ -88,8 +101,10 @@ export const DELAY_RANGE = { min: 0, max: 1000, step: 20 } as const;
 export const REVEAL_RANGE = { min: 100, max: 2000, step: 100 } as const;
 export const WIDTH_RANGE = { min: 120, max: 480, step: 10 } as const;
 export const CURVE_RANGE = { min: 0, max: 100, step: 5 } as const;
+export const PER_SIDE_RANGE = { min: 1, max: 4, step: 1 } as const;
+export const DEFAULT_PILL: PillLook = { perSide: 1, icons: [], idle: [] };
 
-export const defaults = (layout: Layout): Settings => ({ version: 1, layout, general: DEFAULT_GENERAL, options: {}, shortcuts: {}, seen: placed(layout), extensions: [], providers: [] });
+export const defaults = (layout: Layout): Settings => ({ version: 1, layout, pill: DEFAULT_PILL, general: DEFAULT_GENERAL, options: {}, shortcuts: {}, seen: placed(layout), extensions: [], providers: [] });
 
 const ids = z.array(z.string()).transform((list) => [...new Set(list)]);
 const ID = /^[a-z][a-z0-9-]{1,31}$/;
@@ -116,6 +131,9 @@ export function parseSettings(raw: unknown, fallback: Settings): Settings {
     layout: z
       .object({ glance: z.object({ left: ids, right: ids }), tabs: ids })
       .catch(() => ({ glance: { left: [...layout.glance.left], right: [...layout.glance.right] }, tabs: [...layout.tabs] })),
+    pill: z
+      .object({ perSide: within(PER_SIDE_RANGE)(fallback.pill.perSide), icons: ids.catch([...fallback.pill.icons]), idle: ids.catch([...fallback.pill.idle]) })
+      .catch(() => ({ perSide: fallback.pill.perSide, icons: [...fallback.pill.icons], idle: [...fallback.pill.idle] })),
     general: z
       .object({
         openDelay: delay(fallback.general.openDelay),
@@ -129,6 +147,7 @@ export function parseSettings(raw: unknown, fallback: Settings): Settings {
         accentColor: color(fallback.general.accentColor),
         greeting: z.string().regex(ID).catch(fallback.general.greeting),
         revealDelay: within(REVEAL_RANGE)(fallback.general.revealDelay),
+        screen: z.string().min(1).max(256).nullable().catch(fallback.general.screen),
         acceptAnyCertificate: z.boolean().catch(fallback.general.acceptAnyCertificate),
         modelsSource: z.string().trim().catch(fallback.general.modelsSource),
       })

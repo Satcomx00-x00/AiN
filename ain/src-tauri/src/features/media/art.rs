@@ -16,17 +16,6 @@ pub fn mime_for(path: &str) -> &'static str {
     }
 }
 
-/// The image type from its first bytes; JPEG when unsure.
-#[cfg(any(target_os = "macos", test))]
-pub fn sniff(bytes: &[u8]) -> &'static str {
-    match bytes {
-        [0x89, b'P', b'N', b'G', ..] => "image/png",
-        [b'G', b'I', b'F', ..] => "image/gif",
-        [b'R', b'I', b'F', b'F', _, _, _, _, b'W', b'E', b'B', b'P', ..] => "image/webp",
-        _ => "image/jpeg",
-    }
-}
-
 pub fn data_url(mime: &str, bytes: &[u8]) -> String {
     format!("data:{mime};base64,{}", STANDARD.encode(bytes))
 }
@@ -50,13 +39,6 @@ mod tests {
     fn guesses_image_types() {
         assert_eq!(mime_for("/tmp/Cover.PNG"), "image/png");
         assert_eq!(mime_for("https://i.scdn.co/image/ab67616d0000b273"), "image/jpeg");
-    }
-
-    #[test]
-    fn recognizes_images_by_their_bytes() {
-        assert_eq!(sniff(b"\x89PNG\r\n\x1a\n"), "image/png");
-        assert_eq!(sniff(b"RIFF\0\0\0\0WEBPVP8 "), "image/webp");
-        assert_eq!(sniff(&[0xff, 0xd8, 0xff]), "image/jpeg");
     }
 
     #[test]
