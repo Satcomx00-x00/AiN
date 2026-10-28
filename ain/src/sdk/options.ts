@@ -15,6 +15,8 @@ interface Base<T> {
    * that shows live state. Still validated and defaulted like any field.
    */
   readonly inPanel?: boolean | undefined;
+  /** Only matters on the collapsed pill: Settings → Pill offers it while the plugin is placed there. */
+  readonly pill?: boolean | undefined;
 }
 
 export interface ToggleField extends Base<boolean> {

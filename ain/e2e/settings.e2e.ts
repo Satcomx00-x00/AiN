@@ -16,7 +16,7 @@ async function appearance(page: Page) {
 test("opens on General, and every section draws", async ({ page }) => {
   await page.goto("/settings.html");
   await expect(page.locator("main h1")).toHaveText("General");
-  for (const section of ["Appearance", "Layout", "Shortcuts", "Widgets", "Plugins", "About"]) {
+  for (const section of ["Appearance", "Pill", "Shortcuts", "Widgets", "Plugins", "About"]) {
     await page.locator("nav button", { hasText: section }).click();
     await expect(page.locator("main h1")).toHaveText(section);
   }
