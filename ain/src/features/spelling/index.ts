@@ -79,6 +79,7 @@ export const spelling = definePlugin({
   description: "Corrects the selected text, in French or English, on this computer or by an AI provider.",
   icon: CHECK,
   slots: ["glance", "tab"],
+  sample: () => ({ text: "Correcting…", mark: "eq" }),
   options: {
     // Drawn by the settings panel, which knows the providers and the downloads.
     ...engineOptions(),
