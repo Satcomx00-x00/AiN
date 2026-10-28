@@ -40,6 +40,7 @@ function install(backend: Backend): void {
     "plugin:island|info": () => ({ width: 200, height: 32, hasNotch: false }),
     "plugin:island|layout": () => null,
     "plugin:island|auto_hide": () => null,
+    "plugin:island|screens": () => [{ id: "Built-in", name: "Built-in", width: 2560, height: 1600, x: 0, y: 0, scale: 2, primary: true }],
     "plugin:settings|get": () => settings,
     "plugin:settings|set": (a) => {
       settings = a.value;

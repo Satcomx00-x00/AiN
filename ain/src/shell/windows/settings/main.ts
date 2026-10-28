@@ -30,7 +30,7 @@ import { styles } from "../../../features/styles";
 import type { AnyStyle, PillSize } from "../../../sdk/style";
 import { styleById } from "../../styles";
 import { NO_GREETING } from "../../greet";
-import { type SelectOption, select } from "../../../sdk/select";
+import { type Select, type SelectOption, select } from "../../../sdk/select";
 import { tauriServices } from "../../../features/services";
 import { THEMES, themeById } from "../../themes";
 import { type SecretAccess, aroundPanel, colorPicker, field, folderControl, optionControl, rangeControl, segmented, standardFields, switchControl, themeGrid } from "./controls";
@@ -44,13 +44,14 @@ import { type Report, type Tone, demoUpdater, describe, noteLines } from "../../
 import { messageOf, onProblem, reportProblem } from "../../../sdk/report";
 import { toaster } from "./toasts";
 import { type SearchEntry, search } from "./search";
+import { type Screen, fixedScreens, PRIMARY, screenOptions, screenSetting } from "../../screens";
 
 const SAVE_DELAY = 250;
 /** Built-in features, then plugins from enabled files that loaded fine. */
 let plugins: readonly AnyPlugin[] = catalogue;
 const fallback = defaults(defaultLayout);
 // The app's backend, or in-memory stand-ins outside Tauri (the browser preview, integration tests).
-const { store, popup, folder, importer, community = noCommunity, updater = demoUpdater(), secrets = memorySecrets(), presets: loadPresets = builtInPresets, services = tauriServices, inApp: inTauri } = settingsPorts();
+const { store, popup, folder, importer, community = noCommunity, updater = demoUpdater(), secrets = memorySecrets(), presets: loadPresets = builtInPresets, services = tauriServices, screens: screenPort = fixedScreens(), inApp: inTauri } = settingsPorts();
 /** The updater's last report, kept current by its events; null until the first one arrives. */
 let update: Report | null = null;
 /** The AI provider presets, at their addresses once the backend has said (environment overrides). */
@@ -251,6 +252,22 @@ function header(title: string, lead: string) {
 
 // ---------- sections ----------
 
+/** The connected screens, kept current; the screen picker, while General shows it. */
+let screens: readonly Screen[] = [];
+let screenPicker: Select | null = null;
+void screenPort
+  .watch((next) => {
+    screens = next;
+    screenPicker?.setOptions(screenOptions(screens, settings.general.screen));
+  })
+  .catch((e: unknown) => console.error("[settings] could not list the screens", e));
+
+function screenField(): HTMLElement {
+  const { screen } = settings.general;
+  screenPicker = select(screenOptions(screens, screen), screen ?? PRIMARY, (v) => setGeneral({ screen: screenSetting(v) }, true), "Screen");
+  return field("Screen", "Where the pill sits. If that screen is unplugged, the pill moves to the primary one until it's back.", screenPicker.el, true);
+}
+
 function general(): Page {
   const autostart = switchControl(false, (on) => {
     store.setAutostart(on).catch((e: unknown) => {
@@ -266,6 +283,7 @@ function general(): Page {
       group("Startup", field("Launch at login", "Starts AiN when you sign in, so the island is there from the start.", autostart)),
       group(
         "Island",
+        screenField(),
         field(
           "Open delay",
           "How long the pointer rests on the pill before the island opens.",
@@ -1017,6 +1035,7 @@ const RENDER: Record<Section, () => Page> = { appearance, general, layout, short
 const SEARCHABLE: Partial<Record<Section, readonly (readonly [label: string, hint: string, keywords?: string])[]>> = {
   general: [
     ["Launch at login", "Starts AiN when you sign in", "startup boot autostart windows"],
+    ["Screen", "Which screen the pill sits on", "monitor display multi-screen second external primary"],
     ["Open delay", "How long the pointer rests on the pill before the island opens", "hover speed"],
     ["Close delay", "How long the island stays open once the pointer leaves it", "hover speed"],
     ["Hide the pill", "Show the pill only at the top center of the screen", "hidden auto-hide games"],

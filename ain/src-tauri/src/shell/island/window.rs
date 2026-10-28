@@ -4,6 +4,7 @@ use serde::Serialize;
 use specta::Type;
 use tauri::{LogicalSize, PhysicalPosition, PhysicalSize, Runtime, Window};
 
+use super::screens;
 use crate::{Error, Res};
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Type)]
@@ -49,7 +50,8 @@ pub struct Placement {
     pub scale: f64,
 }
 
-pub fn place<R: Runtime>(w: &Window<R>, size: LogicalSize<f64>) -> Res<Placement> {
+/// Places the window flush top-center on the screen `screens::pick` chooses for `wanted`.
+pub fn place<R: Runtime>(w: &Window<R>, size: LogicalSize<f64>, wanted: Option<&str>) -> Res<Placement> {
     if is_wayland() {
         // GTK sizes a non-resizable window to at least its content's natural size, 200×200 for the
         // webview, which left an invisible strip under the folded pill taking clicks. Resizable,
@@ -60,18 +62,39 @@ pub fn place<R: Runtime>(w: &Window<R>, size: LogicalSize<f64>) -> Res<Placement
         w.set_max_size(Some(size))?;
     }
     w.set_size(size)?;
-    // An unmapped window has no current monitor, and GDK has no primary one on Wayland (GNOME):
-    // fall back to the first monitor listed.
-    let m = match w.current_monitor()?.or(w.primary_monitor()?) {
-        Some(m) => m,
-        None => w.available_monitors()?.into_iter().next().ok_or_else(|| Error::msg("no monitor available"))?,
-    };
+    let monitors = w.available_monitors()?;
+    let index = screens::pick(&screens::describe(&monitors, w.primary_monitor()?.as_ref()), wanted)
+        .ok_or_else(|| Error::msg("no monitor available"))?;
+    let m = &monitors[index];
     let (scale, physical) = (m.scale_factor(), size.to_physical(m.scale_factor()));
     let origin = top_center(*m.position(), *m.size(), physical);
-    if !is_wayland_surface() {
-        w.set_position(origin)?;
+    match is_wayland_surface() {
+        true => put_on(w, index)?,
+        false => w.set_position(origin)?,
     }
     Ok(Placement { origin, size: physical, scale })
+}
+
+/// Asks the compositor to show the layer surface on the `index`th monitor, which is GDK's own
+/// numbering, the one `available_monitors` lists in. Before layer-shell is set up, it waits for `native`.
+#[cfg(target_os = "linux")]
+fn put_on<R: Runtime>(w: &Window<R>, index: usize) -> Res<()> {
+    use gtk_layer_shell::LayerShell;
+    let window = w.clone();
+    w.run_on_main_thread(move || {
+        let monitor = gtk::gdk::Display::default().and_then(|d| d.monitor(i32::try_from(index).ok()?));
+        if let (Ok(g), Some(m)) = (window.gtk_window(), monitor)
+            && g.is_layer_window()
+        {
+            g.set_monitor(&m);
+        }
+    })?;
+    Ok(())
+}
+
+#[cfg(not(target_os = "linux"))]
+fn put_on<R: Runtime>(_: &Window<R>, _: usize) -> Res<()> {
+    Ok(())
 }
 
 /// The part of the window at `canvas` that takes input: `region`, centered at the top. Clicks
