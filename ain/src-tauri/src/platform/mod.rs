@@ -56,6 +56,20 @@ pub fn end_with_app(child: &std::process::Child) {
     windows::end_with_app(child);
 }
 
+/// Runs `work` on its own thread and waits for it at most `limit`: None when it took longer. The
+/// thread then finishes on its own and its result is dropped. For OS calls that can wait on the
+/// user without a timeout of their own, like a desktop portal's permission dialog.
+pub fn within<T: Send + 'static>(limit: std::time::Duration, work: impl FnOnce() -> T + Send + 'static) -> Option<T> {
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::Builder::new()
+        .name("within".into())
+        .spawn(move || {
+            let _ = tx.send(work());
+        })
+        .ok()?;
+    rx.recv_timeout(limit).ok()
+}
+
 #[cfg(windows)]
 fn open(target: &std::ffi::OsStr) -> std::io::Result<()> {
     windows::shell_open(target)
@@ -68,6 +82,14 @@ fn open(target: &std::ffi::OsStr) -> std::io::Result<()> {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
+    #[test]
+    fn waits_for_work_up_to_a_limit() {
+        assert_eq!(super::within(Duration::from_secs(5), || 7), Some(7));
+        assert_eq!(super::within(Duration::from_millis(20), || std::thread::sleep(Duration::from_secs(2))), None);
+    }
+
     #[test]
     fn opens_only_https_links() {
         for url in ["http://github.com/o/r", "file:///etc/passwd", r"C:\Windows\System32\calc.exe", "javascript:alert(1)"] {

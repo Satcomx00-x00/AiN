@@ -35,7 +35,15 @@ pub fn xwayland() -> bool {
 /// is kept in the config folder) and the session stays open while the app runs. Keys are sent by
 /// their position (evdev codes), so Ctrl+V is right whatever the keyboard layout.
 pub mod portal {
-    use std::{fs, path::PathBuf, sync::Mutex};
+    use std::{
+        fs,
+        path::PathBuf,
+        sync::{
+            Arc, Mutex, TryLockError,
+            atomic::{AtomicBool, Ordering},
+        },
+        time::Duration,
+    };
 
     use ashpd::desktop::{
         PersistMode, Session,
@@ -81,10 +89,32 @@ pub mod portal {
         Ok(())
     }
 
-    /// Presses Ctrl+V; false when the portal is missing or the user said no.
+    /// How long the desktop's "allow remote interaction" dialog may stay unanswered. The portal has
+    /// no timeout of its own: without one, a dialog left open held the dictation in "transcribing".
+    const ANSWER: Duration = Duration::from_secs(30);
+
+    /// Presses Ctrl+V; false when the portal is missing, the user said no, or didn't answer in time
+    /// (the text stays copied, to paste by hand).
     pub fn paste() -> bool {
+        let gave_up = Arc::new(AtomicBool::new(false));
+        let late = Arc::clone(&gave_up);
+        let pasted = crate::platform::within(ANSWER, move || paste_unless(&late));
+        if pasted.is_none() {
+            gave_up.store(true, Ordering::SeqCst);
+        }
+        pasted.unwrap_or(false)
+    }
+
+    /// Presses Ctrl+V, unless `gave_up` was set while the desktop asked: a paste allowed minutes
+    /// later would land in whatever has the focus by then.
+    fn paste_unless(gave_up: &AtomicBool) -> bool {
         let keys = [(CTRL, KeyState::Pressed), (V, KeyState::Pressed), (V, KeyState::Released), (CTRL, KeyState::Released)];
-        let mut open = OPEN.lock().unwrap_or_else(|e| e.into_inner());
+        // A request still waiting on the dialog holds the lock: don't queue another behind it.
+        let mut open = match OPEN.try_lock() {
+            Ok(open) => open,
+            Err(TryLockError::Poisoned(e)) => e.into_inner(),
+            Err(TryLockError::WouldBlock) => return false,
+        };
         tauri::async_runtime::block_on(async {
             // A session the desktop closed meanwhile is opened again, once.
             for _ in 0..2 {
@@ -96,6 +126,9 @@ pub mod portal {
                             return false;
                         }
                     }
+                }
+                if gave_up.load(Ordering::SeqCst) {
+                    return false;
                 }
                 match press(open.as_ref().expect("opened above"), &keys).await {
                     Ok(()) => return true,
