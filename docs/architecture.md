@@ -53,8 +53,8 @@ disappears is tested on every platform.
 | media | Media transport controls | MPRIS (D-Bus) | Spotify and Music, scripted through `osascript` |
 | volume | Core Audio | PipeWire/PulseAudio (`pactl`) | Core Audio (output devices; macOS has no per-app volume) |
 | privacy | Capability Access Manager | recording streams (`pactl`) and open `/dev/video*` | Core Audio's process list (macOS 14+) and Core Media IO (camera on or off) |
-| dictation | types the text | types it with `xdotool`, `wtype` or `ydotool`, else copies it | types it once Accessibility is allowed, else copies it |
-| transcript | records the default output in loopback (WASAPI, through cpal) | records the default sink's monitor with `parec` | records the default output through a Core Audio process tap (cpal, macOS 14.6+) |
+| dictation | types the text | pastes it (Ctrl+V through the Remote Desktop portal, `xdotool`, `wtype` or `ydotool`), or types it when asked, else copies it | types it once Accessibility is allowed, else copies it |
+| transcript | records the default output in loopback (WASAPI, through cpal) | records the default sink through PipeWire, in-process (cpal's PipeWire host; microphones and speakers stay on ALSA) | records the default output through a Core Audio process tap (cpal, macOS 14.6+) |
 | tts (read aloud) | copies the selection (Ctrl+C), then puts the clipboard back | reads the primary selection | copies the selection (Cmd+C) once Accessibility is allowed, then puts the clipboard back |
 | popup paste | `SendInput` | the same tools | Cmd+V, once Accessibility is allowed |
 | clipboard, stats, capture | all platforms | | |

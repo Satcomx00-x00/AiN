@@ -32,7 +32,7 @@ import { NO_GREETING } from "../../greet";
 import { type Select, type SelectOption, select } from "../../../sdk/select";
 import { tauriServices } from "../../../features/services";
 import { THEMES, themeById } from "../../themes";
-import { type SecretAccess, aroundPanel, colorPicker, field, optionControl, rangeControl, segmented, standardFields, switchControl, themeGrid } from "./controls";
+import { type SecretAccess, aroundPanel, colorPicker, field, folderControl, optionControl, rangeControl, segmented, standardFields, switchControl, themeGrid } from "./controls";
 import type { Field, Fields } from "../../../sdk/options";
 import { memorySecrets } from "../../secrets";
 import { settingsPorts } from "./ports";
@@ -299,6 +299,7 @@ function general(): Page {
           button("Appearance", () => goTo("appearance"), { class: "secondary" }),
         ),
       ),
+      group("Network", ...networkRows()),
       group(
         "App",
         field(
@@ -309,6 +310,27 @@ function general(): Page {
       ),
     ],
   };
+}
+
+/** Closed networks: servers with a self-signed or internal certificate, and models without internet. */
+function networkRows(): HTMLElement[] {
+  const anyCertificate = switchControl(settings.general.acceptAnyCertificate, (on) => {
+    setGeneral({ acceptAnyCertificate: on });
+    if (on) toasts.note("Certificates are no longer checked: use this on a network you trust only");
+  }, "Accept any certificate");
+  return [
+    field(
+      "Accept any certificate",
+      "Connects to servers whose certificate isn't trusted (self-signed, internal CA): AI providers, the store, downloads and updates. Anyone on the network could then read and change the traffic. A company CA installed on the system is trusted without this.",
+      anyCertificate,
+    ),
+    field(
+      "Models source",
+      "Without internet, models come from here: a folder (USB drive, network share) or an http(s) address laid out like a models folder. Copy the models folder of a connected computer to make one.",
+      folderControl(settings.general.modelsSource, "The internet", pickFolder, (v) => setGeneral({ modelsSource: v }), "Models source"),
+      true,
+    ),
+  ];
 }
 
 const PILL_SIZES: readonly { value: PillSize; label: string }[] = [
@@ -1022,6 +1044,8 @@ const SEARCHABLE: Partial<Record<Section, readonly (readonly [label: string, hin
     ["Open delay", "How long the pointer rests on the pill before the island opens", "hover speed"],
     ["Close delay", "How long the island stays open once the pointer leaves it", "hover speed"],
     ["Hide the pill", "Show the pill only at the top center of the screen", "hidden auto-hide games"],
+    ["Accept any certificate", "Trust self-signed or internal servers", "tls ssl https certificate proxy insecure"],
+    ["Models source", "Get models from a folder or a server without internet", "offline mirror air-gapped usb download"],
     ["Quit AiN", "Closes the island and this window", "exit close stop"],
   ],
   appearance: [

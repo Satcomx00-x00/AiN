@@ -37,7 +37,7 @@ where
 
 /// Starts the default speakers on `queue`; the stream plays until dropped. Also returns their rate.
 pub fn open(queue: Queue) -> Result<(cpal::Stream, u32), String> {
-    let device = cpal::default_host().default_output_device().ok_or("No speakers found")?;
+    let device = super::audio::host().default_output_device().ok_or("No speakers found")?;
     let supported = device.default_output_config().map_err(|e| e.to_string())?;
     let (format, config) = (supported.sample_format(), supported.config());
     let rate = config.sample_rate;

@@ -124,17 +124,12 @@ impl Listener {
         shared.publish(app, Phase::Listening { level: 0.0, seconds: 0.0 });
     }
 
-    /// Moves recorded audio along to the decoder and reports the level; stops when the recording
-    /// or the recognizer failed.
+    /// Moves recorded audio along to the decoder and reports the level; stops when the recognizer failed.
     fn pump(&mut self, app: &AppHandle, shared: &Arc<Shared>) {
         let Some(session) = &mut self.session else { return };
         if matches!(shared.phase.get(), Phase::Error { .. }) {
             self.session = None;
             return;
-        }
-        if !session.loopback.alive() {
-            self.session = None;
-            return shared.publish(app, Phase::Error { message: "The sound server stopped".into() });
         }
         let audio = audio::resample(&session.loopback.take(), session.loopback.rate(), chunk::RATE);
         for ready in session.chunker.push(&audio) {

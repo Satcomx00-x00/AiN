@@ -1,6 +1,17 @@
 //! Audio helpers shared by the features that listen (dictation, conversation) and speak (read
 //! aloud, conversation).
 
+/// The host the microphones and speakers are opened on: ALSA on Linux, so device ids saved in the
+/// settings stay the same now that the PipeWire host is built in (for `transcript`); the system's
+/// own elsewhere.
+pub fn host() -> cpal::Host {
+    #[cfg(target_os = "linux")]
+    if let Ok(host) = cpal::host_from_id(cpal::HostId::Alsa) {
+        return host;
+    }
+    cpal::default_host()
+}
+
 /// Averages interleaved frames down to one channel.
 pub fn mono<T: Copy>(data: &[T], channels: usize, to_f32: impl Fn(T) -> f32) -> impl Iterator<Item = f32> {
     let channels = channels.max(1);

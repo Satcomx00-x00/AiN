@@ -21,6 +21,8 @@ everything in one folder (a portable install). Unset or blank means the default.
 | `AIN_PROVIDER_CUSTOM_URL` | `http://localhost:8000/v1` | The custom (OpenAI-compatible) preset's address. |
 | `AIN_CONFIG_DIR` | the OS's app config folder | Where `settings.json` and the plugins folder are. |
 | `AIN_DATA_DIR` | the OS's app data folder | Where downloaded models are kept by default (`models/`). |
+| `AIN_INSECURE_TLS` | off | `1`, `true`, `yes` or `on` accepts any server certificate, whatever the settings say ([offline](offline.md)). |
+| `AIN_MODELS_SOURCE` | the settings' models source | A folder or URL laid out like the models folder, used instead of the internet ([offline](offline.md)). |
 
 Notes:
 

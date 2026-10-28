@@ -176,7 +176,13 @@ fn disabled_reason(app: &AppHandle) -> Option<&'static str> {
 /// Asks the release host for a newer version.
 async fn find(app: &AppHandle) -> Result<Option<Update>, String> {
     let url = Url::parse(&manifest_url()).map_err(|e| e.to_string())?;
-    let updater = app.updater_builder().endpoints(vec![url]).and_then(|b| b.build()).map_err(|e| e.to_string())?;
+    let updater = app
+        .updater_builder()
+        // reqwest's own TLS: it follows "Accept any certificate" too.
+        .configure_client(|client| client.danger_accept_invalid_certs(super::net::insecure()))
+        .endpoints(vec![url])
+        .and_then(|b| b.build())
+        .map_err(|e| e.to_string())?;
     updater.check().await.map_err(|e| e.to_string())
 }
 

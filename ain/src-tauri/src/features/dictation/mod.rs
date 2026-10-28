@@ -8,7 +8,9 @@
 //! decoder thread in 30 s chunks, so long dictations are mostly transcribed by the time they end.
 //! The text is then typed at the cursor (`windows.rs`; on macOS and Linux, the platform's key
 //! helpers), or put on the clipboard when the system won't let us type: macOS until the user allows
-//! Accessibility access, Wayland without `wtype` or `ydotool`, X11 without `xdotool`.
+//! Accessibility access, Wayland without `wtype` or `ydotool`, X11 without `xdotool`. On Linux it
+//! is pasted by default (the "typing" option): the typing tools press keys of the US layout, or of
+//! whichever layout they assume, so on AZERTY the words would come out wrong without any error.
 
 pub(super) mod chunk;
 mod engine;
@@ -155,10 +157,20 @@ fn type_text(text: &str) -> bool {
     }
 }
 
-/// Hands the recognized text over: typed at the cursor where the OS allows it, else copied, and
-/// pasted where only a paste key can be pressed.
-fn deliver(app: &AppHandle, text: &str) -> Delivery {
-    if type_text(text) {
+/// Whether the text is pasted rather than typed key by key: the "typing" option, which by default
+/// pastes on Linux, where typing depends on the keyboard layout.
+pub fn pastes(settings: &Value) -> bool {
+    match settings::option(settings, FEATURE, "typing").and_then(Value::as_str) {
+        Some("paste") => true,
+        Some("keys") => false,
+        _ => cfg!(target_os = "linux"),
+    }
+}
+
+/// Hands the recognized text over: typed at the cursor where the OS allows it (unless it is to be
+/// pasted), else copied, and pasted where a paste key can be pressed.
+fn deliver(app: &AppHandle, text: &str, paste: bool) -> Delivery {
+    if !paste && type_text(text) {
         return Delivery::Typed;
     }
     let copied = match app.try_state::<Arc<super::clipboard::Clipboard>>().map(|c| c.copy(text.to_string())) {
@@ -175,16 +187,25 @@ fn deliver(app: &AppHandle, text: &str) -> Delivery {
     Delivery::Copied
 }
 
-/// Presses the paste key where typing isn't possible but that is (ydotool on GNOME).
+/// Presses the paste key in the focused app (on GNOME's Wayland, only ydotool can).
 fn paste_copied() -> bool {
     #[cfg(target_os = "linux")]
     {
         // Lets the compositor see the new clipboard before the target app asks for it.
         std::thread::sleep(Duration::from_millis(80));
-        crate::platform::linux::keys::paste(None)
+        let pasted = crate::platform::linux::keys::paste(None);
+        if !pasted {
+            eprintln!(
+                "island: dictation: couldn't press Ctrl+V (install ydotool, with ydotoold running, or wtype on Wayland; xdotool on X11)"
+            );
+        }
+        pasted
     }
     #[cfg(not(target_os = "linux"))]
-    false
+    {
+        popup::paste_now();
+        true
+    }
 }
 
 #[tauri::command]

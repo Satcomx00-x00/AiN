@@ -36,7 +36,7 @@ pub fn download(url: &str) -> Option<String> {
     if !(url.starts_with("https://") || url.starts_with("http://")) {
         return None;
     }
-    let mut response = ureq::get(url).call().ok()?;
+    let mut response = crate::shell::net::agent().get(url).call().ok()?;
     let mime = response.body().mime_type().map_or_else(|| mime_for(url).to_string(), str::to_string);
     let bytes = response.body_mut().with_config().limit(MAX_BYTES).read_to_vec().ok()?;
     Some(data_url(&mime, &bytes))

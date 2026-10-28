@@ -58,14 +58,14 @@ describe("fields a plugin draws itself", () => {
   });
 
   it("leave out the speech model, which dictation's panel draws with its download state", () =>
-    expect(standardFields(dictation.options ?? {}).map(([key]) => key)).toEqual(["mode", "modelDir", "keepLoaded", "trailingSpace"]));
+    expect(standardFields(dictation.options ?? {}).map(([key]) => key)).toEqual(["mode", "modelDir", "keepLoaded", "trailingSpace", "typing"]));
 });
 
 describe("where a plugin's panel goes", () => {
   it("takes the place of the first field it draws", () => {
     const keys = (list: [string, unknown][]) => list.map(([key]) => key);
     const { before, after } = aroundPanel(dictation.options ?? {});
-    expect([keys(before), keys(after)]).toEqual([["mode"], ["modelDir", "keepLoaded", "trailingSpace"]]);
+    expect([keys(before), keys(after)]).toEqual([["mode"], ["modelDir", "keepLoaded", "trailingSpace", "typing"]]);
   });
 
   it("goes last when the plugin draws none of its fields", () => {

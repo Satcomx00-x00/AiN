@@ -1,6 +1,6 @@
 //! Transcript: what the computer plays (a video, a call, a chat app) written down as it is heard.
 //! The system's sound is recorded in loopback (`loopback.rs`: WASAPI on Windows, a Core Audio tap
-//! on macOS 14.6+, the default sink's monitor on Linux) and recognized by dictation's speech model,
+//! on macOS 14.6+, a PipeWire stream on the default sink on Linux; all in-process) and recognized by dictation's speech model,
 //! on this machine, or by the AI provider the user picks (`shell::providers`).
 //!
 //! A worker thread owns the recording. It cuts the audio in short chunks, at pauses, so lines show up
@@ -8,8 +8,6 @@
 //! Silent chunks are skipped, so nothing is sent (or decoded) while nothing plays.
 
 mod engine;
-#[cfg(target_os = "linux")]
-mod linux;
 mod loopback;
 mod text;
 
