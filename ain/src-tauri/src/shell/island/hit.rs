@@ -84,6 +84,8 @@ impl Reveal {
 pub struct HitArea {
     canvas: Mutex<Option<(LogicalSize<f64>, Placement)>>,
     region: RwLock<Option<Rect>>,
+    /// The pill's logical size, so its area can follow the window to another screen.
+    region_size: Mutex<Option<LogicalSize<f64>>>,
     tracking: Mutex<bool>,
     auto_hide: RwLock<Option<AutoHide>>,
 }
@@ -113,8 +115,24 @@ impl HitArea {
         Ok(())
     }
 
-    pub fn set_region(&self, rect: Rect) {
-        *self.region.write().unwrap_or_else(|e| e.into_inner()) = Some(rect);
+    /// Places the window again at its canvas, e.g. on another screen, and moves the pill's area
+    /// with it. Nothing to do before the first `ensure_canvas`.
+    pub fn relocate(&self, place: impl FnOnce(LogicalSize<f64>) -> Res<Placement>) -> Res<()> {
+        let mut current = self.canvas.lock().unwrap_or_else(|e| e.into_inner());
+        let Some((size, _)) = *current else { return Ok(()) };
+        let placed = place(size)?;
+        *current = Some((size, placed));
+        if let Some(region) = *self.region_size.lock().unwrap_or_else(|e| e.into_inner()) {
+            *self.region.write().unwrap_or_else(|e| e.into_inner()) = Some(region_rect(placed, region, MARGIN));
+        }
+        Ok(())
+    }
+
+    /// The pill is now `region` (logical) at the top center of the placed window.
+    pub fn set_region(&self, region: LogicalSize<f64>) {
+        let current = self.canvas.lock().unwrap_or_else(|e| e.into_inner());
+        *self.region_size.lock().unwrap_or_else(|e| e.into_inner()) = Some(region);
+        *self.region.write().unwrap_or_else(|e| e.into_inner()) = current.map(|(_, placed)| region_rect(placed, region, MARGIN));
     }
 
     pub fn region(&self) -> Option<Rect> {
@@ -262,5 +280,21 @@ mod tests {
         area.ensure_canvas(size, place).unwrap();
         area.ensure_canvas(LogicalSize::new(500.0, 204.0), place).unwrap();
         assert_eq!(calls.get(), 2);
+    }
+
+    #[test]
+    fn relocating_moves_the_pill_area_with_the_window() {
+        let area = HitArea::default();
+        area.relocate(|_| unreachable!("nothing placed yet")).unwrap();
+        let size = LogicalSize::new(472.0, 204.0);
+        area.ensure_canvas(size, |_| Ok(PLACED)).unwrap();
+        area.set_region(LogicalSize::new(200.0, 32.0));
+        let moved = Placement { origin: PhysicalPosition { x: 3000, y: 0 }, ..PLACED };
+        area.relocate(|c| {
+            assert_eq!(c, size);
+            Ok(moved)
+        })
+        .unwrap();
+        assert_eq!(area.region(), Some(region_rect(moved, LogicalSize::new(200.0, 32.0), MARGIN)));
     }
 }

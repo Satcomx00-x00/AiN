@@ -109,7 +109,7 @@ check for it in the plugin too and say what's missing (e.g. a glance pointing to
 plugin as the default.
 
 **Secrets.** API keys, tokens and passwords belong in a `secret`: typed hidden, it is kept in the
-system's credential store (Windows Credential Manager, the macOS Keychain, the Secret Service on
+system's credential store (Windows Credential Manager, the Secret Service on
 Linux) rather than in the settings file, and Settings only shows whether one is saved. Its key is
 letters, digits, `_` or `-`. Read it when needed, it can change anytime:
 
@@ -214,7 +214,7 @@ With `needs: ["oauth"]`, a plugin can sign in to a web service (Google, Microsof
 with OAuth 2.0 and call its API. The app does the sign-in the way native apps should
 ([RFC 8252](https://www.rfc-editor.org/rfc/rfc8252)): it opens the provider's page in the
 system browser, with PKCE, and receives the answer on a one-off `127.0.0.1` address. It keeps
-the refresh token in the system keychain (Credential Manager, the macOS Keychain, the Secret
+the refresh token in the system keychain (Credential Manager, the Secret
 Service on Linux), filed under the plugin's id, and hands the plugin short-lived access tokens
 only. Filing by id keeps plugins' accounts apart; it doesn't protect them from a malicious plugin,
 since every plugin runs in the island's window with the same permissions: only turn on plugins

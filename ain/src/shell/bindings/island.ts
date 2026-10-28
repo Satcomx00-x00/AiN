@@ -21,11 +21,17 @@ export const commands = {
 	 *  which can't report the cursor.
 	 */
 	autoHide: (dwell: number | null, grace: number) => __TAURI_INVOKE<void>("plugin:island|auto_hide", { dwell, grace }),
+	/**
+	 *  The connected screens, for Settings to pick the pill's from. Async: listing them waits on the
+	 *  main thread.
+	 */
+	screens: () => __TAURI_INVOKE<Screen[]>("plugin:island|screens"),
 };
 
 /** Events */
 export const events = {
 	revealed: makeEvent<Revealed>("plugin:island:revealed"),
+	screensChanged: makeEvent<ScreensChanged>("plugin:island:screens-changed"),
 };
 
 /* Types */
@@ -37,6 +43,28 @@ export type Island = {
 
 /**  The pill was shown (true) or hidden (false) by the auto-hide rule. */
 export type Revealed = boolean;
+
+/**  A connected screen, as Settings lists it. */
+export type Screen = {
+	/**
+	 *  What the setting saves: the screen's name, with " #2", " #3"… on screens that share it, so
+	 *  it survives restarts and rearranging the screens.
+	 */
+	id: string,
+	/**  Its model or output name; empty when the system gives none. */
+	name: string,
+	/**  Its resolution, in device pixels. */
+	width: number,
+	height: number,
+	/**  Its top-left corner on the desktop, in device pixels. */
+	x: number,
+	y: number,
+	scale: number | null,
+	primary: boolean,
+};
+
+/**  The screens connected now, sent when one is plugged in or out, or rearranged. */
+export type ScreensChanged = Screen[];
 
 export type Size = {
 	width: number | null,

@@ -6,6 +6,7 @@ import { type SecretsPort, memorySecrets, tauriSecrets } from "../../secrets";
 import { type UpdaterPort, demoUpdater, tauriUpdater } from "../../updater";
 import { type PresetsPort, builtInPresets, tauriPresets } from "../../providers";
 import { type Services, tauriServices } from "../../../features/services";
+import { type ScreensPort, fixedScreens, tauriScreens } from "../../screens";
 
 /** What the settings page talks to. */
 export interface SettingsPorts {
@@ -21,6 +22,8 @@ export interface SettingsPorts {
   readonly secrets?: SecretsPort;
   /** The AI provider presets; without it (e.g. in a test), as built in. */
   readonly presets?: PresetsPort;
+  /** The connected screens, to pick the pill's from; without it (e.g. in a test), none. */
+  readonly screens?: ScreensPort;
   /** What plugins' settings panels and pages are given; without it, the app's. */
   readonly services?: Services;
   /** True inside the app: shortcuts can be tried, folders picked and plugins set up with real services. */
@@ -40,6 +43,7 @@ export function appPorts(): SettingsPorts {
     secrets: inApp ? tauriSecrets : memorySecrets(),
     presets: inApp ? tauriPresets : builtInPresets,
     services: tauriServices,
+    screens: inApp ? tauriScreens : fixedScreens(),
     inApp,
   };
 }

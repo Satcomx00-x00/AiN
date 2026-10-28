@@ -48,11 +48,7 @@ pub fn move_data() {
 /// Replaces the old app's launch-at-login entry with AiN's, so the setting stays as it was.
 pub fn move_autostart<R: Runtime>(app: &AppHandle<R>) {
     let Ok(exe) = std::env::current_exe() else { return };
-    let old = auto_launch::AutoLaunchBuilder::new()
-        .set_app_name(OLD_NAME)
-        .set_app_path(&exe.display().to_string())
-        .set_macos_launch_mode(auto_launch::MacOSLaunchMode::LaunchAgent)
-        .build();
+    let old = auto_launch::AutoLaunchBuilder::new().set_app_name(OLD_NAME).set_app_path(&exe.display().to_string()).build();
     let Ok(old) = old else { return };
     if !old.is_enabled().unwrap_or(false) {
         return;

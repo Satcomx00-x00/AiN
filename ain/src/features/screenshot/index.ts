@@ -1,5 +1,4 @@
 import { toggle } from "../../sdk/options";
-import { primaryKey } from "../../sdk/platform";
 import { definePlugin } from "../../sdk/plugin";
 import type { ClipboardPort } from "../clipboard/service";
 import type { CapturePort } from "./service";
@@ -21,7 +20,7 @@ export const screenshot = definePlugin({
     {
       id: "capture",
       label: "Annotate a screenshot",
-      description: `${primaryKey()}+C to copy, ${primaryKey()}+S to save.`,
+      description: "Ctrl+C to copy, Ctrl+S to save.",
       // Win+Shift+S belongs to the Windows Snipping Tool.
       shortcut: "Super+Alt+KeyS",
       surface: "screen",

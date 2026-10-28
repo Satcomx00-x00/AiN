@@ -1,6 +1,6 @@
 # Updates
 
-AiN updates itself on Windows, macOS and Linux with
+AiN updates itself on Windows and Linux with
 [`tauri-plugin-updater`](https://v2.tauri.app/plugin/updater/). The code is in
 [`src-tauri/src/shell/updater.rs`](../ain/src-tauri/src/shell/updater.rs) (backend) and
 [`src/shell/updater.ts`](../ain/src/shell/updater.ts) (the port Settings uses).
@@ -40,7 +40,6 @@ flowchart LR
      "pub_date": "2026-10-16T12:00:00Z",
      "platforms": {
        "windows-x86_64": { "url": "https://…/widget_0.2.0_x64-setup.exe", "signature": "…" },
-       "darwin-x86_64":  { "url": "https://…/widget_x64.app.tar.gz",        "signature": "…" },
        "linux-x86_64":   { "url": "https://…/widget_0.2.0_amd64.AppImage",  "signature": "…" }
      }
    }
@@ -55,7 +54,6 @@ flowchart LR
 | Platform | Installed as | What the updater does |
 | --- | --- | --- |
 | Windows | NSIS (`-setup.exe`) or MSI | runs the installer in passive mode (progress bar, no questions); per-user install, so no admin prompt |
-| macOS | `.app` | replaces the bundle with the one from `.app.tar.gz` |
 | Linux | AppImage | replaces the AppImage file in place |
 | Linux | `.deb` / `.rpm` | installs the package with `dpkg -i` / `rpm -U`, asking for the password through `pkexec` |
 | any | npm / bun (under `node_modules`) | nothing: updates are off, `bun update -g @satcomx00/ain` updates it ([npm.md](npm.md)) |
@@ -118,8 +116,8 @@ Versions released before step 3 have no updater and must be updated by hand once
 
 | Where | What | When |
 | --- | --- | --- |
-| [`src-tauri/tests/update_flow.rs`](../ain/src-tauri/tests/update_flow.rs) | A Tauri app (mock runtime) with the real updater plugin checks a local server: finds a newer version, downloads it, accepts a good signature, rejects a tampered file or another key's signature, ignores same or older versions; and `tauri.conf.json` ships a real key, not the test one | every CI run, on Windows, Linux and macOS (`cargo test`) |
-| [`check-update-manifest.py`](../.github/scripts/check-update-manifest.py) | The release's `latest.json` announces this version, has `windows-x86_64`, `darwin-x86_64` and `linux-x86_64`, points each entry at a file of the release, and each signature verifies against the app's key | each release, while still a draft: a failure leaves it unpublished |
+| [`src-tauri/tests/update_flow.rs`](../ain/src-tauri/tests/update_flow.rs) | A Tauri app (mock runtime) with the real updater plugin checks a local server: finds a newer version, downloads it, accepts a good signature, rejects a tampered file or another key's signature, ignores same or older versions; and `tauri.conf.json` ships a real key, not the test one | every CI run, on Windows and Linux (`cargo test`) |
+| [`check-update-manifest.py`](../.github/scripts/check-update-manifest.py) | The release's `latest.json` announces this version, has `windows-x86_64` and `linux-x86_64`, points each entry at a file of the release, and each signature verifies against the app's key | each release, while still a draft: a failure leaves it unpublished |
 | [`test-check-update-manifest.sh`](../.github/scripts/test-check-update-manifest.sh) | The checker above, against the signed fixtures | every CI run |
 
 The fixtures (`src-tauri/tests/fixtures/updater/`) are signed with a test-only key; how to
@@ -149,5 +147,5 @@ version (per user, in `%LOCALAPPDATA%`) and starts it, leaving the portable file
 - A setting to turn automatic checks off, or a beta channel (a second `latest.json`).
 - `requireSignedVersion` (refuses an old, validly signed release announced as new): to turn on
   once every published release is signed by a CLI that records the version in the signature.
-- macOS code signing and notarization; arm64 builds (Apple Silicon, Windows/Linux ARM) — each
+- arm64 builds (Windows/Linux ARM) — each
   new target adds its own entry to `latest.json`.

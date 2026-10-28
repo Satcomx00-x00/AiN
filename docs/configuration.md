@@ -14,7 +14,7 @@ everything in one folder (a portable install). Unset or blank means the default.
 | `AIN_UPDATE_URL` | `{AIN_GITHUB_URL}/{AIN_REPO}/releases/latest/download/latest.json` | The updater's `latest.json` (see [updates](updates.md)). Signatures are checked all the same. |
 | `AIN_HF_URL` | `https://huggingface.co` | Hugging Face: dictation's models, and PersonaPlex's (passed to it as `HF_ENDPOINT`). |
 | `AIN_TTS_MODELS_URL` | `https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models` | The read-aloud voices (`{base}/{model}.tar.bz2`). |
-| `AIN_TORCH_INDEX_URL` | `https://download.pytorch.org/whl/cu124` (PyPI on macOS) | PyTorch's package index for the local PersonaPlex server. |
+| `AIN_TORCH_INDEX_URL` | `https://download.pytorch.org/whl/cu124` | PyTorch's package index for the local PersonaPlex server. |
 | `AIN_PROVIDER_OPENAI_URL` | `https://api.openai.com/v1` | The OpenAI preset's address in Settings → AI providers. |
 | `AIN_PROVIDER_GROQ_URL` | `https://api.groq.com/openai/v1` | The Groq preset's address. |
 | `AIN_PROVIDER_MISTRAL_URL` | `https://api.mistral.ai/v1` | The Mistral preset's address. |
