@@ -4,8 +4,7 @@ import { defineConfig, devices } from "@playwright/test";
  * End-to-end tests: the island's preview page and the settings page in a real browser, against the
  * dev server and the preview's fake backend. Real layout, CSS, pointer and animations.
  *
- * In Chromium (the engine of Windows' WebView2) and WebKit (the engine behind macOS' WKWebView and
- * Linux's WebKitGTK), so a CSS or script feature one of them lacks can't slip through.
+ * In Chromium (the engine of Windows' WebView2) and WebKit (the engine behind Linux's WebKitGTK), so a CSS or script feature one of them lacks can't slip through.
  */
 const PORT = 5180;
 

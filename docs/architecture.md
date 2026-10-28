@@ -48,21 +48,20 @@ none: the feature then reports "unsupported" (or nothing) instead of failing. Th
 (`Shared::poll`) is plain code tested against a fake backend, so recovering when a device
 disappears is tested on every platform.
 
-| Feature | Windows | Linux | macOS |
-| --- | --- | --- | --- |
-| media | Media transport controls | MPRIS (D-Bus) | Spotify and Music, scripted through `osascript` |
-| volume | Core Audio | PipeWire/PulseAudio (`pactl`) | Core Audio (output devices; macOS has no per-app volume) |
-| privacy | Capability Access Manager | recording streams (`pactl`) and open `/dev/video*` | Core Audio's process list (macOS 14+) and Core Media IO (camera on or off) |
-| dictation | types the text | pastes it (Ctrl+V through the Remote Desktop portal, `xdotool`, `wtype` or `ydotool`), or types it when asked, else copies it | types it once Accessibility is allowed, else copies it |
-| transcript | records the default output in loopback (WASAPI, through cpal) | records the default sink through PipeWire, in-process (cpal's PipeWire host; microphones and speakers stay on ALSA) | records the default output through a Core Audio process tap (cpal, macOS 14.6+) |
-| tts (read aloud), spelling | copies the selection (Ctrl+C), then puts the clipboard back | reads the primary selection | copies the selection (Cmd+C) once Accessibility is allowed, then puts the clipboard back |
-| spelling's correction | types it over the selection | pastes it over the selection, as dictation does | types it once Accessibility is allowed, else copies it |
-| popup paste | `SendInput` | the same tools | Cmd+V, once Accessibility is allowed |
-| clipboard, stats, capture | all platforms | | |
+| Feature | Windows | Linux |
+| --- | --- | --- |
+| media | Media transport controls | MPRIS (D-Bus) |
+| volume | Core Audio | PipeWire/PulseAudio (`pactl`) |
+| privacy | Capability Access Manager | recording streams (`pactl`) and open `/dev/video*` |
+| dictation | types the text | pastes it (Ctrl+V through the Remote Desktop portal, `xdotool`, `wtype` or `ydotool`), or types it when asked, else copies it |
+| transcript | records the default output in loopback (WASAPI, through cpal) | records the default sink through PipeWire, in-process (cpal's PipeWire host; microphones and speakers stay on ALSA) |
+| tts (read aloud), spelling | copies the selection (Ctrl+C), then puts the clipboard back | reads the primary selection |
+| spelling's correction | types it over the selection | pastes it over the selection, as dictation does |
+| popup paste | `SendInput` | the same tools |
+| clipboard, stats, capture | all platforms | |
 
-Helpers several backends share live in `platform/`: `pactl` and the key tools on Linux, Core Audio's
-property API and synthetic keys on macOS. macOS permission prompts are explained by the strings in
-`src-tauri/Info.plist`.
+Helpers several backends share live in `platform/`: `pactl` and the key tools on Linux, COM
+and synthetic keys on Windows.
 
 ## AI providers
 

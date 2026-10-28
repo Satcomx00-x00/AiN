@@ -1,13 +1,10 @@
 //! Volume: the default output (for the pop-up on volume keys), plus a mixer of every source —
 //! active output devices and the apps playing on them — each with its level and mute.
-//! Windows uses Core Audio (`windows.rs`), Linux the PulseAudio API PipeWire provides (`linux.rs`),
-//! macOS its own Core Audio (`macos.rs`), which has devices but no per-app volume.
+//! Windows uses Core Audio (`windows.rs`), Linux the PulseAudio API PipeWire provides (`linux.rs`).
 
 #[cfg(target_os = "linux")]
 mod linux;
-#[cfg(target_os = "macos")]
-mod macos;
-#[cfg(any(windows, target_os = "linux", target_os = "macos"))]
+#[cfg(any(windows, target_os = "linux"))]
 mod mixer;
 #[cfg(windows)]
 mod windows;
@@ -25,7 +22,7 @@ use crate::{Error, Res};
 /// Fast enough that the collapsed pill reacts to volume keys right away.
 const POLL: Duration = Duration::from_millis(100);
 /// Whether this platform has a backend at all; without one, changes say so instead of doing nothing.
-const SUPPORTED: bool = cfg!(any(windows, target_os = "linux", target_os = "macos"));
+const SUPPORTED: bool = cfg!(any(windows, target_os = "linux"));
 /// Polls between checks for a new default output device (~2 s).
 const DEVICE_CHECK_EVERY: u32 = 20;
 /// Polls between mixer refreshes (~1 s); enumerating every session is heavier than one volume read.
@@ -103,9 +100,7 @@ fn open() -> Slot {
     return windows::Endpoint::new().map(|e| Box::new(e) as Box<dyn Backend>);
     #[cfg(target_os = "linux")]
     return linux::Pulse::new().map(|p| Box::new(p) as Box<dyn Backend>);
-    #[cfg(target_os = "macos")]
-    return macos::CoreAudio::new().map(|c| Box::new(c) as Box<dyn Backend>);
-    #[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
+    #[cfg(not(any(windows, target_os = "linux")))]
     None
 }
 

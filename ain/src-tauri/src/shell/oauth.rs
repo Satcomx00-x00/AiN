@@ -285,7 +285,7 @@ pub trait Vault: Send + Sync {
     fn delete(&self, key: &str) -> Res<()>;
 }
 
-/// The OS keychain: Credential Manager, the macOS Keychain, or the Secret Service on Linux.
+/// The OS keychain: Credential Manager or the Secret Service on Linux.
 struct Keychain;
 
 fn keychain(e: keyring::Error) -> Error {

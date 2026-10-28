@@ -88,11 +88,27 @@ impl Reveal {
     }
 }
 
+/// The pill's logical size and the bubbles' logical areas (x, y, width, height).
+#[derive(Debug, Clone, PartialEq)]
+struct Shape {
+    pill: LogicalSize<f64>,
+    areas: Vec<(f64, f64, f64, f64)>,
+}
+
+impl Shape {
+    fn rects(&self, p: Placement) -> Vec<Rect> {
+        let bubbles = self.areas.iter().map(|&(x, y, w, h)| area_rect(p, x, y, w, h));
+        std::iter::once(region_rect(p, self.pill, MARGIN)).chain(bubbles).collect()
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct HitArea {
     canvas: Mutex<Option<(LogicalSize<f64>, Placement)>>,
     /// The pill's area, then the bubbles' (if any).
     regions: RwLock<Vec<Rect>>,
+    /// What they are made of, so they can follow the window to another screen.
+    shape: Mutex<Option<Shape>>,
     tracking: Mutex<bool>,
     auto_hide: RwLock<Option<AutoHide>>,
 }
@@ -122,8 +138,25 @@ impl HitArea {
         Ok(())
     }
 
-    pub fn set_regions(&self, rects: Vec<Rect>) {
-        *self.regions.write().unwrap_or_else(|e| e.into_inner()) = rects;
+    /// Places the window again at its canvas, e.g. on another screen, and moves the pill's and
+    /// bubbles' areas with it. Nothing to do before the first `ensure_canvas`.
+    pub fn relocate(&self, place: impl FnOnce(LogicalSize<f64>) -> Res<Placement>) -> Res<()> {
+        let mut current = self.canvas.lock().unwrap_or_else(|e| e.into_inner());
+        let Some((size, _)) = *current else { return Ok(()) };
+        let placed = place(size)?;
+        *current = Some((size, placed));
+        if let Some(shape) = &*self.shape.lock().unwrap_or_else(|e| e.into_inner()) {
+            *self.regions.write().unwrap_or_else(|e| e.into_inner()) = shape.rects(placed);
+        }
+        Ok(())
+    }
+
+    /// The pill is now `pill` (logical) at the top center of the placed window, with bubbles at `areas`.
+    pub fn set_regions(&self, pill: LogicalSize<f64>, areas: Vec<(f64, f64, f64, f64)>) {
+        let current = self.canvas.lock().unwrap_or_else(|e| e.into_inner());
+        let shape = Shape { pill, areas };
+        *self.regions.write().unwrap_or_else(|e| e.into_inner()) = current.map(|(_, placed)| shape.rects(placed)).unwrap_or_default();
+        *self.shape.lock().unwrap_or_else(|e| e.into_inner()) = Some(shape);
     }
 
     /// Whether (x, y) is on the pill or a bubble; none before the first layout.
@@ -198,13 +231,13 @@ mod tests {
     fn input_goes_to_the_pill_and_every_bubble() {
         let area = HitArea::default();
         assert_eq!(area.contains(0.0, 0.0), None);
-        area.set_regions(vec![
-            Rect { left: 0.0, top: 0.0, right: 10.0, bottom: 10.0 },
-            Rect { left: 50.0, top: 0.0, right: 60.0, bottom: 10.0 },
-        ]);
-        assert_eq!(area.contains(5.0, 5.0), Some(true));
-        assert_eq!(area.contains(55.0, 5.0), Some(true));
-        assert_eq!(area.contains(30.0, 5.0), Some(false));
+        area.ensure_canvas(LogicalSize::new(472.0, 204.0), |_| Ok(PLACED)).unwrap();
+        area.set_regions(LogicalSize::new(200.0, 32.0), vec![(10.0, 4.0, 40.0, 20.0)]);
+        let pill = region_rect(PLACED, LogicalSize::new(200.0, 32.0), MARGIN);
+        let bubble = area_rect(PLACED, 10.0, 4.0, 40.0, 20.0);
+        assert_eq!(area.contains(pill.left + 1.0, pill.top + 1.0), Some(true));
+        assert_eq!(area.contains(bubble.left + 1.0, bubble.top + 1.0), Some(true));
+        assert_eq!(area.contains(pill.left - 1.0, pill.bottom + 1.0), Some(false));
     }
 
     #[test]
@@ -292,5 +325,23 @@ mod tests {
         area.ensure_canvas(size, place).unwrap();
         area.ensure_canvas(LogicalSize::new(500.0, 204.0), place).unwrap();
         assert_eq!(calls.get(), 2);
+    }
+
+    #[test]
+    fn relocating_moves_the_pill_area_with_the_window() {
+        let area = HitArea::default();
+        area.relocate(|_| unreachable!("nothing placed yet")).unwrap();
+        let size = LogicalSize::new(472.0, 204.0);
+        area.ensure_canvas(size, |_| Ok(PLACED)).unwrap();
+        area.set_regions(LogicalSize::new(200.0, 32.0), vec![]);
+        let moved = Placement { origin: PhysicalPosition { x: 3000, y: 0 }, ..PLACED };
+        area.relocate(|c| {
+            assert_eq!(c, size);
+            Ok(moved)
+        })
+        .unwrap();
+        let pill = region_rect(moved, LogicalSize::new(200.0, 32.0), MARGIN);
+        assert_eq!(area.contains(pill.left + 1.0, pill.top + 1.0), Some(true));
+        assert_eq!(area.contains(pill.left - 1.0, pill.top + 1.0), Some(false));
     }
 }

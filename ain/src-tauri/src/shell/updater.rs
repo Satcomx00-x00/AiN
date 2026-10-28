@@ -1,4 +1,4 @@
-//! Self-update, on Windows (NSIS/MSI), macOS (.app) and Linux (AppImage, .deb, .rpm), through
+//! Self-update, on Windows (NSIS/MSI) and Linux (AppImage, .deb, .rpm), through
 //! `tauri-plugin-updater`.
 //!
 //! Each release publishes, next to its installers, a `latest.json` manifest (version, notes, and a
@@ -333,7 +333,6 @@ mod tests {
     fn package_manager_installs() {
         assert!(in_node_modules(Path::new("/usr/lib/node_modules/@satcomx00/ain-linux-x64/AiN.AppImage")));
         assert!(in_node_modules(Path::new("C:/Users/me/.bun/install/global/node_modules/@satcomx00/ain-win32-x64/ain.exe")));
-        assert!(!in_node_modules(Path::new("/Applications/AiN.app/Contents/MacOS/AiN")));
         assert!(!in_node_modules(Path::new("/opt/not_node_modules/AiN.AppImage")));
     }
 

@@ -1,10 +1,8 @@
 //! Helpers shared by several features' OS backends. Each feature keeps its own backend next to it
-//! (`features/<name>/windows.rs`, `linux.rs`, `macos.rs`); only what they have in common lives here.
+//! (`features/<name>/windows.rs`, `linux.rs`); only what they have in common lives here.
 
 #[cfg(target_os = "linux")]
 pub mod linux;
-#[cfg(target_os = "macos")]
-pub mod macos;
 #[cfg(windows)]
 pub mod windows;
 
@@ -29,7 +27,6 @@ pub fn open_url(url: &str) -> std::io::Result<()> {
 
 /// Ties a helper program we start to the app: on Linux it ends with the app, even when the app is
 /// killed; on Windows it opens no console window.
-#[cfg_attr(target_os = "macos", allow(unused_variables, reason = "nothing to tie on macOS"))]
 pub fn tie_to_app(command: &mut std::process::Command) {
     #[cfg(target_os = "linux")]
     {
@@ -52,7 +49,7 @@ pub fn tie_to_app(command: &mut std::process::Command) {
 }
 
 /// Makes a helper the app started end with it, however the app ends. On Linux `tie_to_app` already
-/// did, before it started; macOS has no such thing.
+/// did, before it started.
 #[cfg_attr(not(windows), allow(unused_variables, reason = "only Windows needs the started process"))]
 pub fn end_with_app(child: &std::process::Child) {
     #[cfg(windows)]
@@ -66,11 +63,7 @@ fn open(target: &std::ffi::OsStr) -> std::io::Result<()> {
 
 #[cfg(not(windows))]
 fn open(target: &std::ffi::OsStr) -> std::io::Result<()> {
-    #[cfg(target_os = "macos")]
-    let program = "open";
-    #[cfg(not(target_os = "macos"))]
-    let program = "xdg-open";
-    std::process::Command::new(program).arg(target).spawn().map(drop)
+    std::process::Command::new("xdg-open").arg(target).spawn().map(drop)
 }
 
 #[cfg(test)]

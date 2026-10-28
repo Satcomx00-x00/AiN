@@ -7,8 +7,6 @@ pub fn round_level(level: f32) -> f32 {
 }
 
 /// A program's id and label: "Spotify.exe" → ("app:spotify", "Spotify"); "firefox" → ("app:firefox", "Firefox").
-/// macOS has no per-app volume, so no apps to name.
-#[cfg(any(windows, target_os = "linux"))]
 pub fn app_identity(program: &str) -> (String, String) {
     let file = program.rsplit(['\\', '/']).next().unwrap_or(program);
     let stem = match file.len().checked_sub(4) {

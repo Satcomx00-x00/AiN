@@ -9,7 +9,6 @@
 import { spawn, spawnSync } from "node:child_process";
 import { accessSync, chmodSync, constants, existsSync } from "node:fs";
 import { createRequire } from "node:module";
-import { homedir } from "node:os";
 import { basename, dirname, join, sep } from "node:path";
 
 const require = createRequire(import.meta.url);
@@ -54,14 +53,12 @@ const ensureExecutable = (path) => {
   }
 };
 
-/** Where AiN's installers put it: NSIS and MSI, the .dmg's usual targets, the .deb and .rpm. */
+/** Where AiN's installers put it: NSIS and MSI, the .deb and .rpm. */
 const installerPaths = () => {
   const { LOCALAPPDATA, ProgramFiles } = process.env;
   switch (process.platform) {
     case "win32":
       return [LOCALAPPDATA, ProgramFiles].filter((d) => d !== undefined).map((d) => join(d, "AiN", "AiN.exe"));
-    case "darwin":
-      return ["/Applications/AiN.app", join(homedir(), "Applications", "AiN.app")];
     default:
       return ["/usr/bin/ain", "/usr/bin/AiN"];
   }

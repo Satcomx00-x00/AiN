@@ -1,5 +1,4 @@
 import { button, h, icon } from "../../sdk/dom";
-import { primaryKey } from "../../sdk/platform";
 import type { PopupContext, PopupView } from "../../sdk/plugin";
 import type { ClipboardPort } from "../clipboard/service";
 import type { CapturePort } from "./service";
@@ -259,7 +258,7 @@ export function editor(root: HTMLElement, ctx: Ctx): PopupView {
     if (!image) return;
     try {
       await ctx.services.clipboard.copyImage(image);
-      say(`Copied — paste it anywhere with ${primaryKey()}+V`);
+      say("Copied — paste it anywhere with Ctrl+V");
       if (ctx.options().closeAfterCopy) setTimeout(() => ctx.close(), 650);
     } catch (e) {
       say(`Couldn't copy: ${String(e)}`);
@@ -329,7 +328,7 @@ export function editor(root: HTMLElement, ctx: Ctx): PopupView {
     paint();
   };
 
-  const mod = primaryKey();
+  const mod = "Ctrl";
   const bar = h(
     "div",
     { class: "ed-bar", role: "toolbar", "aria-label": "Annotate", hidden: "" },
@@ -406,7 +405,7 @@ export function editor(root: HTMLElement, ctx: Ctx): PopupView {
   document.addEventListener(
     "keydown",
     (e) => {
-      const mod = e.ctrlKey || e.metaKey;
+      const mod = e.ctrlKey;
       const crayon = CRAYONS[Number(/^Digit([1-8])$/.exec(e.code)?.[1]) - 1];
       if (phase === "select") {
         if (e.key === "Enter") startEdit(null);
