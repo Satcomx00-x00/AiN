@@ -2943,10 +2943,16 @@
           "markdownDescription": "Denies the state command without any pre-configured scope."
         },
         {
-          "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-models`\n- `allow-preset-urls`",
+          "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-models`\n- `allow-preset-urls`\n- `allow-ask`",
           "type": "string",
           "const": "providers:default",
-          "markdownDescription": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-models`\n- `allow-preset-urls`"
+          "markdownDescription": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-models`\n- `allow-preset-urls`\n- `allow-ask`"
+        },
+        {
+          "description": "Enables the ask command without any pre-configured scope.",
+          "type": "string",
+          "const": "providers:allow-ask",
+          "markdownDescription": "Enables the ask command without any pre-configured scope."
         },
         {
           "description": "Enables the models command without any pre-configured scope.",
@@ -2959,6 +2965,12 @@
           "type": "string",
           "const": "providers:allow-preset-urls",
           "markdownDescription": "Enables the preset_urls command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the ask command without any pre-configured scope.",
+          "type": "string",
+          "const": "providers:deny-ask",
+          "markdownDescription": "Denies the ask command without any pre-configured scope."
         },
         {
           "description": "Denies the models command without any pre-configured scope.",
@@ -3253,6 +3265,36 @@
           "type": "string",
           "const": "store:deny-open-repo",
           "markdownDescription": "Denies the open_repo command without any pre-configured scope."
+        },
+        {
+          "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-ensure`\n- `allow-place`",
+          "type": "string",
+          "const": "toasts:default",
+          "markdownDescription": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-ensure`\n- `allow-place`"
+        },
+        {
+          "description": "Enables the ensure command without any pre-configured scope.",
+          "type": "string",
+          "const": "toasts:allow-ensure",
+          "markdownDescription": "Enables the ensure command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the place command without any pre-configured scope.",
+          "type": "string",
+          "const": "toasts:allow-place",
+          "markdownDescription": "Enables the place command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the ensure command without any pre-configured scope.",
+          "type": "string",
+          "const": "toasts:deny-ensure",
+          "markdownDescription": "Denies the ensure command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the place command without any pre-configured scope.",
+          "type": "string",
+          "const": "toasts:deny-place",
+          "markdownDescription": "Denies the place command without any pre-configured scope."
         },
         {
           "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-state`\n- `allow-lines`\n- `allow-control`",

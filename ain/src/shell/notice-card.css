@@ -1,0 +1,245 @@
+/* A notification card (bubble and toast), drawn like the pill: its color, its curve, one line of
+   title and one of text. Text stays at 7:1 or more against the background; the Close column is a
+   sixth of the card. The colors come from --nc-bg / --nc-fg, set to the pill's (black by default). */
+.notice-card {
+  --nc-bg: #000000;
+  --nc-fg: #f5f5f7;
+  --nc-soft: color-mix(in srgb, var(--nc-fg) 84%, var(--nc-bg));
+  --nc-muted: color-mix(in srgb, var(--nc-fg) 72%, var(--nc-bg));
+  --nc-line: color-mix(in srgb, var(--nc-fg) 9%, transparent);
+  --nc-hover: color-mix(in srgb, var(--nc-fg) 12%, transparent);
+  --nc-focus: #0a84ff;
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr auto minmax(48px, 17%);
+  width: 100%;
+  box-sizing: border-box;
+  border-radius: 16px;
+  background: var(--nc-bg);
+  color: var(--nc-fg);
+  border: 1px solid var(--nc-line);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+  font: 400 12.5px/1.35 system-ui, "Segoe UI Variable Text", "Segoe UI", Cantarell, sans-serif;
+  text-align: left;
+  user-select: none;
+  pointer-events: auto;
+}
+
+.notice-card.large {
+  font-size: 14.5px;
+}
+
+.notice-card:focus-visible {
+  outline: 2px solid var(--nc-focus);
+  outline-offset: 2px;
+}
+
+.notice-main {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 24px 1fr;
+  align-items: center;
+  column-gap: 10px;
+  row-gap: 1px;
+  padding: 8px 8px 9px 12px;
+}
+
+.notice-app {
+  grid-row: span 3;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 12px;
+  background: var(--nc-hover);
+}
+
+.notice-app .icon {
+  width: 13px;
+  height: 13px;
+}
+
+.notice-head,
+.notice-body {
+  grid-column: 2;
+}
+
+/* Title, then who sent it: the source gives way first when the line is short. */
+.notice-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
+.notice-title {
+  flex: none;
+  max-width: 100%;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.notice-src {
+  min-width: 0;
+  font-size: 0.86em;
+  color: var(--nc-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.notice-src strong {
+  color: var(--nc-fg);
+  font-weight: 600;
+}
+
+.notice-body {
+  color: var(--nc-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.notice-acts {
+  grid-column: 2;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 8px 6px 0;
+}
+
+.notice-acts button {
+  min-height: 26px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 13px;
+  background: var(--nc-hover);
+  color: var(--nc-fg);
+  font: inherit;
+  font-size: 0.92em;
+  font-weight: 550;
+  cursor: pointer;
+}
+
+.notice-acts button:hover {
+  background: color-mix(in srgb, var(--nc-fg) 20%, transparent);
+}
+
+/* Close: a sixth of the card, its full height. */
+.notice-close {
+  grid-column: 3;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-left: 1px solid var(--nc-line);
+  background: transparent;
+  color: var(--nc-fg);
+  font: 600 10.5px/1.2 system-ui, "Segoe UI", sans-serif;
+  cursor: pointer;
+}
+
+.notice-close > span {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+}
+
+.notice-close .icon {
+  width: 16px;
+  height: 16px;
+  stroke-width: 2;
+}
+
+.notice-close:hover {
+  background: var(--nc-hover);
+}
+
+.notice-acts button:focus-visible,
+.notice-close:focus-visible {
+  outline: 2px solid var(--nc-focus);
+  outline-offset: -4px;
+}
+
+.notice-bar {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 2px;
+  background: color-mix(in srgb, var(--nc-fg) 35%, transparent);
+  transform-origin: left;
+  animation: notice-drain linear forwards;
+}
+
+@keyframes notice-drain {
+  to {
+    transform: scaleX(0);
+  }
+}
+
+/* In and out. */
+.notice-card[data-anim="slide"] {
+  animation: notice-slide var(--notice-ms) cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.notice-card[data-anim="fade"] {
+  animation: notice-fade var(--notice-ms) ease-out both;
+}
+.notice-card[data-anim="pop"] {
+  animation: notice-pop var(--notice-ms) cubic-bezier(0.34, 1.3, 0.64, 1) both;
+}
+.notice-card[data-anim="drop"] {
+  animation: notice-drop var(--notice-ms) cubic-bezier(0.34, 1.3, 0.64, 1) both;
+  transform-origin: top center;
+}
+.notice-card[data-leaving="true"] {
+  animation: notice-fade calc(var(--notice-ms) * 0.8) ease-in reverse both;
+  pointer-events: none;
+}
+.notice-card[data-anim="slide"][data-leaving="true"] {
+  animation: notice-slide calc(var(--notice-ms) * 0.8) ease-in reverse both;
+}
+
+.notice-card[data-from="left"] {
+  --nc-dx: -40px;
+}
+.notice-card[data-from="right"] {
+  --nc-dx: 40px;
+}
+.notice-card[data-from="top"] {
+  --nc-dy: -14px;
+}
+
+@keyframes notice-slide {
+  from {
+    opacity: 0;
+    transform: translate(var(--nc-dx, 0), var(--nc-dy, 0));
+  }
+}
+@keyframes notice-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes notice-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.86);
+  }
+}
+@keyframes notice-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-14px) scaleY(0.6);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .notice-card,
+  .notice-card[data-leaving="true"] {
+    animation-duration: 1ms !important;
+  }
+}

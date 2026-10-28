@@ -15,7 +15,8 @@ pub struct Island {
 }
 
 pub const FALLBACK: Island = Island { width: 200.0, height: 32.0, has_notch: false };
-const MAX: LogicalSize<f64> = LogicalSize { width: 720.0, height: 400.0 };
+/// Wide enough for bubbles beside the widest pill (geometry.ts `bubbleCanvas`).
+const MAX: LogicalSize<f64> = LogicalSize { width: 1280.0, height: 400.0 };
 
 pub fn top_center(origin: PhysicalPosition<i32>, area: PhysicalSize<u32>, win: PhysicalSize<u32>) -> PhysicalPosition<i32> {
     PhysicalPosition::new(origin.x + (area.width.saturating_sub(win.width) / 2) as i32, origin.y)
@@ -33,7 +34,7 @@ pub fn is_wayland() -> bool {
 
 /// The window is a Wayland surface, which only the compositor (through layer-shell) can place.
 /// Through XWayland it is an X11 window we place ourselves, though the session is still Wayland.
-fn is_wayland_surface() -> bool {
+pub fn is_wayland_surface() -> bool {
     #[cfg(target_os = "linux")]
     let xwayland = crate::platform::linux::xwayland();
     #[cfg(not(target_os = "linux"))]
@@ -82,17 +83,36 @@ pub fn input_rect(canvas: LogicalSize<f64>, region: LogicalSize<f64>) -> (i32, i
     (((canvas.width - width) / 2.0).floor() as i32, 0, width as i32, height as i32)
 }
 
-/// Shapes the window's input to `input_rect`. GDK makes it the X11 window's input shape, or the
-/// Wayland surface's input region.
+/// An `area` (x, y, width, height, logical px) of the window at `canvas`, in whole pixels and
+/// within it; none when nothing of it is left.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+pub fn area_rect(canvas: LogicalSize<f64>, (x, y, width, height): (f64, f64, f64, f64)) -> Option<(i32, i32, i32, i32)> {
+    let (left, top) = (x.max(0.0).floor(), y.max(0.0).floor());
+    let (right, bottom) = ((x + width).min(canvas.width).ceil(), (y + height).min(canvas.height).ceil());
+    (right > left && bottom > top).then_some((left as i32, top as i32, (right - left) as i32, (bottom - top) as i32))
+}
+
+/// Shapes the window's input to `input_rect` and the `extra` areas. GDK makes it the X11 window's
+/// input shape, or the Wayland surface's input region.
 #[cfg(target_os = "linux")]
-pub fn take_input<R: Runtime>(w: &Window<R>, canvas: LogicalSize<f64>, region: LogicalSize<f64>) -> Res<()> {
+pub fn take_input<R: Runtime>(
+    w: &Window<R>,
+    canvas: LogicalSize<f64>,
+    region: LogicalSize<f64>,
+    extra: &[(f64, f64, f64, f64)],
+) -> Res<()> {
     use gtk::{cairo, prelude::WidgetExt};
     let (x, y, width, height) = input_rect(canvas, region);
+    let more: Vec<_> = extra.iter().filter_map(|&a| area_rect(canvas, a)).collect();
     let window = w.clone();
     w.run_on_main_thread(move || {
         let shaped = window.gtk_window().map(|g| {
             g.window().map(|gdk| {
-                gdk.input_shape_combine_region(&cairo::Region::create_rectangle(&cairo::RectangleInt::new(x, y, width, height)), 0, 0);
+                let input = cairo::Region::create_rectangle(&cairo::RectangleInt::new(x, y, width, height));
+                for &(x, y, width, height) in &more {
+                    let _ = input.union_rectangle(&cairo::RectangleInt::new(x, y, width, height));
+                }
+                gdk.input_shape_combine_region(&input, 0, 0);
             })
         });
         if !matches!(shaped, Ok(Some(()))) {
@@ -164,6 +184,14 @@ mod tests {
         assert_eq!(input_rect(LogicalSize::new(472.0, 384.0), LogicalSize::new(220.0, 32.0)), (126, 0, 220, 32));
         assert_eq!(input_rect(LogicalSize::new(472.0, 384.0), LogicalSize::new(219.5, 31.2)), (126, 0, 220, 32));
         assert_eq!(input_rect(LogicalSize::new(200.0, 32.0), LogicalSize::new(472.0, 384.0)), (0, 0, 200, 32));
+    }
+
+    #[test]
+    fn areas_are_whole_pixels_within_the_canvas() {
+        let canvas = LogicalSize::new(1000.0, 400.0);
+        assert_eq!(area_rect(canvas, (10.4, 2.6, 340.2, 100.0)), Some((10, 2, 341, 101)));
+        assert_eq!(area_rect(canvas, (900.0, 300.0, 340.0, 200.0)), Some((900, 300, 100, 100)));
+        assert_eq!(area_rect(canvas, (1200.0, 0.0, 40.0, 40.0)), None);
     }
 
     #[test]

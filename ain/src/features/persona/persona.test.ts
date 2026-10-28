@@ -69,7 +69,7 @@ describe("on the pill", () => {
 describe("in the island", () => {
   const mount = () => {
     const fake = fakePort();
-    const host = { refresh: vi.fn(), options: () => ({}) as never, setOptions: vi.fn(), secret: async () => "", openSettings: vi.fn(), openPage: vi.fn(), appearance: () => ({ style: "pill", size: "normal", theme: "island", tone: "dark", notch: false }) as const };
+    const host = { refresh: vi.fn(), options: () => ({}) as never, setOptions: vi.fn(), secret: async () => "", openSettings: vi.fn(), openPage: vi.fn(), appearance: () => ({ style: "pill", size: "normal", theme: "island", tone: "dark", notch: false }) as const, notify: () => ({ id: "", update() {}, dismiss() {} }), on: () => () => {} };
     const widget = persona.setup({ persona: fake.port } as never, host);
     const root = document.createElement("section");
     widget.panel?.(root);
@@ -419,7 +419,7 @@ describe("when the backend refuses", () => {
   it("keeps the island's tab working when PersonaPlex's state can't be read", async () => {
     const fake = fakePort();
     fake.port.watchLocal.mockRejectedValueOnce(new Error("gone"));
-    const host = { refresh: vi.fn(), options: () => ({}) as never, setOptions: vi.fn(), secret: async () => "", openSettings: vi.fn(), openPage: vi.fn(), appearance: () => ({ style: "pill", size: "normal", theme: "island", tone: "dark", notch: false }) as const };
+    const host = { refresh: vi.fn(), options: () => ({}) as never, setOptions: vi.fn(), secret: async () => "", openSettings: vi.fn(), openPage: vi.fn(), appearance: () => ({ style: "pill", size: "normal", theme: "island", tone: "dark", notch: false }) as const, notify: () => ({ id: "", update() {}, dismiss() {} }), on: () => () => {} };
     const widget = persona.setup({ persona: fake.port } as never, host);
     const root = document.createElement("section");
     widget.panel?.(root);

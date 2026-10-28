@@ -14,7 +14,7 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn() }));
 
 type Configure = IslandHandle<never>["configure"];
-const island = { configure: vi.fn<Configure>(), play: vi.fn() };
+const island = { configure: vi.fn<Configure>(), play: vi.fn(), command: vi.fn() };
 /** What the island was given when mounted; `during` runs while it mounts. */
 const mounted: { extras?: Extras; during?: () => Promise<void> } = {};
 vi.mock("../../host", () => ({
@@ -126,7 +126,7 @@ describe("starting the island", () => {
     void store.save({ ...base, general: { ...base.general, pillWidth: 340 } });
     await settle();
     // Each change applies at once; only the newest is applied again with the plugins loaded for it.
-    const withPlugins = island.configure.mock.calls.filter((args) => args.length === 4).map(([s]) => s.general.pillWidth);
+    const withPlugins = island.configure.mock.calls.filter((args) => args.length === 5).map(([s]) => s.general.pillWidth);
     expect(withPlugins).toEqual([340]);
     expect(island.configure.mock.calls.at(-1)?.[0].general.pillWidth).toBe(340);
   });
@@ -167,3 +167,40 @@ describe("loading plugin files, when something fails", () => {
     expect((await loader.sync(["a.js"])).map((e) => e.plugin?.id)).toEqual(["aaa"]);
   });
 });
+
+describe("plugin files' notifiers and shortcuts", () => {
+  const files: ExtensionsPort = {
+    list: async () => ({ dir: "", plugins: [{ file: "ticker.js", source: "ticker", problem: null }, { file: "tab.js", source: "tab", problem: null }] }),
+    openDir: async () => {},
+  };
+  const importer = async (source: string) =>
+    source === "ticker"
+      ? { default: () => ({ id: "ticker", label: "Ticker", show: () => {} }) }
+      : { default: () => ({ id: "tabby", label: "Tabby", description: "", icon: "", slots: ["tab"], setup: () => ({}) }) };
+
+  it("hands the island the notifiers of files turned on, and only those", async () => {
+    const store = memorySettings();
+    await store.save({ ...base, extensions: ["ticker.js", "tab.js"] });
+    await start(document.createElement("div"), {} as never, win, store, idlePopup, files, importer, memorySecrets());
+    expect(mounted.extras?.notifiers?.map((n) => n.id)).toEqual(["ticker"]);
+    await store.save({ ...base, extensions: ["tab.js"] });
+    await settle();
+    expect(island.configure.mock.calls.at(-1)?.[4]).toEqual([]);
+  });
+
+  it("passes the shortcuts of plugin files on to the island", async () => {
+    let heard: ((command: string, kind: "press" | "release" | "tap") => void) | undefined;
+    const popup: PopupPort = { ...idlePopup, onAction: async (f) => ((heard = f), () => {}) };
+    await run(memorySettings(), popup);
+    heard?.("tabby.go", "press");
+    expect(island.command).toHaveBeenCalledWith("tabby.go", "press");
+  });
+
+  it("uses the corner toast window in the app", async () => {
+    Object.assign(window, { __TAURI_INTERNALS__: {} });
+    await run();
+    expect(mounted.extras?.toasts).toBeDefined();
+    delete (window as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__;
+  });
+});
+

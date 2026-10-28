@@ -9,12 +9,13 @@ import * as __TAURI_EVENT from "@tauri-apps/api/event";
 export const commands = {
 	info: () => __TAURI_INVOKE<Island>("plugin:island|info"),
 	/**
-	 *  `canvas` is the largest the window ever needs to be; `region` is the part that takes input now.
+	 *  `canvas` is the largest the window ever needs to be; `region` is the part that takes input now,
+	 *  with the `extra` areas (bubbles beside or under the pill).
 	 * 
 	 *  Async on purpose: a sync command runs inside WebView2's IPC callback on the main thread, and
 	 *  resizing the window from there deadlocks. Off the main thread, window calls are queued instead.
 	 */
-	layout: (canvas: Size, region: Size) => __TAURI_INVOKE<null>("plugin:island|layout", { canvas, region }),
+	layout: (canvas: Size, region: Size, extra: Area[]) => __TAURI_INVOKE<null>("plugin:island|layout", { canvas, region, extra }),
 	/**
 	 *  Hides the pill until the cursor rests at the top center for `dwell` ms; once shown, it hides
 	 *  again `grace` ms after the cursor leaves. `dwell: null` keeps it shown. No effect on Wayland,
@@ -29,6 +30,14 @@ export const events = {
 };
 
 /* Types */
+/**  A part of the window that takes input besides the pill (a bubble), in logical px from its top left. */
+export type Area = {
+	x: number | null,
+	y: number | null,
+	width: number | null,
+	height: number | null,
+};
+
 export type Island = {
 	width: number | null,
 	height: number | null,

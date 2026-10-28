@@ -43,7 +43,7 @@ const named = (root: HTMLElement, text: string) => buttons(root).find((b) => b.t
 describe("in the island", () => {
   const mount = (options: object = {}, providers = memoryProviders()) => {
     const { port, model } = fakePort();
-    const host = { refresh() {}, options: () => options as never, setOptions: vi.fn(), secret: async () => "", openSettings: vi.fn(), openPage: vi.fn(), appearance: () => ({ style: "pill", size: "normal", theme: "island", tone: "dark", notch: false }) as const };
+    const host = { refresh() {}, options: () => options as never, setOptions: vi.fn(), secret: async () => "", openSettings: vi.fn(), openPage: vi.fn(), appearance: () => ({ style: "pill", size: "normal", theme: "island", tone: "dark", notch: false }) as const, notify: () => ({ id: "", update() {}, dismiss() {} }), on: () => () => {} };
     const widget = dictation.setup({ dictation: port, clipboard: { copy: vi.fn() }, providers } as never, host);
     const root = document.createElement("section");
     widget.panel?.(root);
@@ -93,7 +93,7 @@ describe("while dictating", () => {
   const mount = () => {
     const fake = fakePort();
     const clipboard = { copy: vi.fn(async (_: string) => {}) };
-    const host = { refresh: vi.fn(), options: () => ({}) as never, setOptions: vi.fn(), secret: async () => "", openSettings: vi.fn(), openPage: vi.fn(), appearance: () => ({ style: "pill", size: "normal", theme: "island", tone: "dark", notch: false }) as const };
+    const host = { refresh: vi.fn(), options: () => ({}) as never, setOptions: vi.fn(), secret: async () => "", openSettings: vi.fn(), openPage: vi.fn(), appearance: () => ({ style: "pill", size: "normal", theme: "island", tone: "dark", notch: false }) as const, notify: () => ({ id: "", update() {}, dismiss() {} }), on: () => () => {} };
     const widget = dictation.setup({ dictation: fake.port, clipboard, providers: memoryProviders() } as never, host);
     const root = document.createElement("section");
     widget.panel?.(root);

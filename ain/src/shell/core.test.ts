@@ -4,7 +4,7 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 
 const { invoke } = await import("@tauri-apps/api/core");
 const { checkIsland, tauriWindow } = await import("./window");
-const { EAR, EXPANDED, GLANCE, PILL_SIZES, SLACK, TALLEST, WIDE, earFor, frame, panelHeight, pillOf, sizeFor } = await import("./geometry");
+const { BUBBLE, EAR, EXPANDED, GLANCE, PILL_SIZES, SLACK, TALLEST, WIDE, bubbleCanvas, earFor, frame, panelHeight, pillOf, sizeFor } = await import("./geometry");
 const { pick, pickFrom, place, placedIds } = await import("./placement");
 const { pickColor, toHsl, vivid } = await import("../sdk/color");
 const { load } = await import("./host");
@@ -16,6 +16,14 @@ const { animates } = await import("../sdk/dom");
 const notch = { width: 185, height: 32, hasNotch: true };
 
 describe("geometry", () => {
+  it("makes room for bubbles under the pill, or beside it", () => {
+    const pill = { width: 200, height: 32 };
+    expect(bubbleCanvas("center", pill)).toEqual({ width: BUBBLE.width + 2 * SLACK, height: 32 + BUBBLE.gap + BUBBLE.height });
+    expect(bubbleCanvas("center", { width: 400, height: 32 })).toEqual({ width: 400 + 2 * EAR + 2 * SLACK, height: 32 + BUBBLE.gap + BUBBLE.height });
+    expect(bubbleCanvas("left", pill)).toEqual({ width: 200 + 2 * (EAR + BUBBLE.gap + BUBBLE.width + SLACK), height: BUBBLE.height + SLACK });
+    expect(bubbleCanvas("right", { width: 200, height: 400 }, 1)).toEqual({ width: 200 + 2 * (EAR + BUBBLE.gap + BUBBLE.width + SLACK), height: 400 + SLACK });
+  });
+
   const flat = { ...notch, width: 200, hasNotch: false };
   it("collapsed leaves room for glance text beside the notch", () =>
     expect(sizeFor(false, pillOf(notch, "normal"))).toEqual({ width: 185 + 2 * GLANCE, height: 32 }));
@@ -239,7 +247,14 @@ describe("tauri window", () => {
   it("sizes the island with the layout plugin, sending both rectangles", async () => {
     vi.mocked(invoke).mockResolvedValueOnce(null);
     await tauriWindow.layout({ width: 300, height: 40 }, { width: 200, height: 32 });
-    expect(invoke).toHaveBeenLastCalledWith("plugin:island|layout", { canvas: { width: 300, height: 40 }, region: { width: 200, height: 32 } });
+    expect(invoke).toHaveBeenLastCalledWith("plugin:island|layout", { canvas: { width: 300, height: 40 }, region: { width: 200, height: 32 }, extra: [] });
+  });
+
+  it("sends the bubbles' areas, which take input too", async () => {
+    vi.mocked(invoke).mockResolvedValueOnce(null);
+    const bubble = { x: 600, y: 4, width: 360, height: 90 };
+    await tauriWindow.layout({ width: 1280, height: 120 }, { width: 200, height: 32 }, [bubble]);
+    expect(invoke).toHaveBeenLastCalledWith("plugin:island|layout", { canvas: { width: 1280, height: 120 }, region: { width: 200, height: 32 }, extra: [bubble] });
   });
 });
 

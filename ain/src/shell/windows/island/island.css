@@ -1558,3 +1558,238 @@ button:focus-visible {
   opacity: 0.55;
   font-variant-numeric: tabular-nums;
 }
+
+/* ---------- Notifications ---------- */
+
+/* Unseen notifications: a white dot, a slow ripple spreading from it, left of the glances. */
+.unseen-dot {
+  position: absolute;
+  z-index: 1;
+  top: calc(var(--glance-h) / 2 - 3px * var(--scale));
+  left: calc(var(--glance-h) / 2);
+  width: calc(6px * var(--scale));
+  height: calc(6px * var(--scale));
+  border-radius: 50%;
+  background: var(--fg);
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+}
+
+.unseen-dot::before,
+.unseen-dot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1px solid var(--fg);
+  animation: unseen-wave 3.2s ease-out infinite;
+}
+
+.unseen-dot::after {
+  animation-delay: 1.6s;
+}
+
+@keyframes unseen-wave {
+  from {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+  to {
+    transform: scale(3.2);
+    opacity: 0;
+  }
+}
+
+#island[data-unseen="true"]:not([data-notice="true"]) .unseen-dot {
+  opacity: 1;
+}
+
+#island[data-unseen="true"] .glance {
+  padding-left: calc(var(--glance-h) / 2 + 14px * var(--scale));
+}
+
+/* A notification in the pill itself: it takes the folded row while it shows. */
+.notice-inline {
+  position: absolute;
+  z-index: 1;
+  inset: 0 0 auto;
+  height: var(--glance-h);
+  display: none;
+  align-items: center;
+  gap: calc(10px * var(--scale));
+  padding: 0 calc(var(--glance-h) / 2) 0 calc(var(--glance-h) / 3);
+  white-space: nowrap;
+}
+
+#island[data-notice="true"]:not([data-open="true"]) .notice-inline {
+  display: flex;
+  animation: notice-in var(--nc-anim, 300ms) ease-out;
+}
+
+#island[data-notice="true"]:not([data-open="true"]) .glance {
+  visibility: hidden;
+}
+
+@keyframes notice-in {
+  from {
+    opacity: 0;
+    filter: blur(4px);
+  }
+}
+
+.notice-inline-app {
+  display: grid;
+  place-items: center;
+  width: calc(22px * var(--scale));
+  height: calc(22px * var(--scale));
+  flex: none;
+  border-radius: 50%;
+  background: var(--track);
+}
+
+.notice-inline-text {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.notice-inline-text b,
+.notice-inline-text span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.notice-inline-text span {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+/* Bubbles: under the pill, or beside it, level with it. The window has room for them (geometry.ts). */
+.bubbles {
+  position: absolute;
+  z-index: 2;
+  width: 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.bubbles:empty {
+  display: none;
+}
+
+.bubbles[data-side="center"] {
+  top: calc(100% + 10px);
+  left: 50%;
+  translate: -50% 0;
+}
+
+.bubbles[data-side="left"] {
+  top: 0;
+  right: calc(100% + var(--ear) + 10px);
+}
+
+.bubbles[data-side="right"] {
+  top: 0;
+  left: calc(100% + var(--ear) + 10px);
+}
+
+#island[data-open="true"] .bubbles {
+  visibility: hidden;
+}
+
+.bubbles .notice-card {
+  --nc-bg: var(--bg);
+  --nc-fg: var(--fg);
+  --nc-focus: var(--accent);
+}
+
+.notifier-stage {
+  pointer-events: auto;
+}
+
+/* Notifications under the Notifications tab. */
+.notifications {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.notices {
+  flex: 1;
+  min-height: 0;
+  list-style: none;
+  margin: 0 -6px;
+  padding: 0 0 8px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.notice {
+  display: grid;
+  grid-template-columns: 20px 1fr auto;
+  align-items: start;
+  gap: 9px;
+  padding: 6px;
+  border-radius: 9px;
+}
+
+.notice:hover {
+  background: var(--hover);
+}
+
+.notice-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 12.5px;
+}
+
+.notice-text b {
+  font-weight: 600;
+}
+
+.notice[data-seen="false"] .notice-text b::after {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: var(--fg);
+  vertical-align: middle;
+}
+
+.notice-text span {
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.notice-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.notice-side {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.notice-remove {
+  padding: 2px;
+}

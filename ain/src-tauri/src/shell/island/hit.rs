@@ -42,6 +42,14 @@ pub fn region_rect(p: Placement, region: LogicalSize<f64>, margin: f64) -> Rect 
     Rect { left, top, right: left + w, bottom: top + h }
 }
 
+/// An area of the placed window (in logical px from its top left) in desktop pixels: a bubble
+/// beside the pill, which takes input too.
+pub fn area_rect(p: Placement, x: f64, y: f64, width: f64, height: f64) -> Rect {
+    let left = p.origin.x as f64 + x * p.scale;
+    let top = p.origin.y as f64 + y * p.scale;
+    Rect { left, top, right: left + width * p.scale, bottom: top + height * p.scale }
+}
+
 /// Keeps the pill hidden until the cursor rests on its spot (top center) for `dwell`; once shown,
 /// it hides again when the cursor has been away for `grace`.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -83,7 +91,8 @@ impl Reveal {
 #[derive(Debug, Default)]
 pub struct HitArea {
     canvas: Mutex<Option<(LogicalSize<f64>, Placement)>>,
-    region: RwLock<Option<Rect>>,
+    /// The pill's area, then the bubbles' (if any).
+    regions: RwLock<Vec<Rect>>,
     tracking: Mutex<bool>,
     auto_hide: RwLock<Option<AutoHide>>,
 }
@@ -113,12 +122,14 @@ impl HitArea {
         Ok(())
     }
 
-    pub fn set_region(&self, rect: Rect) {
-        *self.region.write().unwrap_or_else(|e| e.into_inner()) = Some(rect);
+    pub fn set_regions(&self, rects: Vec<Rect>) {
+        *self.regions.write().unwrap_or_else(|e| e.into_inner()) = rects;
     }
 
-    pub fn region(&self) -> Option<Rect> {
-        *self.region.read().unwrap_or_else(|e| e.into_inner())
+    /// Whether (x, y) is on the pill or a bubble; none before the first layout.
+    pub fn contains(&self, x: f64, y: f64) -> Option<bool> {
+        let regions = self.regions.read().unwrap_or_else(|e| e.into_inner());
+        (!regions.is_empty()).then(|| regions.iter().any(|r| r.contains(x, y)))
     }
 
     pub fn set_auto_hide(&self, rule: Option<AutoHide>) {
@@ -138,8 +149,8 @@ pub fn track<R: Runtime>(window: Window<R>, area: Arc<HitArea>, on_reveal: impl 
         let mut reveal = Reveal::default();
         loop {
             thread::sleep(POLL);
-            let (Some(rect), Ok(cursor)) = (area.region(), window.cursor_position()) else { continue };
-            let inside = rect.contains(cursor.x, cursor.y);
+            let Ok(cursor) = window.cursor_position() else { continue };
+            let Some(inside) = area.contains(cursor.x, cursor.y) else { continue };
             let next = reveal.step(area.auto_hide(), inside, Instant::now());
             if next.shown != reveal.shown {
                 on_reveal(next.shown);
@@ -175,6 +186,25 @@ mod tests {
     fn margin_grows_sides_and_bottom_only() {
         let r = region_rect(PLACED, LogicalSize::new(200.0, 32.0), 5.0);
         assert_eq!(r, Rect { left: 390.0, top: 0.0, right: 810.0, bottom: 74.0 });
+    }
+
+    #[test]
+    fn areas_are_placed_from_the_window_top_left_and_scaled() {
+        let r = area_rect(PLACED, 10.0, 4.0, 340.0, 100.0);
+        assert_eq!(r, Rect { left: 120.0, top: 8.0, right: 800.0, bottom: 208.0 });
+    }
+
+    #[test]
+    fn input_goes_to_the_pill_and_every_bubble() {
+        let area = HitArea::default();
+        assert_eq!(area.contains(0.0, 0.0), None);
+        area.set_regions(vec![
+            Rect { left: 0.0, top: 0.0, right: 10.0, bottom: 10.0 },
+            Rect { left: 50.0, top: 0.0, right: 60.0, bottom: 10.0 },
+        ]);
+        assert_eq!(area.contains(5.0, 5.0), Some(true));
+        assert_eq!(area.contains(55.0, 5.0), Some(true));
+        assert_eq!(area.contains(30.0, 5.0), Some(false));
     }
 
     #[test]

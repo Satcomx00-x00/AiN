@@ -69,6 +69,8 @@ sets `panelHeight`: the island grows to it while that tab is shown and back when
   | `volume` | `watch(onOutput)`, `watchSources(onSources)`, `peak()`, `setLevel(level, source?)`, `setMuted(muted, source?)` |
   | `privacy` | `watch(onUsage)` with `{ mic: string[], camera: string[] }` |
   | `oauth` | `signIn(provider)`, `token(provider)`, `signOut(provider)`, `signedIn(provider)`: see [Signing in to an online account](#signing-in-to-an-online-account) |
+  | `notifications` | `list()`, `watch(onHistory)`, `markSeen()`, `remove(id)`, `clear()`, `act(id, actionId)`: the history; also lets `onNotification` see every notification (see [Notifications](#notifications)) |
+  | `ai` | `ask(text, { instructions })` → the answer: see [Asking AI](#asking-ai) |
 
   `watch` methods call back with the current value right away, then on every change; they
   resolve with a function that stops watching. Clipboard history, screen captures, dictation,
@@ -78,7 +80,9 @@ sets `panelHeight`: the island grows to it while that tab is shown and back when
   change them anytime), `host.setOptions(patch)` saves some, `host.secret(key)` reads one of its
   secrets (see below), `host.refresh()` redraws the pill now instead of at the next second,
   `host.openSettings()` opens Settings at the plugin's card, `host.openPage(params)` opens its
-  page (see below), and `host.appearance()` tells how the island looks (see below).
+  page (see below), `host.appearance()` tells how the island looks (see below),
+  `host.notify(notice)` posts a notification (see [Notifications](#notifications)) and
+  `host.on(event, listener)` follows what happens on the island (see [Events](#events)).
 
 ### Options the user sets
 
@@ -241,6 +245,96 @@ await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
 The [Google Calendar template](https://github.com/Satcomx00-x00/AiN/tree/plugin-template-calendar)
 is a complete example.
 
+### Notifications
+
+Any plugin can post one; no `needs` required:
+
+```js
+const n = host.notify({
+  title: "Download complete",
+  body: "Fedora-Workstation-44.iso",
+  actions: [{ id: "open", label: "Open" }], // at most 3
+  urgency: "normal",                        // "low" (history only), "normal" or "urgent"
+  tag: "download",                          // a newer one with the same tag replaces it
+  category: "transfer.complete",            // freedesktop's categories, for hooks to sort by
+  transient: false,                         // true: shown, never kept in the history
+});
+n.update({ body: "Done" }); // or n.dismiss()
+```
+
+`host.notify` also takes the three standard formats as they are, and reads them as the above:
+freedesktop's `Notify` arguments (`{ summary, body, app_icon, actions, hints, replaces_id }`), the
+W3C's (`{ title, options }`, as in `new Notification(title, options)`) and a Windows toast's XML
+(`{ toastXml, tag, group }`). What AiN has no use for (sounds, timeouts, images by URL or theme
+name) is left out; an icon is drawn only when it is inline SVG.
+
+The user decides how it shows (in the pill, as a bubble under or beside it, or as a toast in a
+corner of the screen), for how long, and whether it shows at all: do not disturb, and each source
+can be turned off in **Settings → Notifications**. Pressing an action calls the widget's
+`onNotificationAction(notificationId, actionId)`.
+
+With `needs: ["notifications"]`, the widget's `onNotification(n)` sees every notification from
+other plugins before it shows, in the order plugins are listed, and returns it as is or changed,
+`"silent"` to keep it in the history without showing it, or `null` to drop it. It can't change
+who sent it, and never sees its own plugin's.
+
+### Events
+
+`host.on(event, listener)` returns a function that stops listening:
+
+| Event | Payload |
+| --- | --- |
+| `open` | `true` when the island opens, `false` when it folds |
+| `appearance` | the new `host.appearance()` |
+| `options` | the plugin's options, after the user changed them |
+| `unseen` | how many notifications the user hasn't seen |
+
+### Keyboard shortcuts
+
+A plugin can list up to 8 `commands`, each with a default shortcut the user can change in
+**Settings → Shortcuts**. They open no window: the widget's `onCommand(commandId, kind)` hears
+the press (`"press"`, then `"release"`), or `"tap"` from Settings' Try it button.
+
+```js
+commands: [{ id: "start", label: "Start the timer", description: "Starts a 25-minute focus.", shortcut: "Ctrl+Alt+KeyT" }],
+setup: (_, host) => ({ onCommand: (id, kind) => kind !== "release" && start() }),
+```
+
+`shortcut` uses `KeyboardEvent.code` names, or `null` for none until the user picks one.
+
+### Asking AI
+
+With `needs: ["ai"]`, a plugin can ask the model the user picked for plugins in
+**Settings → AI providers → Plugins**. It is off until they pick one: `ask` then fails, saying
+where to turn it on.
+
+```js
+const answer = await ai.ask(text, { instructions: "Summarize in one sentence." });
+```
+
+At most 4 000 characters of instructions and 32 000 of text. What is asked goes to that provider.
+
+## A notifier
+
+A file can add a way to show notifications: its definition has `show` and no `setup`. Once the file
+is on, it can be picked in **Settings → Notifications → Show as**. It draws each notification where
+bubbles go, under the pill; the user's duration still applies.
+
+```js
+export default (island) =>
+  island.defineNotifier({
+    id: "ticker",
+    label: "Ticker",
+    show(stage, n, { dismiss, act }) {
+      const line = island.dom.h("div", {}, `${n.source.label}: ${n.title}`);
+      stage.append(line);
+      return () => line.remove(); // when it leaves
+    },
+  });
+```
+
+If `show` throws, that notification simply doesn't show.
+
 ## A startup animation
 
 A file can define the animation the pill plays when the island starts instead of a plugin: its
@@ -325,6 +419,7 @@ See [`examples/plugins/neon-line.js`](../ain/examples/plugins/neon-line.js).
 | `island.definePlugin(def)` | returns `def`; for editors that understand JSDoc types |
 | `island.defineGreeting(def)` | the same, for a startup animation |
 | `island.defineStyle(def)` | the same, for a pill style |
+| `island.defineNotifier(def)` | the same, for a way to show notifications |
 | `island.settle(animations)` | resolves once every Web Animation given has finished or been cancelled |
 | `island.options` | `toggle`, `number`, `choice`, `list`, `folder`, `text`, `secret`, `color`: option fields for Settings (see [Options the user sets](#options-the-user-sets)) |
 | `island.dom` | `h(tag, attrs, ...children)`, `button`, `icon`, `svg`, `tween`, `odometer`, `roll`, `reducedMotion` |
@@ -372,7 +467,7 @@ before they're merged, since a plugin runs with the island's permissions.
 
 - Use an id a built-in feature, startup animation or pill style uses (`clock`, `media`, `hello`,
   `pill`, `stub`, …), or one another plugin already took.
-- Define keyboard shortcuts: those are for built-in features.
+- Open a popup or a screen from a shortcut: their commands only reach `onCommand`.
 - Ask for services other than those above.
 
 Why a plugin was refused shows in **Settings → Plugins**.

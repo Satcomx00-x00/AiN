@@ -16,6 +16,11 @@ describe("the SDK handed to plugins", () => {
     expect(sdk.definePlugin(def)).toBe(def);
   });
 
+  it("defines notifiers as given", () => {
+    const def = { id: "ticker", label: "Ticker", show: () => {} };
+    expect(sdk.defineNotifier(def)).toBe(def);
+  });
+
   it("defines pill styles as given", () => {
     const def = { id: "neon", label: "Neon", mount: () => ({ draw() {} }) };
     expect(sdk.defineStyle(def)).toBe(def);

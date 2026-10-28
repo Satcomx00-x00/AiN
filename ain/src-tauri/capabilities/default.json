@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "What the island window may call: events, every feature, settings (read, and write for plugins that remember choices), the third-party plugins to load, their secrets, and signing them in to online accounts.",
+  "description": "What the island window may call: events, every feature, settings (read, and write for plugins that remember choices), the third-party plugins to load, their secrets, signing them in to online accounts, the corner toast window, and asking the AI model the user picked for plugins.",
   "windows": [
     "widget"
   ],
@@ -23,6 +23,8 @@
     "settings:allow-set",
     "settings:allow-quit",
     "popup:allow-bind",
+    "toasts:allow-ensure",
+    "providers:allow-ask",
     "extensions:allow-list",
     "secrets:allow-get",
     "oauth:default"

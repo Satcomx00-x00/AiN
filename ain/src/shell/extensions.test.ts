@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 
-const { check, checkGreeting, checkStyle, confine, confineGreeting, confineStyle, fileRows, idOf, importSource, isolate, loadExtensions, storeFields } = await import("./extensions");
+const { check, checkGreeting, checkNotifier, checkStyle, confine, confineGreeting, confineNotifier, confineStyle, fileRows, idOf, importSource, isolate, loadExtensions, storeFields } = await import("./extensions");
 const { sdk } = await import("../sdk");
 
 const rules = { taken: new Set(["clock", "media"]), services: ["media", "stats"] };
@@ -41,7 +41,8 @@ describe("check", () => {
     ["no slots", { slots: [] }, "slots must list"],
     ["an unknown slot", { slots: ["menu"] }, "slots must list"],
     ["no setup", { setup: "nope" }, "setup must be a function"],
-    ["shortcut commands", { commands: [{ id: "go" }] }, "only available to built-in features"],
+    ["a command without a label", { commands: [{ id: "go" }] }, `command "go": label must be`],
+    ["a command with its own window", { commands: [{ id: "go", label: "Go", description: "Goes.", shortcut: null, surface: "popup" }] }, `only have surface "action"`],
     ["a service it may not use", { needs: ["clipboard"] }, "unknown services: clipboard"],
     ["needs that aren't names", { needs: "media" }, "needs must list"],
     ["an option of unknown kind", { options: { x: { kind: "slider", label: "X", default: 1 } } }, `option "x" has an unknown kind`],
@@ -230,7 +231,7 @@ describe("loadExtensions", () => {
 });
 
 describe("confine", () => {
-  const host = { refresh() {}, options: () => ({}) as never, setOptions() {}, secret: async () => "", openSettings() {}, openPage() {}, appearance: () => ({ style: "pill", size: "normal", theme: "island", tone: "dark", notch: false }) as const };
+  const host = { refresh() {}, options: () => ({}) as never, setOptions() {}, secret: async () => "", openSettings() {}, openPage() {}, appearance: () => ({ style: "pill", size: "normal", theme: "island", tone: "dark", notch: false }) as const, notify: () => ({ id: "", update() {}, dismiss() {} }), on: () => () => {} };
 
   it("gives a plugin only the services it declared, frozen", () => {
     let got: Record<string, unknown> = {};
@@ -299,9 +300,9 @@ describe("fileRows", () => {
   const greeting = { id: "wave", label: "Wave", play: () => {} };
   const style = { id: "neon", label: "Neon", mount: () => ({ draw() {} }) };
   const loaded = new Map([
-    ["a.js", { file: "a.js", plugin, greeting: null, style: null, needs: ["media"], problem: null }],
-    ["w.js", { file: "w.js", plugin: null, greeting, style: null, needs: [], problem: null }],
-    ["s.js", { file: "s.js", plugin: null, greeting: null, style, needs: [], problem: null }],
+    ["a.js", { file: "a.js", plugin, greeting: null, style: null, notifier: null, needs: ["media"], problem: null }],
+    ["w.js", { file: "w.js", plugin: null, greeting, style: null, notifier: null, needs: [], problem: null }],
+    ["s.js", { file: "s.js", plugin: null, greeting: null, style, notifier: null, needs: [], problem: null }],
   ]);
 
   it("lists files by name, with details only for those turned on", () => {
@@ -317,7 +318,7 @@ describe("fileRows", () => {
   });
 
   it("keeps a file that is on but gone, saying so", () => {
-    expect(fileRows([], ["a.js"], loaded)).toEqual([{ file: "a.js", on: true, plugin: null, greeting: null, style: null, needs: ["media"], problem: "No longer in the plugins folder" }]);
+    expect(fileRows([], ["a.js"], loaded)).toEqual([{ file: "a.js", on: true, plugin: null, greeting: null, style: null, notifier: null, needs: ["media"], problem: "No longer in the plugins folder" }]);
   });
 
   it("shows a startup animation's file like a plugin's, only while on and present", () => {
@@ -495,5 +496,108 @@ describe("importSource", () => {
     const { url, revoke } = objectUrls("export default (;");
     await expect(importSource("export default (;")).rejects.toThrow();
     expect(revoke).toHaveBeenCalledExactlyOnceWith(url);
+  });
+});
+
+describe("shortcut commands from the plugins folder", () => {
+  const command = (patch: Record<string, unknown> = {}) => ({ id: "go", label: "Go", description: "Goes.", shortcut: "Ctrl+Alt+KeyG", ...patch });
+
+  it("are accepted with no window of their own: their widget's onCommand hears them", () => {
+    const out = check({ ...valid(), commands: [command(), command({ id: "stop", shortcut: null, surface: "action" })] }, rules);
+    expect(typeof out === "string" ? out : out.plugin.commands?.map((c) => [c.id, c.surface])).toEqual([
+      ["go", "action"],
+      ["stop", "action"],
+    ]);
+    const none = check({ ...valid(), commands: [] }, rules);
+    expect(typeof none === "string" ? none : none.plugin.commands).toEqual([]);
+  });
+
+  it.each([
+    ["not a list", "go", "at most 8 commands"],
+    ["more than 8", Array.from({ length: 9 }, (_, i) => command({ id: `c${i}` })), "at most 8 commands"],
+    ["not an object", [3], "must be an object"],
+    ["a bad id", [command({ id: "Go" })], "its own id"],
+    ["a repeated id", [command(), command()], "its own id"],
+    ["a 41-character label", [command({ label: "x".repeat(41) })], "label must be"],
+    ["a label that isn't text", [command({ label: 3 })], "label must be"],
+    ["no description", [command({ description: undefined })], "description must be"],
+    ["a shortcut that isn't text", [command({ shortcut: 3 })], "shortcut must look like"],
+    ["a shortcut that isn't keys", [command({ shortcut: "Ctrl+" })], "shortcut must look like"],
+    ["a popup", [command({ popup: () => ({}) })], "popups are only available"],
+  ])("are refused with %s", (_, commands, problem) => {
+    expect(check({ ...valid(), commands }, rules)).toContain(problem);
+  });
+});
+
+describe("notifiers", () => {
+  const def = (patch: Record<string, unknown> = {}) => ({ id: "ticker", label: "Ticker", show: () => {}, ...patch });
+
+  it("are checked like the rest", () => {
+    expect(checkNotifier(def({ description: "A line." }), new Set())).toMatchObject({ id: "ticker", description: "A line." });
+    expect(checkNotifier(def(), new Set())).not.toHaveProperty("description");
+    expect(checkNotifier(def({ id: "T" }), new Set())).toContain("id must be");
+    expect(checkNotifier(def(), new Set(["ticker"]))).toContain("already used");
+    expect(checkNotifier(def({ id: "toast" }), new Set())).toContain("built-in way");
+    expect(checkNotifier(def({ label: " " }), new Set())).toContain("label must be");
+    expect(checkNotifier(def({ label: 3 }), new Set())).toContain("label must be");
+    expect(checkNotifier(def({ description: 3 }), new Set())).toContain("description must be");
+    expect(checkNotifier(def({ show: "x" }), new Set())).toContain("show must be a function");
+  });
+
+  it("run confined: a failure is logged and that notification doesn't show", () => {
+    const log = vi.fn();
+    const stage = {} as HTMLElement;
+    const n = {} as never;
+    const ctx = { dismiss: vi.fn(), act: vi.fn() };
+    const cleanup = vi.fn(() => {
+      throw new Error("cleanup");
+    });
+    const ok = confineNotifier(def({ show: () => cleanup }) as never, log);
+    const stop = ok.show(stage, n, ctx);
+    expect(typeof stop).toBe("function");
+    (stop as () => void)();
+    expect(log).toHaveBeenCalledWith(expect.stringContaining(`notifier "ticker" cleanup failed`));
+    expect(confineNotifier(def() as never, log).show(stage, n, ctx)).toBeUndefined();
+    const broken = confineNotifier(def({ show: () => { throw new Error("boom"); } }) as never, log);
+    expect(broken.show(stage, n, ctx)).toBeUndefined();
+    expect(log).toHaveBeenLastCalledWith(`[island] notifier "ticker" failed: Error: boom`);
+    expect(confineNotifier(def() as never).id).toBe("ticker");
+  });
+
+  it("load from files, taking their id", async () => {
+    const out = await loadExtensions(
+      [file("ticker.js", "ticker"), file("again.js", "again")],
+      rules,
+      modules({ ticker: { default: () => def() }, again: { default: () => def() } }),
+    );
+    expect(out.map(idOf)).toEqual(["ticker", null]);
+    expect(out[1]?.problem).toContain("already used");
+  });
+});
+
+describe("hooks and events, isolated", () => {
+  it("switch off a notification hook on its first failure, letting notifications through", () => {
+    const report = vi.fn();
+    const n = { id: "n1" } as never;
+    const hook = vi.fn(() => {
+      throw new Error("x");
+    });
+    const w = isolate({ onNotification: hook, onNotificationAction: () => { throw new Error("y"); }, onCommand: () => { throw new Error("z"); } }, report);
+    expect(w.onNotification?.(n)).toBe(n);
+    expect(w.onNotification?.(n)).toBe(n);
+    expect(hook).toHaveBeenCalledOnce();
+    w.onNotificationAction?.("n1", "a");
+    w.onCommand?.("go", "press");
+    expect(report.mock.calls.map(([what]) => what)).toEqual(["onNotification", "onNotificationAction", "onCommand"]);
+    expect(isolate({ onNotification: () => "silent" }, report).onNotification?.(n)).toBe("silent");
+  });
+
+  it("see every notification only with needs: notifications", () => {
+    const onNotification = () => null;
+    const setup = () => ({ onNotification, tick: () => {} });
+    const without = confine({ ...valid(), setup } as never, []).setup({} as never, {} as never);
+    const granted = confine({ ...valid(), setup } as never, ["notifications"]).setup({} as never, {} as never);
+    expect([without.onNotification, typeof granted.onNotification]).toEqual([undefined, "function"]);
+    expect(confine({ ...valid(), setup: () => 3 } as never, []).setup({} as never, {} as never)).toEqual({});
   });
 });

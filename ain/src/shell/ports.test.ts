@@ -5,10 +5,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
-vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn(), once: vi.fn(), emit: vi.fn() }));
+vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn(), once: vi.fn(), emit: vi.fn(), emitTo: vi.fn() }));
 
 const { invoke } = await import("@tauri-apps/api/core");
-const { listen } = await import("@tauri-apps/api/event");
+const { emitTo, listen } = await import("@tauri-apps/api/event");
+const { tauriToasts } = await import("./toasts");
 const { idlePopup, tauriPopup } = await import("./commands");
 const { tauriUpdater } = await import("./updater");
 const { tauriWindow } = await import("./window");
@@ -19,6 +20,7 @@ const { noExtensions, tauriExtensions } = await import("./extensions");
 beforeEach(() => {
   vi.mocked(invoke).mockReset();
   vi.mocked(listen).mockReset();
+  vi.mocked(emitTo).mockReset();
 });
 
 /** Makes `listen` deliver `payloads` to whoever subscribes, and record the order of calls. */
@@ -60,6 +62,15 @@ describe("the popup", () => {
       ["plugin:popup|hide"],
       ["plugin:popup|paste"],
     ]);
+  });
+
+  it("tells when an action command's shortcut is pressed or released", async () => {
+    const log: string[] = [];
+    events(log, [{ command: "pomodoro.start", kind: "press" }]);
+    const heard: unknown[] = [];
+    const stop = await tauriPopup.onAction((command, kind) => heard.push([command, kind]));
+    expect([log, heard]).toEqual([["listen plugin:popup:action"], [["pomodoro.start", "press"]]]);
+    stop();
   });
 
   it("tells which command the popup was shown for", async () => {
@@ -132,7 +143,7 @@ describe("the island window", () => {
     expect(await tauriWindow.autoHide(500, 760)).toBeUndefined();
     expect(await tauriWindow.autoHide(null, 760)).toBeUndefined();
     expect(vi.mocked(invoke).mock.calls).toEqual([
-      ["plugin:island|layout", { canvas, region }],
+      ["plugin:island|layout", { canvas, region, extra: [] }],
       ["plugin:island|auto_hide", { dwell: 500, grace: 760 }],
       ["plugin:island|auto_hide", { dwell: null, grace: 760 }],
     ]);
@@ -240,3 +251,41 @@ describe("the plugins folder", () => {
     expect(invoke).not.toHaveBeenCalled();
   });
 });
+
+describe("the corner toasts", () => {
+  const state = (titles: string[]) => ({ notices: titles.map((title) => ({ title })), settings: {}, colors: {} }) as never;
+
+  it("makes the window on the first toast, then sends it every change", async () => {
+    vi.mocked(invoke).mockResolvedValue(null);
+    const toasts = tauriToasts();
+    await toasts.sync(state([]));
+    expect([vi.mocked(invoke).mock.calls, vi.mocked(emitTo).mock.calls]).toEqual([[], []]);
+    await toasts.sync(state(["A"]));
+    await toasts.sync(state([]));
+    expect(vi.mocked(invoke).mock.calls).toEqual([["plugin:toasts|ensure"]]);
+    expect(vi.mocked(emitTo).mock.calls).toEqual([
+      ["toasts", "toasts:sync", state(["A"])],
+      ["toasts", "toasts:sync", state([])],
+    ]);
+  });
+
+  it("hears what the user did, and sends the latest again once the window is ready", async () => {
+    vi.mocked(invoke).mockResolvedValue(null);
+    const handlers = new Map<string, (e: { payload: unknown }) => void>();
+    const unlisten = vi.fn();
+    vi.mocked(listen).mockImplementation(async (name, handler) => (handlers.set(name, handler as never), unlisten));
+    const toasts = tauriToasts();
+    const heard: unknown[] = [];
+    const stop = await toasts.listen((e) => heard.push(e));
+    handlers.get("toasts:ready")!({ payload: null });
+    expect(emitTo).not.toHaveBeenCalled();
+    await toasts.sync(state(["A"]));
+    handlers.get("toasts:event")!({ payload: { kind: "close", id: "n1" } });
+    handlers.get("toasts:ready")!({ payload: null });
+    await vi.waitFor(() => expect(emitTo).toHaveBeenCalledTimes(2));
+    expect(heard).toEqual([{ kind: "close", id: "n1" }]);
+    stop();
+    expect(unlisten).toHaveBeenCalledTimes(2);
+  });
+});
+

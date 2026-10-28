@@ -8,6 +8,8 @@ import { vi } from "vitest";
 import type { Sdk } from "../sdk";
 import type { Services } from "../features/services";
 import { settingsProviders } from "../shell/providers";
+import { center } from "../shell/notifications";
+import { centerPort } from "../features/notifications/service";
 import type { Clip } from "../features/clipboard/service";
 import type { ModelInfo, Phase } from "../features/dictation/service";
 import type { Control, Track } from "../features/media/service";
@@ -18,6 +20,7 @@ import type { Phase as Talk } from "../features/persona/service";
 import type { Line, Phase as Hearing } from "../features/transcript/service";
 import type { Output, Source } from "../features/volume/service";
 import type { PopupPort } from "../shell/commands";
+import type { CommandKind } from "../sdk/plugin";
 import type { CommunityPort, Offer } from "../shell/community";
 import type { ExtensionsPort, Importer } from "../shell/extensions";
 import type { IslandHandle } from "../shell/host";
@@ -92,7 +95,11 @@ export function system() {
 
   /** The plugins signed in to an account, by id. */
   const accounts = new Set<string>();
+  const notices = center();
   const services: Services = {
+    notifications: centerPort(notices),
+    // The model picked for plugins echoes what it is asked.
+    ai: { ask: async (text, o = {}) => `${o.instructions ? `${o.instructions} ` : ""}${text}`.toUpperCase() },
     // The providers saved in Settings; each lists the same two models.
     providers: settingsProviders((onChange) => store.watch(onChange), async () => ["whisper-1", "tts-1"]),
     oauth: perPlugin((plugin) => ({
@@ -175,6 +182,8 @@ export function system() {
   };
 
   const bound: Record<string, unknown>[] = [];
+  /** The island's ear for `action` shortcuts. */
+  let actions: ((command: string, kind: CommandKind) => void) | undefined;
   const popup: PopupPort = {
     bind: async (b) => (bound.push(b), {}),
     watchFailures: async (onChange) => (onChange({}), () => {}),
@@ -182,6 +191,7 @@ export function system() {
     hide: async () => {},
     paste: async () => {},
     onShow: async () => () => {},
+    onAction: async (onAction) => ((actions = onAction), () => {}),
   };
 
   // The plugins folder: each file's source is its name, and the importer hands back its definition.
@@ -228,6 +238,9 @@ export function system() {
 
   return {
     services,
+    notices,
+    /** Presses (or releases, or tries) a command's shortcut, as the backend reports it. */
+    shortcut: (command: string, kind: CommandKind = "press") => actions?.(command, kind),
     window,
     popup,
     store,
@@ -337,7 +350,7 @@ export async function startIsland(sys: System): Promise<Island> {
   const el = document.createElement("div");
   el.id = "island";
   document.body.append(el);
-  const handle = await start(el, sys.services, sys.window, sys.store, sys.popup, sys.folder, sys.importer, sys.secrets);
+  const handle = await start(el, sys.services, sys.window, sys.store, sys.popup, sys.folder, sys.importer, sys.secrets, sys.notices);
   await advance(0);
   return {
     el,

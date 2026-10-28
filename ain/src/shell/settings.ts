@@ -4,6 +4,7 @@ import { follow } from "../sdk/follow";
 import type { PillSize } from "../sdk/style";
 import { commands, events } from "./bindings/settings";
 import type { Layout } from "./placement";
+import { DEFAULT_NOTIFICATIONS, type NotificationSettings, parseNotifications } from "./notifications";
 import { type AiProvider, parseProviders } from "./providers";
 
 export interface General {
@@ -52,6 +53,8 @@ export interface Settings {
   readonly extensions: readonly string[];
   /** AI providers every AI feature may use instead of its model on this computer (see shell/providers.ts). */
   readonly providers: readonly AiProvider[];
+  /** How notifications show, and which are kept quiet (see shell/notifications.ts). */
+  readonly notifications: NotificationSettings;
 }
 
 /** Every plugin id the layout places. */
@@ -89,7 +92,7 @@ export const REVEAL_RANGE = { min: 100, max: 2000, step: 100 } as const;
 export const WIDTH_RANGE = { min: 120, max: 480, step: 10 } as const;
 export const CURVE_RANGE = { min: 0, max: 100, step: 5 } as const;
 
-export const defaults = (layout: Layout): Settings => ({ version: 1, layout, general: DEFAULT_GENERAL, options: {}, shortcuts: {}, seen: placed(layout), extensions: [], providers: [] });
+export const defaults = (layout: Layout): Settings => ({ version: 1, layout, general: DEFAULT_GENERAL, options: {}, shortcuts: {}, seen: placed(layout), extensions: [], providers: [], notifications: DEFAULT_NOTIFICATIONS });
 
 const ids = z.array(z.string()).transform((list) => [...new Set(list)]);
 const ID = /^[a-z][a-z0-9-]{1,31}$/;
@@ -138,6 +141,7 @@ export function parseSettings(raw: unknown, fallback: Settings): Settings {
     seen: ids.optional().catch(undefined),
     extensions: ids.catch([]),
     providers: z.array(z.unknown()).catch([]).transform(parseProviders),
+    notifications: z.unknown().optional().transform((n) => parseNotifications(n, fallback.notifications)),
   });
   // Anything unreadable at the top level becomes `{}`, which every field above then defaults.
   const parsed = schema.safeParse(raw);

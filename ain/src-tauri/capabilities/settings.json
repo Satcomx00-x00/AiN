@@ -20,7 +20,8 @@
     "secrets:allow-set",
     "secrets:allow-saved-keys",
     "oauth:default",
-    "providers:default",
+    "providers:allow-models",
+    "providers:allow-preset-urls",
     "updates:default"
   ]
 }

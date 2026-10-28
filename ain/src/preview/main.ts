@@ -26,7 +26,10 @@ import type { WindowPort } from "../shell/window";
 import type { Clip } from "../features/clipboard/service";
 import type { Track } from "../features/media/service";
 import { noOAuth } from "../shell/oauth";
+import { noAi } from "../shell/ai";
 import { memoryProviders } from "../shell/providers";
+import { center } from "../shell/notifications";
+import { centerPort } from "../features/notifications/service";
 
 const params = new URLSearchParams(location.search);
 const t0 = Date.now();
@@ -62,8 +65,12 @@ const track: Track = {
   artworkKey: "m83",
 };
 
+/** The preview's notifications: `window.notify(title, body)` posts one, for the end-to-end tests and trying formats. */
+const notices = center();
 const fake: Services = {
+  notifications: centerPort(notices),
   oauth: noOAuth,
+  ai: noAi,
   providers: memoryProviders(),
   stats: {
     stats: async () => {
@@ -247,7 +254,11 @@ if (["width", "curve", "bg", "accent", "theme", "size", "style"].some((p) => par
   }
   await store.save({ ...base, general });
 }
-if (root) await start(root, fake, fakeWindow, store, idlePopup, noExtensions, undefined, memorySecrets());
+if (root) await start(root, fake, fakeWindow, store, idlePopup, noExtensions, undefined, memorySecrets(), notices);
+Object.assign(window, {
+  notify: (title: string, body = "", urgency: "low" | "normal" | "urgent" = "normal") =>
+    notices.post({ id: "preview", label: "Preview", icon: `<circle cx="8" cy="8" r="5"/>` }, { title, body, urgency, actions: [{ id: "open", label: "Open" }] }),
+});
 
 /** For the end-to-end tests: change the general settings live, as the settings window would. */
 let stored: unknown = null;

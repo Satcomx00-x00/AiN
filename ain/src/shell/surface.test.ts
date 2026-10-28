@@ -57,6 +57,7 @@ function popupPort() {
     hide: async () => void port.hidden++,
     paste: async () => {},
     onShow: async (onShow) => ((show = onShow), () => {}),
+    onAction: async () => () => {},
   };
   return { port, show: (id: string) => show(id) };
 }

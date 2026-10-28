@@ -10,7 +10,7 @@ mod wav;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use specta::Type;
-use tauri::{Wry, async_runtime::spawn_blocking, plugin::TauriPlugin};
+use tauri::{AppHandle, Wry, async_runtime::spawn_blocking, plugin::TauriPlugin};
 
 pub use auth::Auth;
 
@@ -19,6 +19,12 @@ use crate::{Error, Res, config, shell::settings};
 /// What one request to a text-to-speech endpoint reads at most: short enough to start soon,
 /// and well under the usual limit (4096 characters).
 const PIECE: usize = 600;
+/// Whose options say which provider and model plugins from the plugins folder may ask, under
+/// Settings → AI providers. Off (no provider) until the user picks one.
+pub const PLUGINS: &str = "plugin-ai";
+/// Most a plugin may send in one question, in characters: its instructions, then its text.
+const MAX_INSTRUCTIONS: usize = 4_000;
+const MAX_TEXT: usize = 32_000;
 
 /// A provider, as Settings lists it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
@@ -91,6 +97,28 @@ pub fn chosen(settings: &Value, feature: &str) -> Result<Engine, String> {
     Ok(Engine::Remote(Remote { provider, model, voice: text("remoteVoice").map(str::to_string) }))
 }
 
+/// The model plugins may ask, or why they can't: the user hasn't allowed it, or it's set up wrong.
+pub fn for_plugins(settings: &Value) -> Result<Remote, String> {
+    match chosen(settings, PLUGINS)? {
+        Engine::Remote(remote) => Ok(remote),
+        Engine::Local => Err("Plugins may not use AI yet: choose a provider for them in Settings → AI providers".into()),
+    }
+}
+
+/// Why a plugin's question is too long, if it is.
+fn too_long(instructions: &str, text: &str) -> Option<String> {
+    let over = |s: &str, max: usize| s.chars().count() > max;
+    if over(instructions, MAX_INSTRUCTIONS) {
+        Some(format!("The instructions are too long (at most {MAX_INSTRUCTIONS} characters)"))
+    } else if text.trim().is_empty() {
+        Some("There is nothing to ask".into())
+    } else if over(text, MAX_TEXT) {
+        Some(format!("The text is too long (at most {MAX_TEXT} characters)"))
+    } else {
+        None
+    }
+}
+
 /// `text` cut into pieces of at most about `max` bytes, at sentence ends (else at spaces).
 pub fn pieces(text: &str, max: usize) -> Vec<&str> {
     let mut out = Vec::new();
@@ -147,6 +175,18 @@ impl Remote {
 async fn models(provider: Provider) -> Res<Vec<String>> {
     provider.check().map_err(Error::msg)?;
     spawn_blocking(move || client::models(&provider)).await.map_err(|_| Error::WorkerGone)?.map_err(Error::msg)
+}
+
+/// What the model the user picked for plugins answers to `text`, following `instructions`. The
+/// island only lets plugins that list "ai" in `needs` call it.
+#[tauri::command]
+#[specta::specta]
+async fn ask(app: AppHandle, instructions: String, text: String) -> Res<String> {
+    if let Some(why) = too_long(&instructions, &text) {
+        return Err(Error::msg(why));
+    }
+    let remote = for_plugins(&settings::current(&app)).map_err(Error::msg)?;
+    spawn_blocking(move || remote.chat(&instructions, &text)).await.map_err(|_| Error::WorkerGone)?.map_err(Error::msg)
 }
 
 /// The presets' addresses, by preset id, after their `AIN_PROVIDER_*_URL` overrides.
@@ -239,6 +279,26 @@ mod tests {
         assert_eq!(provider(&settings(json!({})), "tts"), Ok(None));
         assert_eq!(provider(&settings(json!({ "engine": "lab" })), "tts").unwrap().map(|p| p.id).as_deref(), Some("lab"));
         assert!(provider(&settings(json!({ "engine": "gone" })), "tts").is_err());
+    }
+
+    #[test]
+    fn lets_plugins_ask_only_the_model_the_user_picked_for_them() {
+        let with = |options: Value| json!({ "providers": settings(json!({}))["providers"], "options": { PLUGINS: options } });
+        assert!(for_plugins(&with(json!({}))).unwrap_err().contains("Settings → AI providers"));
+        assert_eq!(for_plugins(&with(json!({ "engine": "lab", "remoteModel": "llama" }))).map(|r| r.model), Ok("llama".into()));
+        assert!(
+            for_plugins(&settings(json!({ "engine": "lab", "remoteModel": "kokoro" }))).is_err(),
+            "another feature's choice isn't theirs"
+        );
+    }
+
+    #[test]
+    fn refuses_questions_too_long_or_empty() {
+        assert_eq!(too_long("Be brief.", "Hello"), None);
+        assert!(too_long("", "  ").unwrap().contains("nothing"));
+        assert!(too_long(&"x".repeat(MAX_INSTRUCTIONS + 1), "Hi").unwrap().contains("instructions"));
+        assert!(too_long("", &"é".repeat(MAX_TEXT + 1)).unwrap().contains("text"));
+        assert_eq!(too_long("", &"é".repeat(MAX_TEXT)), None, "counts characters, not bytes");
     }
 
     #[test]
