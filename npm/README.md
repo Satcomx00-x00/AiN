@@ -12,7 +12,6 @@ Only the build for your machine is downloaded. To pick one yourself, install it 
 | Platform | Package |
 | --- | --- |
 | Windows x64 | `@satcomx00/ain-win32-x64` |
-| macOS x64 (Intel, Apple silicon through Rosetta) | `@satcomx00/ain-darwin-x64` |
 | Linux x64 (AppImage, any distro) | `@satcomx00/ain-linux-x64` |
 | Fedora 43 x64 (built on Fedora, uses its libraries) | `@satcomx00/ain-fedora43` |
 | Fedora 44 x64 (built on Fedora, uses its libraries) | `@satcomx00/ain-fedora44` |
@@ -24,8 +23,7 @@ Keep a single copy of AiN: `ain` won't start while one from an installer is on t
 Update with `bun update -g @satcomx00/ain` (or `npm update -g @satcomx00/ain`): copies installed
 this way don't update themselves.
 
-Needs Node.js 18+ or Bun, and per platform: WebView2 on Windows (built into Windows 11); Rosetta 2 on
-Apple silicon Macs (the build is Intel); FUSE 2 and glibc 2.39+ on Linux for the AppImage (`libfuse2t64`
+Needs Node.js 18+ or Bun, and per platform: WebView2 on Windows (built into Windows 11); FUSE 2 and glibc 2.39+ on Linux for the AppImage (`libfuse2t64`
 on Ubuntu/Debian, `fuse-libs` on Fedora). The full table is in the
 [main README](https://github.com/Satcomx00-x00/AiN#what-each-install-needs). npm can't tell Linux distros apart, so the Fedora build is only installed
 by name, with its libraries from dnf:

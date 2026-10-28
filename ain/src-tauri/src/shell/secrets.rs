@@ -1,5 +1,5 @@
 //! Plugins' secrets (API keys, tokens): kept in the system's credential store (Windows Credential
-//! Manager, the macOS Keychain, the Secret Service on Linux), never in `settings.json`. Each one
+//! Manager, the Secret Service on Linux), never in `settings.json`. Each one
 //! belongs to a plugin's option, `<plugin id>/<option key>`; an empty value removes it.
 
 use serde::{Deserialize, Serialize};

@@ -32,8 +32,7 @@ pub const WHEEL: &str = "moshi_personaplex-0.1.0-py3-none-any.whl";
 const PACKAGE: &str =
     "moshi-personaplex @ git+https://github.com/NVIDIA/personaplex.git@3428dfd95309a7f3c84fd93259ded0f810d1ff91#subdirectory=moshi";
 /// PyTorch built for NVIDIA GPUs (CUDA 12.4), at the newest version the package allows (< 2.5),
-/// installed before it from PyTorch's own index: PyPI's is built for the CPU alone on Windows. macOS
-/// has no CUDA, so PyPI's is all there is.
+/// installed before it from PyTorch's own index: PyPI's is built for the CPU alone on Windows.
 const TORCH: &str = "torch==2.4.1";
 /// Points huggingface_hub at [`config::HF_URL`] when overridden; else leaves the user's own `HF_ENDPOINT` be.
 fn hf_endpoint(command: &mut Command) {
@@ -42,10 +41,10 @@ fn hf_endpoint(command: &mut Command) {
     }
 }
 
-/// PyTorch's index: [`config::TORCH_INDEX_URL`]; PyPI's (none) on macOS unless overridden.
-fn torch_index() -> Option<String> {
+/// PyTorch's index: [`config::TORCH_INDEX_URL`].
+fn torch_index() -> String {
     let index = config::TORCH_INDEX_URL;
-    index.set().or_else(|| (!cfg!(target_os = "macos")).then(|| index.default.into()))
+    index.set().unwrap_or_else(|| index.default.into())
 }
 /// What `--cpu-offload` needs besides.
 const EXTRAS: &[&str] = &["accelerate"];
@@ -199,7 +198,7 @@ fn find_uv() -> Option<PathBuf> {
 /// What an install records: the package, and the PyTorch build under it. An install made otherwise
 /// (an older package, or PyTorch for the CPU alone) is redone.
 fn build() -> String {
-    format!("{PACKAGE}\n{TORCH} from {}", torch_index().as_deref().unwrap_or("PyPI"))
+    format!("{PACKAGE}\n{TORCH} from {}", torch_index())
 }
 
 /// A Python that can make PersonaPlex's environment when uv is missing: how to start it, and its
@@ -388,7 +387,8 @@ fn install(place: &Place, wheel: &Path, cancel: &AtomicBool, report: &mut dyn Fn
             let mut venv = Command::new(&uv);
             venv.args(["venv", "--python", PYTHON]).arg(place.venv());
             run(venv, "uv", "Making its Python environment…", cancel, report)?;
-            if let Some(index) = torch_index() {
+            {
+                let index = torch_index();
                 report("Installing PyTorch for NVIDIA GPUs (about 2.5 GB)…");
                 let mut torch = Command::new(&uv);
                 torch.args(["pip", "install", "--python"]).arg(place.python()).args([TORCH, "--index-url", &index]);
@@ -403,7 +403,8 @@ fn install(place: &Place, wheel: &Path, cancel: &AtomicBool, report: &mut dyn Fn
             let mut venv = python.command();
             venv.args(["-m", "venv"]).arg(place.venv());
             run(venv, "Python", "Making its Python environment…", cancel, report)?;
-            if let Some(index) = torch_index() {
+            {
+                let index = torch_index();
                 report("Installing PyTorch for NVIDIA GPUs (about 2.5 GB)…");
                 let mut torch = Command::new(place.python());
                 torch

@@ -58,8 +58,6 @@ pub fn run() {
     features::register(app)
         .setup(|_app| {
             shell::renamed::move_autostart(_app.handle());
-            #[cfg(target_os = "macos")]
-            _app.set_activation_policy(tauri::ActivationPolicy::Accessory);
             Ok(())
         })
         .run(tauri::generate_context!())

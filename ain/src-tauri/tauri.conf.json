@@ -9,7 +9,6 @@
     "beforeBuildCommand": "bun run build"
   },
   "app": {
-    "macOSPrivateApi": true,
     "windows": [
       {
         "label": "widget",
@@ -23,7 +22,6 @@
         "resizable": false,
         "skipTaskbar": true,
         "focus": false,
-        "acceptFirstMouse": true,
         "visible": false
       }
     ]
@@ -65,9 +63,6 @@
           "libayatana-appindicator-gtk3"
         ]
       }
-    },
-    "macOS": {
-      "minimumSystemVersion": "10.15"
     },
     "windows": {
       "nsis": {

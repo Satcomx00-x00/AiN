@@ -98,39 +98,39 @@ add to it, from the community store.
 
 ### The island
 
-| Feature | What it does | Windows | macOS | Linux |
-| --- | --- | :---: | :---: | :---: |
-| **The pill** | Sits at the top center of the screen, above other windows and on every workspace | ✅ | ✅ | ✅ X11<br>⚠️ Wayland: pinned to the top on compositors with layer-shell (KDE, Sway, Hyprland…); on GNOME, through XWayland, just below the top bar |
-| **Hover to open** | Unfolds into one tab per widget, folds back when the pointer leaves; the delays are adjustable | ✅ | ✅ | ✅ |
-| **Live activities** | Music, a volume change or a dictation widens the pill for a moment, with a bounce | ✅ | ✅ | ✅ |
-| **Notch** | On a MacBook with a notch, the pill wraps around it, with a glance on each side | — | ✅ | — |
-| **Pill styles** | **Pill** (a glance at each end), **Solo** (one glance in the middle), **Stub** (a small tab with one mark), **Sliver** (a thin strip without text), **Hidden** (shows only while the cursor rests at the top center) | ✅ | ✅ | ✅ X11<br>⚠️ Wayland: Hidden stays shown, the compositor doesn't tell where the cursor is |
-| **Pill sizes** | Low profile (20 px), normal (32 px) or large (44 px), for every style; text, icons and corners ease to the new size live | ✅ | ✅ (a notch keeps its own size) | ✅ |
-| **Startup animations** | Hello, Boing, Sparkle or Typewriter when the island starts, or none; a Play button to preview; skipped when the system asks for reduced motion | ✅ | ✅ | ✅ |
-| **Themes and colors** | 54 themes (AiN, Dracula, Nord, Tokyo Night, Gruvbox, Solarized…), your own pill and accent colors, the pill's width and corner curve | ✅ | ✅ | ✅ |
-| **Layout** | Which widgets show on each side of the pill (the first with something to say wins) and the order of the tabs | ✅ | ✅ | ✅ |
-| **Settings** | A settings window; changes apply at once and are saved automatically | ✅ | ✅ | ✅ |
-| **Tray icon** | Opens the settings, quits the app | ✅ | ✅ | ⚠️ needs a tray that supports AppIndicator (GNOME: the AppIndicator extension) |
-| **Launch at login** | Starts the island when you sign in | ✅ | ✅ | ✅ |
+| Feature | What it does | Windows | Linux |
+| --- | --- | :---: | :---: |
+| **The pill** | Sits at the top center of the screen, above other windows and on every workspace | ✅ | ✅ X11<br>⚠️ Wayland: pinned to the top on compositors with layer-shell (KDE, Sway, Hyprland…); on GNOME, through XWayland, just below the top bar |
+| **Hover to open** | Unfolds into one tab per widget, folds back when the pointer leaves; the delays are adjustable | ✅ | ✅ |
+| **Live activities** | Music, a volume change or a dictation widens the pill for a moment, with a bounce | ✅ | ✅ |
+| **Notch** | On a MacBook with a notch, the pill wraps around it, with a glance on each side | — | — |
+| **Pill styles** | **Pill** (a glance at each end), **Solo** (one glance in the middle), **Stub** (a small tab with one mark), **Sliver** (a thin strip without text), **Hidden** (shows only while the cursor rests at the top center) | ✅ | ✅ X11<br>⚠️ Wayland: Hidden stays shown, the compositor doesn't tell where the cursor is |
+| **Pill sizes** | Low profile (20 px), normal (32 px) or large (44 px), for every style; text, icons and corners ease to the new size live | ✅ | ✅ |
+| **Startup animations** | Hello, Boing, Sparkle or Typewriter when the island starts, or none; a Play button to preview; skipped when the system asks for reduced motion | ✅ | ✅ |
+| **Themes and colors** | 54 themes (AiN, Dracula, Nord, Tokyo Night, Gruvbox, Solarized…), your own pill and accent colors, the pill's width and corner curve | ✅ | ✅ |
+| **Layout** | Which widgets show on each side of the pill (the first with something to say wins) and the order of the tabs | ✅ | ✅ |
+| **Settings** | A settings window; changes apply at once and are saved automatically | ✅ | ✅ |
+| **Tray icon** | Opens the settings, quits the app | ✅ | ⚠️ needs a tray that supports AppIndicator (GNOME: the AppIndicator extension) |
+| **Launch at login** | Starts the island when you sign in | ✅ | ✅ |
 
 ### Widgets
 
 Each widget can show on the pill, in its own tab, or both.
 
-| Widget | What it does | Windows | macOS | Linux |
-| --- | --- | :---: | :---: | :---: |
-| **Clock** | The time on the pill; its tab shows a counter-style clock with the date and week number. 12h, 24h or the system format | ✅ | ✅ | ✅ |
-| **Timer** | A countdown with presets, shown on the pill while it runs; asks for attention when it ends | ✅ | ✅ | ✅ |
-| **Stats** | CPU, memory and network usage, with a live load graph on the pill | ✅ | ✅ | ✅ |
-| **Now playing** | What plays, with its cover art, seek and playback controls | ✅ any app using the system media controls | ⚠️ Spotify and Music only | ✅ MPRIS players (Spotify, Firefox, Chromium, VLC, mpv…) |
-| **Volume** | A mixer for your outputs and apps; pin the ones you want. A pop-up shows on the pill when the volume changes | ✅ outputs and apps, with a level meter | ⚠️ outputs only (macOS has no per-app volume), no level meter | ⚠️ outputs and apps, no level meter |
-| **Mic & camera** | Which apps use the microphone (orange) or the camera (green) right now | ✅ | ⚠️ apps on the mic from macOS 14; for the camera, only that one is in use | ✅ your own apps |
-| **Clipboard** | Your recently copied text, one click to copy it again; kept in memory only, never written to disk | ✅ | ✅ | ✅ |
-| **Dictation** | Speak, and the words are typed where your cursor is. Recognized on your computer by one of 7 models you download once (Parakeet, Whisper, SenseVoice, Moonshine) | ✅ | ⚠️ typing needs Accessibility access | ✅ pasted through the desktop's Remote Desktop portal (asks once), any keyboard layout; or `xdotool`, `wtype`, `ydotool` |
-| **Transcript** | Writes down what your computer plays (a video, a call, a chat app) as it is heard, with the time of each line; copy it in one click. Recognized by dictation's speech model on your computer, or by one of your AI providers | ✅ | ⚠️ macOS 14.6+, asks once to record the system's audio | ⚠️ PipeWire (the default on Fedora and Ubuntu); nothing to install |
-| **Read aloud** | Select text in any app, press the shortcut, and it is read out loud. Spoken on your computer by one of 6 voice models you download once (Kokoro, Kitten, Piper in English, French, German and Spanish), with a choice of voice and speed | ✅ | ⚠️ reading the selection needs Accessibility access | ✅ |
-| **Spelling** | Select French or English text in any app, press the shortcut, and its mistakes are corrected in place. On your computer, a small language model you download once (Qwen2.5, 1.5B or 0.5B, run by llama.cpp) fixes spelling and grammar, and the Hunspell dictionaries built into the app take over when it can't; or one of your AI providers' chat models | ✅ | ⚠️ reading the selection and typing need Accessibility access | ⚠️ typing needs `xdotool` (X11), `wtype` or `ydotool` (Wayland) |
-| **Conversation** | Talk with NVIDIA [PersonaPlex](https://github.com/NVIDIA/personaplex), a full-duplex speech-to-speech model: it listens while it speaks, so you can interrupt it. Pick one of its 18 voices and the persona it plays. The model runs on this computer, where the app installs PersonaPlex (with [uv](https://docs.astral.sh/uv/)), starts its server when you talk and stops it once unused (an NVIDIA GPU with 24 GB, or less with CPU offload; a Hugging Face token for its weights), or on a server behind one of your AI providers, which brings its token | ✅ | ✅ | ✅ |
+| Widget | What it does | Windows | Linux |
+| --- | --- | :---: | :---: |
+| **Clock** | The time on the pill; its tab shows a counter-style clock with the date and week number. 12h, 24h or the system format | ✅ | ✅ |
+| **Timer** | A countdown with presets, shown on the pill while it runs; asks for attention when it ends | ✅ | ✅ |
+| **Stats** | CPU, memory and network usage, with a live load graph on the pill | ✅ | ✅ |
+| **Now playing** | What plays, with its cover art, seek and playback controls | ✅ any app using the system media controls | ✅ MPRIS players (Spotify, Firefox, Chromium, VLC, mpv…) |
+| **Volume** | A mixer for your outputs and apps; pin the ones you want. A pop-up shows on the pill when the volume changes | ✅ outputs and apps, with a level meter | ⚠️ outputs and apps, no level meter |
+| **Mic & camera** | Which apps use the microphone (orange) or the camera (green) right now | ✅ | ✅ your own apps |
+| **Clipboard** | Your recently copied text, one click to copy it again; kept in memory only, never written to disk | ✅ | ✅ |
+| **Dictation** | Speak, and the words are typed where your cursor is. Recognized on your computer by one of 7 models you download once (Parakeet, Whisper, SenseVoice, Moonshine) | ✅ | ✅ pasted through the desktop's Remote Desktop portal (asks once), any keyboard layout; or `xdotool`, `wtype`, `ydotool` |
+| **Transcript** | Writes down what your computer plays (a video, a call, a chat app) as it is heard, with the time of each line; copy it in one click. Recognized by dictation's speech model on your computer, or by one of your AI providers | ✅ | ⚠️ PipeWire (the default on Fedora and Ubuntu); nothing to install |
+| **Read aloud** | Select text in any app, press the shortcut, and it is read out loud. Spoken on your computer by one of 6 voice models you download once (Kokoro, Kitten, Piper in English, French, German and Spanish), with a choice of voice and speed | ✅ | ✅ |
+| **Spelling** | Select French or English text in any app, press the shortcut, and its mistakes are corrected in place. On your computer, a small language model you download once (Qwen2.5, 1.5B or 0.5B, run by llama.cpp) fixes spelling and grammar, and the Hunspell dictionaries built into the app take over when it can't; or one of your AI providers' chat models | ✅ | ⚠️ typing needs `xdotool` (X11), `wtype` or `ydotool` (Wayland) |
+| **Conversation** | Talk with NVIDIA [PersonaPlex](https://github.com/NVIDIA/personaplex), a full-duplex speech-to-speech model: it listens while it speaks, so you can interrupt it. Pick one of its 18 voices and the persona it plays. The model runs on this computer, where the app installs PersonaPlex (with [uv](https://docs.astral.sh/uv/)), starts its server when you talk and stops it once unused (an NVIDIA GPU with 24 GB, or less with CPU offload; a Hugging Face token for its weights), or on a server behind one of your AI providers, which brings its token | ✅ | ✅ |
 
 Where typing isn't allowed, dictated text is copied for you to paste (see [permissions](#permissions-and-helper-tools)).
 
@@ -138,15 +138,15 @@ Where typing isn't allowed, dictated text is copied for you to paste (see [permi
 
 Global shortcuts open these even while the island is folded. You can rebind them in **Settings → Shortcuts**.
 
-| Tool | What it does | Windows | macOS | Linux |
-| --- | --- | :---: | :---: | :---: |
-| **Clipboard picker** | Search your clipboard history, pick with the arrows or <kbd>Alt</kbd>+<kbd>1</kbd>…<kbd>9</kbd>, and it is pasted into the app you were in | ✅ | ⚠️ pasting needs Accessibility access | ⚠️ shortcut on X11 only; pasting needs `xdotool`, `wtype` or `ydotool` |
-| **Screenshot editor** | Freezes the screen; select an area, draw on it (pen, marker, rectangle, ellipse, colors, sizes, undo), then copy or save it as a PNG | ✅ | ✅ | ⚠️ shortcut on X11 only |
-| **Dictation** | Starts and stops dictating | ✅ | ✅ | ⚠️ shortcut on X11 only |
-| **Transcript** | Starts and stops writing down the computer's sound | ✅ | ✅ | ⚠️ shortcut on X11 only |
-| **Read aloud** | Reads the selected text, or stops reading | ✅ | ✅ | ⚠️ shortcut on X11 only |
-| **Spelling** | Corrects the selected text | ✅ | ✅ | ⚠️ shortcut on X11 only |
-| **Conversation** | Starts or ends a conversation with PersonaPlex | ✅ | ✅ | ⚠️ shortcut on X11 only |
+| Tool | What it does | Windows | Linux |
+| --- | --- | :---: | :---: |
+| **Clipboard picker** | Search your clipboard history, pick with the arrows or <kbd>Alt</kbd>+<kbd>1</kbd>…<kbd>9</kbd>, and it is pasted into the app you were in | ✅ | ⚠️ shortcut on X11 only; pasting needs `xdotool`, `wtype` or `ydotool` |
+| **Screenshot editor** | Freezes the screen; select an area, draw on it (pen, marker, rectangle, ellipse, colors, sizes, undo), then copy or save it as a PNG | ✅ | ⚠️ shortcut on X11 only |
+| **Dictation** | Starts and stops dictating | ✅ | ⚠️ shortcut on X11 only |
+| **Transcript** | Starts and stops writing down the computer's sound | ✅ | ⚠️ shortcut on X11 only |
+| **Read aloud** | Reads the selected text, or stops reading | ✅ | ⚠️ shortcut on X11 only |
+| **Spelling** | Corrects the selected text | ✅ | ⚠️ shortcut on X11 only |
+| **Conversation** | Starts or ends a conversation with PersonaPlex | ✅ | ⚠️ shortcut on X11 only |
 
 On Wayland, Linux gives apps no global shortcuts: the island and its tabs work, the shortcuts don't.
 
@@ -176,17 +176,17 @@ the `store` branch to list it.
 | Start or end a conversation with PersonaPlex | <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>T</kbd> |
 
 You can rebind them all in **Settings → Shortcuts**. On Windows, <kbd>Win</kbd> + a single letter is reserved by the
-OS, so add <kbd>Shift</kbd> or <kbd>Alt</kbd>. On macOS, <kbd>Win</kbd> is <kbd>Cmd</kbd>; on Linux, the Super key.
+OS, so add <kbd>Shift</kbd> or <kbd>Alt</kbd>. On Linux, <kbd>Win</kbd> is the Super key.
 On Linux, global shortcuts work on X11 only.
 
 ## Install
 
 Every build is x64. Pick one way to install:
 
-| Way | Windows | macOS | Linux |
-| --- | --- | --- | --- |
-| [Releases](https://github.com/Satcomx00-x00/AiN/releases) | `.msi`, or NSIS `-setup.exe` (per-user, no admin) | `.dmg` | `.deb`, `.rpm`, `.AppImage` |
-| npm / bun ([details](npm/README.md)) | `@satcomx00/ain` | `@satcomx00/ain` | `@satcomx00/ain` (AppImage), or `@satcomx00/ain-fedora43` / `-fedora44` |
+| Way | Windows | Linux |
+| --- | --- | --- |
+| [Releases](https://github.com/Satcomx00-x00/AiN/releases) | `.msi`, or NSIS `-setup.exe` (per-user, no admin) | `.deb`, `.rpm`, `.AppImage` |
+| npm / bun ([details](npm/README.md)) | `@satcomx00/ain` | `@satcomx00/ain` (AppImage), or `@satcomx00/ain-fedora43` / `-fedora44` |
 
 ```sh
 bun i -g @satcomx00/ain   # or: npm i -g @satcomx00/ain
@@ -198,7 +198,7 @@ Installed from Releases, AiN updates itself; installed with npm or bun, `bun upd
 refuses to start when an installer already put AiN on the machine.
 
 > [!NOTE]
-> The binaries are not signed yet, so Windows SmartScreen and macOS Gatekeeper will show a warning on first launch
+> The binaries are not signed yet, so Windows SmartScreen will show a warning on first launch
 > of a downloaded installer (npm and bun installs don't get this warning).
 
 ### What each install needs
@@ -206,7 +206,6 @@ refuses to start when an installer already put AiN on the machine.
 | Install | Needs |
 | --- | --- |
 | Windows (any) | Windows 10 or 11 x64, and [WebView2](https://developer.microsoft.com/microsoft-edge/webview2/) (built into Windows 11 and up-to-date Windows 10; the installers fetch it if missing, the npm package doesn't) |
-| macOS (any) | macOS 10.13 or later. The build is Intel: on Apple silicon it runs through Rosetta 2 (`softwareupdate --install-rosetta`) |
 | `.deb` | Ubuntu 24.04+ or Debian 13+ (built on Ubuntu 24.04). `apt install ./AiN_*.deb` pulls WebKitGTK 4.1, GTK 3 and `libgtk-layer-shell0` |
 | `.rpm` | Fedora 40+ or another rpm distro of the same age. `dnf install ./AiN-*.rpm` pulls `webkit2gtk4.1`, `gtk-layer-shell` and `libayatana-appindicator-gtk3` |
 | `.AppImage`, `@satcomx00/ain-linux-x64` | Any distro with glibc 2.39+ (Ubuntu 24.04, Fedora 40, Debian 13 or newer). It carries WebKitGTK; it needs FUSE 2 (`libfuse2t64` on Ubuntu/Debian, `fuse-libs` on Fedora) and `gtk-layer-shell` |
@@ -223,14 +222,13 @@ What dictation, the clipboard picker and read aloud need on top is [below](#perm
 
 ### Permissions and helper tools
 
-Typing dictated text and pasting from the clipboard picker press keys in another app, which macOS and Linux only
-allow in some conditions. When they can't, the text stays on the clipboard for you to paste. Read aloud and spelling copy the
-selection on Windows and macOS (then puts back the text you had copied); on Linux it reads the primary selection,
+Typing dictated text and pasting from the clipboard picker press keys in another app, which Linux only allows in
+some conditions. When they can't, the text stays on the clipboard for you to paste. Read aloud and spelling copy the
+selection on Windows (then puts back the text you had copied); on Linux it reads the primary selection,
 with no keys pressed.
 
 | OS | What it needs |
 | --- | --- |
-| macOS | Allow AiN under **System Settings → Privacy & Security → Accessibility** (macOS asks the first time). Now playing asks once to control Spotify or Music, dictation to use the microphone, and transcript to record the system's audio. |
 | Linux | Dictation pastes its text (so AZERTY and other layouts come out right) by pressing Ctrl+V through the desktop's Remote Desktop portal (GNOME, KDE): nothing to install, the desktop asks once and remembers. Pick **Typing keys** in Dictation's settings to type instead. |
 | Linux, X11 | [`xdotool`](https://github.com/jordansissel/xdotool) (else the portal) |
 | Linux, Wayland | The portal, [`wtype`](https://github.com/atx/wtype) (wlroots compositors, KDE), or [`ydotool`](https://github.com/ReimuNotMoe/ydotool) with its daemon running and its socket open to you (any compositor, GNOME included; Fedora's `ydotool.service` keeps its socket root-only in `/tmp`, where the client doesn't look: run `ydotoold --socket-path=$XDG_RUNTIME_DIR/.ydotool_socket --socket-own=$(id -u):$(id -g)` instead) |
@@ -263,10 +261,10 @@ Tests:
 | `bun run test:smoke` | Smoke tests (`smoke/`): builds, then opens each window of the production build with a stand-in for the Tauri backend |
 | `bun run screenshots` | Retakes the README's pictures of the pill styles, sizes, startup animation and appearance settings (`screenshots/`), into `img/` |
 
-The browser tests run in Chromium (the engine of Windows' WebView2) and WebKit (the engine of macOS' WKWebView and
-Linux's WebKitGTK). Install them once: `bunx playwright install chromium webkit`.
+The browser tests run in Chromium (the engine of Windows' WebView2) and WebKit (the engine of Linux's
+WebKitGTK). Install them once: `bunx playwright install chromium webkit`.
 
-The whole strategy, and the systems CI tests on (Windows 11, Ubuntu, Fedora 43 and 44, macOS, all x64), is in
+The whole strategy, and the systems CI tests on (Windows 11, Ubuntu, Fedora 43 and 44, all x64), is in
 [docs/testing.md](docs/testing.md).
 
 Rust checks (from `ain/src-tauri`):
@@ -289,7 +287,7 @@ Every built-in URL and folder can be overridden by an `AIN_*` environment variab
 | `ain/src/features/` | One folder per feature (UI side), each with its generated `bindings.ts` |
 | `ain/src-tauri/src/manifest.rs` | Every IPC command and event, listed once |
 | `ain/src-tauri/src/shell/` | Native side of the app: island window, popup, capture, settings, tray, plugin folder |
-| `ain/src-tauri/src/features/` | Native side of each feature, with one backend per OS (`windows.rs`, `linux.rs`, `macos.rs`) |
+| `ain/src-tauri/src/features/` | Native side of each feature, with one backend per OS (`windows.rs`, `linux.rs`) |
 | `ain/examples/plugins/` | Example third-party plugins: a widget, a startup animation, a pill style |
 | `cliff.toml` | [git-cliff](https://git-cliff.org) changelog configuration |
 | `.github/workflows/` | CI and release pipelines |
@@ -329,7 +327,7 @@ Every push to `main` and every pull request runs:
 - commit message linting (commitlint)
 - frontend: typecheck, unit and integration tests, production build
 - browser tests: end-to-end tests and smoke tests of the production build, in Chromium and WebKit
-- Rust: `rustfmt`, then `clippy -D warnings` and `cargo test` on Linux, Windows and macOS (x64), and a check that the
+- Rust: `rustfmt`, then `clippy -D warnings` and `cargo test` on Linux and Windows (x64), and a check that the
   committed TypeScript bindings match the Rust code
 - an AppImage build, uploaded as a workflow artifact, then launched on a virtual display: it must start, lay out its
   window and keep running (`.github/scripts/launch-check.sh`)
@@ -340,7 +338,7 @@ Releases are continuous: every green CI run on `main` (a merged pull request, a 
    (`feat!:`, `BREAKING CHANGE:`) release; `docs`, `ci`, `chore`, `refactor`, `test`… wait for the next one.
 2. It derives the bump (pre-1.0: a feature or a breaking change bumps the minor, anything else the patch), updates
    `package.json`, `Cargo.toml`, `Cargo.lock` and `CHANGELOG.md`, commits `chore(release): vX.Y.Z` and pushes the tag.
-3. The app is built for Windows, Linux and macOS (x64).
+3. The app is built for Windows and Linux (x64).
 4. The release is published with the changelog section as its notes.
 
 Commits merged while CI runs are released together, by the run of the newest one. To release anyway, or to pick

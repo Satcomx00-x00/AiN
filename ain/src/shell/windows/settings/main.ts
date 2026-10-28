@@ -1142,7 +1142,7 @@ content.addEventListener("keydown", (e) => {
   else if (e.key === "ArrowUp") searchBox.focus();
 });
 window.addEventListener("keydown", (e) => {
-  if ((e.ctrlKey || e.metaKey) && (e.key === "f" || e.key === "k") && !e.altKey) {
+  if (e.ctrlKey && (e.key === "f" || e.key === "k") && !e.altKey) {
     e.preventDefault();
     searchBox.focus();
     searchBox.select();

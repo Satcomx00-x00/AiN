@@ -102,22 +102,6 @@ pub fn take_input<R: Runtime>(w: &Window<R>, canvas: LogicalSize<f64>, region: L
     Ok(())
 }
 
-#[cfg(target_os = "macos")]
-pub fn native<R: Runtime>(w: &Window<R>) -> Res<Island> {
-    use objc2_app_kit::{NSWindow, NSWindowCollectionBehavior as B};
-    const ABOVE_MENU_BAR: isize = 1000;
-    // SAFETY: called from setup() on the main thread; Tauri owns a live NSWindow.
-    let ns = unsafe { &*(w.ns_window()? as *const NSWindow) };
-    ns.setLevel(ABOVE_MENU_BAR);
-    ns.setCollectionBehavior(B::CanJoinAllSpaces | B::FullScreenAuxiliary | B::Stationary | B::IgnoresCycle);
-    let Some(s) = ns.screen() else { return Ok(FALLBACK) };
-    let (f, l, r) = (s.frame(), s.auxiliaryTopLeftArea(), s.auxiliaryTopRightArea());
-    Ok(match l.size.width > 0.0 {
-        true => Island { width: f.size.width - l.size.width - r.size.width, height: l.size.height, has_notch: true },
-        false => FALLBACK,
-    })
-}
-
 #[cfg(target_os = "linux")]
 pub fn native<R: Runtime>(w: &Window<R>) -> Res<Island> {
     use gtk_layer_shell::{Edge, KeyboardMode, Layer, LayerShell};
@@ -132,7 +116,7 @@ pub fn native<R: Runtime>(w: &Window<R>) -> Res<Island> {
     Ok(FALLBACK)
 }
 
-#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+#[cfg(not(target_os = "linux"))]
 pub fn native<R: Runtime>(_: &Window<R>) -> Res<Island> {
     Ok(FALLBACK)
 }

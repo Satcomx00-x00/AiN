@@ -179,10 +179,6 @@ jobs:
             os: windows-latest
             target: x86_64-pc-windows-msvc
             npm: win32-x64
-          - name: macOS x64
-            os: macos-15-intel
-            target: x86_64-apple-darwin
-            npm: darwin-x64
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -252,7 +248,6 @@ jobs:
           rm -rf npm && mkdir npm
           case "$PLATFORM" in
             win32-*) cp ain.exe npm/ ;;
-            darwin-*) cp -R bundle/macos/*.app npm/ ;;
             linux-*) cp bundle/appimage/*.AppImage npm/AiN.AppImage ;;
           esac
           tar -czf "npm-$PLATFORM.tgz" -C npm .
@@ -341,7 +336,7 @@ jobs:
           gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" \
             --jq '[.assets[] | {key: (.id | tostring), value: .name}] | from_entries' > "$ASSET_IDS"
           "$RUNNER_TEMP/venv/bin/python" .github/scripts/check-update-manifest.py "$assets/latest.json" "$assets" \
-            ain/src-tauri/tauri.conf.json "$VERSION" windows-x86_64 darwin-x86_64 linux-x86_64
+            ain/src-tauri/tauri.conf.json "$VERSION" windows-x86_64 linux-x86_64
       - env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.plan.outputs.tag }}

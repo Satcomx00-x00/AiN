@@ -11,7 +11,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["macos-private-api", "tray-icon", "specta"] }
+tauri = { version = "2", features = ["tray-icon", "specta"] }
 serde = { version = "1", features = ["derive"] }
 thiserror = "2"
 sysinfo = { version = "0.39.6", default-features = false, features = ["system", "network"] }
@@ -25,7 +25,7 @@ serde_json = "1.0.154"
 # The community plugin store (store.yaml on the repository's `store` branch).
 serde_yaml_ng = "0.10"
 # Plugins' secrets (API keys, tokens), in the system's credential store rather than settings.json.
-keyring = { version = "3.6", features = ["apple-native", "windows-native", "sync-secret-service", "crypto-rust"] }
+keyring = { version = "3.6", features = ["windows-native", "sync-secret-service", "crypto-rust"] }
 xcap = "0.9.8"
 cpal = "0.18.2"
 ureq = { version = "3.4.2", features = ["platform-verifier"] }
@@ -34,7 +34,7 @@ rustls = { version = "0.23", default-features = false, features = ["ring", "std"
 rustls-platform-verifier = "0.7"
 base64 = "0.23"
 # Speech recognition for dictation and speech synthesis for read aloud, from prebuilt static
-# libraries (Windows, Linux and macOS x64).
+# libraries (Windows and Linux x64).
 sherpa-onnx = "1.13.8"
 sha2 = "0.11.1"
 # Read aloud's voices come as .tar.bz2 archives (bzip2 in pure Rust: no C toolchain needed).
@@ -55,9 +55,6 @@ tungstenite = { version = "0.30", default-features = false, features = ["handsha
 opus = "0.4"
 # PKCE verifiers and sign-in states for plugins signing in to online accounts.
 getrandom = "0.3"
-
-[target.'cfg(target_os = "macos")'.dependencies]
-objc2-app-kit = { version = "0.3", features = ["NSWindow", "NSScreen", "NSResponder", "NSRunningApplication", "NSWorkspace", "NSPasteboard", "libc"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 arboard = { version = "3.6.1", default-features = false, features = ["image-data", "wayland-data-control"] }
