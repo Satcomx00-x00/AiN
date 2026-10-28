@@ -3,6 +3,15 @@
 All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.15.0](https://github.com/Satcomx00-x00/AiN/compare/v0.14.0..v0.15.0) - 2026-10-28
+
+### Features
+
+- **config:** Override every built-in URL and folder with AIN_* env vars ([#41](https://github.com/Satcomx00-x00/AiN/pull/41)) ([fb06e9b](https://github.com/Satcomx00-x00/AiN/commit/fb06e9ba00e278afd96742346ab4deb536896b5f))
+
+### Bug fixes
+
+- **linux:** Offline Fedora 44 — certificates, offline models, AZERTY dictation, Quit ([#42](https://github.com/Satcomx00-x00/AiN/pull/42)) ([1660d6d](https://github.com/Satcomx00-x00/AiN/commit/1660d6dfebd40bebfe135d57f55e2a8e279a4f38))
 ## [0.14.0](https://github.com/Satcomx00-x00/AiN/compare/v0.13.0..v0.14.0) - 2026-10-27
 
 ### Features
