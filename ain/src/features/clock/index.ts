@@ -1,6 +1,6 @@
 import { h, odometer } from "../../sdk/dom";
 import { choice, toggle } from "../../sdk/options";
-import { definePlugin } from "../../sdk/plugin";
+import { type Glance, definePlugin } from "../../sdk/plugin";
 
 export const isoWeek = (d: Date): number => {
   const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
@@ -20,6 +20,14 @@ const hm = (format: string) => {
   return f;
 };
 const day = new Intl.DateTimeFormat(undefined, { weekday: "long", day: "numeric", month: "long" });
+const short = new Intl.DateTimeFormat(undefined, { weekday: "short", day: "numeric" });
+
+/** What the clock says on the pill: the time, the date, or both. */
+export const clockGlance = (now: number, o: { readonly format: string; readonly show: string }): Glance => {
+  const time = hm(o.format).format(now);
+  const date = short.format(now);
+  return { text: o.show === "date" ? date : o.show === "both" ? `${date} ${time}` : time };
+};
 
 export const clock = definePlugin({
   id: "clock",
@@ -34,7 +42,16 @@ export const clock = definePlugin({
       ["12", "12-hour"],
     ]),
     seconds: toggle("Seconds in the tab", true),
+    show: {
+      ...choice("On the pill", "time", [
+        ["time", "Time"],
+        ["date", "Date"],
+        ["both", "Both"],
+      ]),
+      pill: true,
+    },
   },
+  sample: (o) => clockGlance(Date.now(), o),
   setup(_: unknown, host) {
     const time = h("span");
     const sec = h("span", { class: "clock-sec" });
@@ -52,7 +69,7 @@ export const clock = definePlugin({
         date.textContent = day.format(d);
         week.textContent = `Week ${isoWeek(d)}`;
       },
-      glance: (now) => ({ text: hm(host.options().format).format(now) }),
+      glance: (now) => clockGlance(now, host.options()),
     };
   },
 });

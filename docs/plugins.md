@@ -18,7 +18,7 @@ By hand:
 1. **Settings → Plugins → Plugins folder → Open.**
 2. Put the plugin there: a `.js` file, or a folder with an `index.js`.
 3. Back in **Settings → Plugins**, click **Refresh**, then turn the plugin on. It is placed in the
-   tabs (or on the pill) right away; move it in **Settings → Layout**.
+   tabs (or on the pill) right away; move it in **Settings → Pill**.
 
 After changing a plugin's file, restart AiN.
 
@@ -142,9 +142,17 @@ under the options, puts every other option back.
 ### What it returns
 
 Every part is optional. A **glance** is `{ text }` plus, optionally, `progress` (0–1, a ring),
-`level` (0–1, a bar), `spark` (recent values 0–100), `art` (an image URL), `mark`
-(`"mic"`, `"camera"`, `"eq"` or `"rec"`), `tone` (`"alert"` or `"muted"`) and `wide` (widen the pill
-while shown). Several plugins can share a spot on the pill: the first one with something to say wins.
+`level` (0–1, a bar), `spark` (recent values 0–100), `art` (an image URL), `icon` (inner SVG of a
+16×16 stroke icon), `mark` (`"mic"`, `"camera"`, `"eq"` or `"rec"`), `tone` (`"alert"` or `"muted"`)
+and `wide` (widen the pill while shown). Several plugins can share a spot on the pill: the first ones
+with something to say show, as many side by side as the user picked in **Settings → Pill**. There the
+user can also add the plugin's icon to its glance, or keep its icon on the pill while it has nothing
+to say.
+
+Give the plugin a `sample(options)` returning a glance with made-up data, and the preview in
+**Settings → Pill** shows what it looks like; otherwise the preview shows its label. Mark an option
+`pill: true` (e.g. `{ ...choice("On the pill", "time", […]), pill: true }`) when it only matters on
+the pill: **Settings → Pill** offers it while the plugin is placed there.
 
 ### Following the island's look
 
@@ -396,7 +404,9 @@ export default (island) =>
   the style is picked. It returns a view: `draw` runs every second and whenever a glance changes,
   and `destroy`, if given, when another style is picked. `root` is emptied for you.
 - `draw` gets what the two glance spots say (`left`, `right`, each a glance or `null`, and
-  `leftFrom` / `rightFrom`, the plugin speaking), the tint of what is in focus (`ambient`),
+  `leftFrom` / `rightFrom`, the plugin speaking), everything each spot shows side by side
+  (`leftAll`, `rightAll`: `{ glance, from }` in priority order, up to the number per side picked in
+  **Settings → Pill**), the tint of what is in focus (`ambient`),
   `alert` and `wide` (a live activity). `island.ui.glanceSlot()` draws a glance as the Pill does.
 - `size(pill, options)`, if given, sets the folded size from the pill's: `pill.width`,
   `pill.height`, `pill.hasNotch` and `pill.scale`. It is kept between 8×2 and 960×120 px.

@@ -290,42 +290,105 @@ describe("Settings → Appearance", () => {
   });
 });
 
-describe("Settings → Layout", () => {
-  const list = (page: Awaited<ReturnType<typeof load>>, title: string) => page.card(title);
-  const names = (card: HTMLElement) => [...card.querySelectorAll(".slot-name")].map((n) => n.textContent);
+describe("Settings → Pill", () => {
+  const select = async (page: Awaited<ReturnType<typeof load>>, id: string) => {
+    page.page.querySelector<HTMLButtonElement>(`.pill-widget[data-drag="${id}"]`)!.click();
+    await advance(0);
+  };
+  const flip = (page: Awaited<ReturnType<typeof load>>, label: string) => page.field(label).querySelector<HTMLButtonElement>(".switch")!.click();
 
-  it("moves, removes and adds widgets on each side of the pill and in the tabs", async () => {
+  it("previews each end of the pill and the tabs", async () => {
+    environment();
+    const page = await load(system(), "layout");
+    expect(page.heading()).toBe("Pill");
+    const ids = (sel: string) => [...page.page.querySelectorAll<HTMLElement>(`${sel} [data-drag]`)].map((el) => el.dataset.drag);
+    expect(ids('.pp-end[data-zone="left"]')).toEqual(["clock"]);
+    expect(ids('.pp-end[data-zone="right"]')).toEqual(["dictation"]);
+    expect(ids('.pp-queue[data-zone="right"]')).toContain("stats");
+    expect(ids(".pp-tabs")[0]).toBe("media");
+  });
+
+  it("moves a widget to the other end and out of the tabs from its settings", async () => {
     environment();
     const sys = system();
     const page = await load(sys, "layout");
-    expect(page.heading()).toBe("Layout");
-    expect(names(list(page, "Left of the pill"))).toEqual(["Clock"]);
-
-    list(page, "Left of the pill").querySelector<HTMLButtonElement>("[aria-label='Remove Clock']")!.click();
+    await select(page, "clock");
+    expect(page.card("Clock")).toBeDefined();
+    press(page.field("Side"), "Right");
     await page.saved();
-    expect((await sys.settings()).layout.glance.left).toEqual([]);
-    expect(list(page, "Left of the pill").textContent).toContain("Nothing here yet.");
+    const { layout } = await sys.settings();
+    expect([layout.glance.left, layout.glance.right.at(-1)]).toEqual([[], "clock"]);
 
-    const add = list(page, "Right of the pill").querySelector<HTMLSelectElement>(".slot-add")!;
-    add.value = "clock";
-    add.dispatchEvent(new Event("change"));
+    flip(page, "In the tabs");
     await page.saved();
-    expect((await sys.settings()).layout.glance.right.at(-1)).toBe("clock");
-
-    list(page, "Tabs").querySelector<HTMLButtonElement>("[aria-label='Move Now playing down']")!.click();
-    await page.saved();
-    expect((await sys.settings()).layout.tabs.slice(0, 2)).toEqual(["clock", "media"]);
+    expect((await sys.settings()).layout.tabs).not.toContain("clock");
   });
 
-  it("restores the default layout", async () => {
+  it("dresses a glance with its icon, keeps it while idle, and shows more than one per side", async () => {
+    environment();
+    const sys = system();
+    const page = await load(sys, "layout");
+    await select(page, "dictation");
+    flip(page, "Icon");
+    await page.saved();
+    flip(page, "When idle");
+    await page.saved();
+    press(page.field("Per side"), "2");
+    await page.saved();
+    expect((await sys.settings()).pill).toEqual({ perSide: 2, icons: ["dictation"], idle: ["dictation"] });
+    expect(page.page.querySelectorAll('.pp-end[data-zone="right"] [data-drag]')).toHaveLength(2);
+  });
+
+  it("offers a widget's pill-only options only while it is on the pill", async () => {
+    environment();
+    const page = await load(system(), "layout");
+    await select(page, "clock");
+    expect(page.field("Time format")).toBeDefined();
+    expect(page.field("On the pill")).toBeDefined();
+    press(page.field("Side"), "Off");
+    await page.saved();
+    expect(page.field("Time format")).toBeDefined();
+    expect(page.field("On the pill")).toBeUndefined();
+  });
+
+  it("sets a widget's options beside the preview, redrawing it for a choice", async () => {
+    environment();
+    const sys = system();
+    const page = await load(sys, "layout");
+    await select(page, "clock");
+    press(page.field("On the pill"), "Date");
+    await page.saved();
+    expect((await sys.settings()).options.clock).toMatchObject({ show: "date" });
+    await select(page, "timer");
+    const range = page.field("Starting duration").querySelector<HTMLInputElement>("input")!;
+    range.value = "10";
+    range.dispatchEvent(new Event("input"));
+    await page.saved();
+    expect((await sys.settings()).options.timer).toMatchObject({ minutes: 10 });
+  });
+
+  it("sets the pill's width from its preview", async () => {
+    environment();
+    const sys = system();
+    const page = await load(sys, "layout");
+    const range = page.field("Width").querySelector<HTMLInputElement>("input")!;
+    range.value = "300";
+    range.dispatchEvent(new Event("input"));
+    await page.saved();
+    expect((await sys.settings()).general.pillWidth).toBe(300);
+    expect(page.page.querySelector<HTMLElement>(".pp")!.style.getPropertyValue("--pill-w")).toBe("300px");
+  });
+
+  it("restores the default layout and look", async () => {
     environment();
     const sys = system();
     const { layout } = await import("../../../features/layout");
-    await sys.save((s) => ({ ...s, layout: { glance: { left: [], right: [] }, tabs: ["clock"] } }));
+    await sys.save((s) => ({ ...s, layout: { glance: { left: [], right: [] }, tabs: ["clock"] }, pill: { perSide: 3, icons: ["clock"], idle: [] } }));
     const page = await load(sys, "layout");
     press(page.page, "Restore default layout");
     await page.saved();
-    expect((await sys.settings()).layout).toEqual(layout);
+    const saved = await sys.settings();
+    expect([saved.layout, saved.pill]).toEqual([layout, { perSide: 1, icons: [], idle: [] }]);
   });
 });
 
@@ -1137,10 +1200,10 @@ describe("Finding your way", () => {
     page.page.querySelector<HTMLButtonElement>(".list-row[data-widget=screenshot]")!.click();
     await advance(0);
     expect(page.heading()).toBe("Screenshot");
-    expect(page.field("Shows in").querySelector(".field-hint")?.textContent).toBe("Not on the island yet: add it in Layout.");
-    press(page.field("Shows in"), "Edit layout");
+    expect(page.field("Shows in").querySelector(".field-hint")?.textContent).toBe("Not on the island yet: add it in Pill.");
+    press(page.field("Shows in"), "Edit in Pill");
     await advance(0);
-    expect(page.heading()).toBe("Layout");
+    expect(page.heading()).toBe("Pill");
   });
 
   it("finds a setting by its words, and leads to it", async () => {
@@ -1170,7 +1233,7 @@ describe("Finding your way", () => {
     expect(page.page.querySelector(".lead")?.textContent).toBe("Nothing matches “zzz”. Try another word, or pick a section on the left.");
     box.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
     await advance(0);
-    expect(page.heading()).toBe("Layout");
+    expect(page.heading()).toBe("Pill");
   });
 
   it("puts the cursor in the search box on Ctrl+F", async () => {
@@ -1302,12 +1365,12 @@ describe("Finding your way, by keyboard and by search", () => {
     expect(page.page.querySelector(".subhead.highlight")?.textContent).toBe("Community store");
   });
 
-  it("leads from every widget to Layout", async () => {
+  it("leads from every widget to Pill", async () => {
     environment();
     const page = await load(system(), "widgets");
-    press(page.page.querySelector(".page-head")!, "Edit layout");
+    press(page.page.querySelector(".page-head")!, "Edit in Pill");
     await advance(0);
-    expect(page.heading()).toBe("Layout");
+    expect(page.heading()).toBe("Pill");
   });
 
   it("keeps the focus on the menu item picked, as the menu is drawn again", async () => {

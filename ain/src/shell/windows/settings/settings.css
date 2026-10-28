@@ -1208,151 +1208,468 @@ h1 {
   background: var(--soft);
 }
 
-/* ---------- Layout slots ---------- */
+/* ---------- Pill: a live preview to drag widgets onto ---------- */
 
-.slots {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+/* Sized by the room the page gives it, not the window's: the menu beside it takes a share. */
+.pill-editor {
+  container: pill / inline-size;
+  display: flex;
+  flex-direction: column;
   gap: 14px;
 }
 
-.slot {
+.pill-stage {
   display: flex;
   flex-direction: column;
-  margin: 0;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #0b0b0d;
+  overflow: hidden;
 }
 
-.slot-list {
-  flex: 1;
-  margin: 0;
-  padding: 0 10px;
-  list-style: none;
+/* The pill at its real width, hanging from the top edge of the screen. */
+.pp {
+  --scale: 1;
+  --type: 1;
+  --mini: 16px;
+  --track: rgba(255, 255, 255, 0.18);
+  --ambient: var(--accent);
+  --done: var(--warn);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 0 16px 16px;
 }
 
-.slot-list li {
+.pp-pill {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
-  margin-bottom: 6px;
-  padding: 6px 6px 6px 4px;
-  border-radius: 9px;
-  background: var(--soft);
-  cursor: grab;
+  width: var(--pill-w);
+  max-width: 100%;
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 0 0 17px 17px;
+  background: #000;
+  color: #fff;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.pp-notch {
+  flex: none;
+  width: 8px;
+}
+
+.pp-end,
+.pp-queue,
+.pp-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  min-height: 26px;
+  border-radius: 8px;
   transition:
-    opacity 0.15s,
-    box-shadow 0.15s;
+    background 0.12s,
+    box-shadow 0.12s;
 }
 
-.slot-list li.dragging {
-  opacity: 0.4;
+.pp-end {
+  flex: 1;
+  overflow: hidden;
 }
 
-.slot-list li.over {
-  box-shadow: inset 0 2px 0 var(--accent);
+.pp-end[data-zone="right"] {
+  justify-content: flex-end;
 }
 
-.slot-list li[data-unknown="true"] {
+.pp-end:empty::after,
+.pp-tabs:empty::after {
+  content: attr(data-empty);
+  padding: 0 6px;
+  font-size: 11.5px;
+  font-weight: 400;
+  color: var(--faint);
+}
+
+.pp-queues {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  width: max(var(--pill-w), 100%);
+  max-width: 100%;
+}
+
+/* Each takes half, or all of it when the other has nothing waiting. */
+.pp-queue {
+  flex: 1 1 0;
+  flex-wrap: wrap;
+}
+
+/* An empty one shows only while dragging, as somewhere to drop. */
+.pill-editor:not(.dragging) .pp-queue[hidden] {
+  display: none;
+}
+
+.pp-queue[data-zone="right"] {
+  justify-content: flex-end;
+  margin-left: auto;
+}
+
+.pp-tabs {
+  flex-wrap: wrap;
+  justify-content: center;
+  padding: 4px;
+  background: #000;
+  border-radius: 12px;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.pp-item,
+.pp-tab {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 7px;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.pp-item {
+  height: 26px;
+  padding: 0 6px;
+}
+
+.pp-item[data-spare="true"] {
+  opacity: 0.45;
+}
+
+.pp-tab {
+  justify-content: center;
+  width: 32px;
+  height: 28px;
+  color: #c8c8cf;
+}
+
+.pp-item:hover,
+.pp-tab:hover {
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.pp-item.selected,
+.pp-tab.selected {
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+
+/* The glance itself, drawn as on the island. */
+.pp .g {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pp .g[data-tone="muted"] {
   color: var(--muted);
+}
+
+.pp .g-art,
+.pp .mark,
+.pp .g-icon[hidden],
+.pp .g-bar[hidden] {
+  display: none;
+}
+
+.pp .g-icon .icon,
+.pp-tab .icon {
+  width: 16px;
+  height: 16px;
+}
+
+.pp .g-text:empty {
+  display: none;
+}
+
+.pp .mark[data-kind="mic"],
+.pp .mark[data-kind="camera"],
+.pp .mark[data-kind="rec"] {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--warn);
+}
+
+.pp .mark[data-kind="camera"] {
+  background: var(--ok);
+}
+
+.pp .mark[data-kind="rec"] {
+  background: var(--hot);
+}
+
+.pp .mark[data-kind="eq"] {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 12px;
+}
+
+.pp .mark i {
+  display: none;
+}
+
+.pp .mark[data-kind="eq"] i {
+  display: block;
+  width: 2.5px;
+  height: 100%;
+  border-radius: 1px;
+  background: var(--ambient);
+}
+
+.pp .mark[data-kind="eq"] i:nth-child(2) {
+  height: 60%;
+}
+
+.pp .mark[data-kind="eq"] i:nth-child(3) {
+  height: 80%;
+}
+
+.pp .mini-ring {
+  width: 14px;
+  height: 14px;
+  transform: rotate(-90deg);
+}
+
+.pp .mini-ring circle {
+  fill: none;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+
+.pp .mini-ring .track {
+  stroke: var(--track);
+}
+
+.pp .mini-ring .fill {
+  stroke: var(--accent);
+  stroke-dasharray: 100;
+  stroke-dashoffset: calc(100 - var(--p, 0) * 100);
+}
+
+.pp .mini-spark {
+  width: 24px;
+  height: 12px;
+  overflow: visible;
+}
+
+.pp .mini-spark polyline {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+
+.pp .g-bar {
+  width: 40px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--track);
+  overflow: hidden;
+}
+
+.pp .g-bar i {
+  display: block;
+  height: 100%;
+  width: calc(var(--p, 0) * 100%);
+  background: #fff;
+}
+
+.pill-bar {
+  display: flex;
+  flex-wrap: wrap;
+  border-top: 1px solid var(--line);
+  background: var(--card);
+}
+
+.pill-bar .field {
+  flex: 1 1 260px;
+  border-top: 0;
+}
+
+.pill-work {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 340px);
+  gap: 14px;
+  align-items: start;
+}
+
+/* Beside a long list, the selected widget's settings stay in view while it scrolls. */
+.pill-inspector {
+  position: sticky;
+  top: 96px;
+  max-height: calc(100vh - 112px);
+  overflow-y: auto;
+}
+
+.pill-work .card {
+  margin-bottom: 0;
+}
+
+.pill-shelf {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 6px;
+  padding: 0 10px 10px;
+}
+
+.pill-widget {
+  padding: 6px 8px 6px 4px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: var(--soft);
+  text-align: left;
+  cursor: grab;
+  touch-action: none;
+}
+
+.pill-widget:hover {
+  background: var(--hover);
+}
+
+.pill-widget[aria-pressed="true"] {
+  border-color: var(--accent);
+}
+
+.pill-widget .list-in {
+  gap: 8px;
+  padding: 0;
+}
+
+.pill-widget .ico {
+  width: 28px;
+  height: 28px;
+}
+
+.pill-remove {
+  display: none;
+  margin: 0 10px 10px;
+  padding: 10px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 8px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.pill-editor.dragging:not([data-from="shelf"]) .pill-remove {
+  display: block;
+}
+
+.pill-editor.dragging [data-zone]:not([data-zone="shelf"]) {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+}
+
+.pill-editor.dragging [data-zone].over {
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.pill-editor.dragging .pill-remove.over {
+  color: var(--fg);
+}
+
+.pill-editor.dragging,
+.pill-editor.dragging * {
+  cursor: grabbing;
+}
+
+.pp-caret {
+  flex: none;
+  align-self: stretch;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+.lifted {
+  opacity: 0.3;
+}
+
+.pp-ghost {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 100;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  opacity: 0.9;
+  background: var(--card-hover);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
+.pill-order {
+  display: flex;
+  gap: 4px;
+}
+
+.pill-step {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+}
+
+/* Short of room, the settings go under a compact list, so a widget picked there has them just below. */
+@container pill (max-width: 640px) {
+  .pill-work {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pill-inspector {
+    position: static;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .pill-shelf {
+    grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+    gap: 4px;
+  }
+
+  .pill-widget {
+    padding: 4px 6px 4px 2px;
+  }
+
+  .pill-widget .grip,
+  .pill-widget .list-detail {
+    display: none;
+  }
+
+  .pill-widget .ico {
+    width: 24px;
+    height: 24px;
+  }
+}
+
+@container pill (max-width: 420px) {
+  .pp {
+    padding: 0 8px 12px;
+  }
+
+  .pp-tab {
+    width: 30px;
+  }
 }
 
 .grip {
   display: grid;
   color: var(--muted);
-}
-
-.slot-icon {
-  display: grid;
-  place-items: center;
-  width: 26px;
-  height: 26px;
-  border-radius: 7px;
-  background: rgba(255, 255, 255, 0.07);
-}
-
-.slot-name {
-  flex: 1;
-  min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.slot-actions {
-  display: flex;
-  gap: 2px;
-  opacity: 0;
-  transition: opacity 0.12s;
-}
-
-/* The arrows show on the row being pointed at or used, so the names keep the room. */
-.slot-list li:hover .slot-actions,
-.slot-list li:focus-within .slot-actions {
-  opacity: 1;
-}
-
-@media (hover: none) {
-  .slot-actions {
-    opacity: 1;
-  }
-}
-
-.slot-actions button {
-  display: grid;
-  place-items: center;
-  width: 26px;
-  height: 26px;
-  padding: 0;
-  border: 0;
-  border-radius: 7px;
-  background: none;
-  color: var(--muted);
-}
-
-.slot-actions button:hover:not(:disabled) {
-  background: var(--hover);
-  color: var(--fg);
-}
-
-.slot-actions button:disabled {
-  opacity: 0.25;
-  cursor: default;
-}
-
-.slot-actions .icon {
-  width: 14px;
-  height: 14px;
-}
-
-.slot-empty {
-  flex: 1;
-  margin: 0;
-  padding: 4px 16px 12px;
-  font-size: 12px;
-  color: var(--muted);
-}
-
-.slot-foot {
-  padding: 4px 10px 12px;
-}
-
-.slot-add {
-  width: 100%;
-  padding: 7px 10px;
-  border: 1px dashed rgba(255, 255, 255, 0.16);
-  border-radius: 9px;
-  background: none;
-  color: var(--muted);
-  cursor: pointer;
-}
-
-.slot-add:not(:disabled):hover {
-  border-color: var(--accent);
-  color: var(--fg);
-}
-
-.slot-add option {
-  background: var(--card);
-  color: var(--fg);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2112,4 +2429,13 @@ kbd {
 .time-input:focus {
   border-color: var(--accent);
   outline: none;
+}
+
+/* The widget's settings sit in a narrow column: labels keep to one line. */
+.pill-inspector .field-label {
+  white-space: nowrap;
+}
+
+.pill-inspector .seg button {
+  white-space: nowrap;
 }

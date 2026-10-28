@@ -242,6 +242,19 @@ body {
   box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--fg) 15%, transparent);
 }
 
+.g-icon {
+  display: inline-flex;
+}
+
+.g-icon .icon {
+  width: var(--mini);
+  height: var(--mini);
+}
+
+.g-text:empty {
+  display: none;
+}
+
 .g-bar {
   width: calc(64px * var(--scale));
   height: calc(4px * var(--scale));

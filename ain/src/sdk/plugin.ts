@@ -18,6 +18,8 @@ export interface Glance {
   readonly level?: number;
   /** A small image drawn first, e.g. album art. */
   readonly art?: string;
+  /** Inner SVG markup for a 16×16 stroke icon, drawn before the rest, e.g. the plugin's own. */
+  readonly icon?: string;
   readonly mark?: Mark;
   readonly tone?: Tone;
   /** Widens the collapsed pill while shown, like a live activity. */
@@ -194,6 +196,11 @@ export interface Plugin<Services = unknown, F extends Fields = Fields> {
   readonly slots: readonly Slot[];
   /** User-configurable options; the settings page draws controls for them. */
   readonly options?: F;
+  /**
+   * What its glance looks like with made-up data, for the pill preview in Settings → Pill. Left
+   * out, the preview shows its label.
+   */
+  sample?(options: Values<F>): Glance;
   /** Actions on global shortcuts: built-in features may open a popup; plugins from the plugins folder get `onCommand`. */
   readonly commands?: readonly Command<Services, Values<F>>[];
   /**

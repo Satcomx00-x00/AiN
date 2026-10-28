@@ -52,4 +52,31 @@ export const pickFrom = (spot: readonly Mounted[], now: number): Shown | null =>
   return null;
 };
 
+/** How the user dressed the glances: who shows its icon, who stays on the pill while idle. */
+export interface Dress {
+  readonly icons: ReadonlySet<string>;
+  readonly idle: ReadonlySet<string>;
+}
+
+export const NO_DRESS: Dress = { icons: new Set(), idle: new Set() };
+
+/** What a plugin says on the pill as dressed: its icon first, or its icon alone, dimmed, while it has nothing to say. */
+export function dressed(m: Mounted, now: number, dress: Dress): Glance | null {
+  const { id, icon } = m.plugin;
+  const said = m.widget.glance?.(now) ?? null;
+  if (!said) return dress.idle.has(id) ? { text: "", icon, tone: "muted" } : null;
+  return dress.icons.has(id) ? { ...said, icon } : said;
+}
+
+/** Up to `count` plugins of a priority list that have something to say, side by side. */
+export function pickAll(spot: readonly Mounted[], now: number, count: number, dress: Dress = NO_DRESS): Shown[] {
+  const out: Shown[] = [];
+  for (const from of spot) {
+    if (out.length >= count) break;
+    const glance = dressed(from, now, dress);
+    if (glance) out.push({ from, glance });
+  }
+  return out;
+}
+
 export const pick = (spot: readonly Mounted[], now: number): Glance | null => pickFrom(spot, now)?.glance ?? null;

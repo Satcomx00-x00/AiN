@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 
 const { area, sparkline } = await import("../sdk/chart");
-const { isoWeek } = await import("./clock");
+const { clockGlance, isoWeek } = await import("./clock");
 const { add, fmt, glanceOf, progress, remaining, settle, toggle } = await import("./timer");
 const { ago, kindOf, preview } = await import("./clipboard");
 const { fmtBytes, level } = await import("./stats");
@@ -15,6 +15,13 @@ describe("clock", () => {
   it("Dec 29 2025 belongs to 2026 week 1", () => expect(isoWeek(new Date(2025, 11, 29))).toBe(1));
   it("Jan 1 2027 (Friday) is week 53 of 2026", () => expect(isoWeek(new Date(2027, 0, 1))).toBe(53));
   it("Sunday Jan 4 2026 closes week 1", () => expect(isoWeek(new Date(2026, 0, 4))).toBe(1));
+  it("shows the time, the date or both on the pill", () => {
+    const at = new Date(2026, 0, 1, 9, 5).getTime();
+    const [time, date, both] = ["time", "date", "both"].map((show) => clockGlance(at, { format: "24", show }).text);
+    expect(time).toMatch(/09.05/);
+    expect(date).toMatch(/1/);
+    expect(both).toBe(`${date} ${time}`);
+  });
 });
 
 describe("timer", () => {
@@ -288,5 +295,26 @@ describe("microphone choice", async () => {
     const options = micOptions(mics, "gone");
     expect(options.at(-1)).toEqual({ value: "gone", label: "Disconnected microphone", detail: "The system default is used meanwhile" });
     expect(micOptions(mics, "a")).toHaveLength(2);
+  });
+});
+
+describe("the pill preview's samples", async () => {
+  const { catalogue } = await import(".");
+  const { resolve } = await import("../sdk/options");
+
+  it("gives every built-in widget that goes on the pill a sample, read with its options", () => {
+    for (const p of catalogue.filter((x) => x.slots.includes("glance"))) {
+      const sample = p.sample?.(resolve(p.options ?? {}, {}) as never);
+      expect(sample?.text, p.id).toBeTypeOf("string");
+    }
+  });
+
+  it("follows what each is set to show", () => {
+    const sampleOf = (id: string, options: Record<string, unknown>) => {
+      const p = catalogue.find((x) => x.id === id)!;
+      return p.sample?.(resolve(p.options ?? {}, options) as never);
+    };
+    expect(sampleOf("stats", { show: "memory" })).toEqual({ text: "51%", progress: 0.51 });
+    expect(sampleOf("media", { title: false })?.text).toBe("");
   });
 });
