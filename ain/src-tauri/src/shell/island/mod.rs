@@ -79,28 +79,6 @@ fn relocate(app: &AppHandle) {
     if let Err(e) = app.state::<Arc<HitArea>>().relocate(|c| window::place(&w, c, wanted.as_deref())) {
         eprintln!("island: failed to move the pill to its screen: {e}");
     }
-    #[cfg(target_os = "macos")]
-    remeasure(&w);
-}
-
-/// A notch belongs to one screen: measured again there, the island starts over if it changed.
-#[cfg(target_os = "macos")]
-fn remeasure(w: &Window) {
-    let window = w.clone();
-    let measured = w.run_on_main_thread(move || {
-        let Ok(island) = window::native(&window) else { return };
-        let info = window.state::<Info>();
-        let before = std::mem::replace(&mut *info.0.write().unwrap_or_else(|e| e.into_inner()), island);
-        if before != island
-            && let Some(page) = window.get_webview_window(LABEL)
-            && let Err(e) = page.reload()
-        {
-            eprintln!("island: failed to restart on the new screen: {e}");
-        }
-    });
-    if let Err(e) = measured {
-        eprintln!("island: failed to measure the new screen: {e}");
-    }
 }
 
 /// Follows the screen picked in Settings, and screens plugged in, out or rearranged.
