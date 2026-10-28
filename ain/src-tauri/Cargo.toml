@@ -54,7 +54,7 @@ tauri-specta = { version = "=2.0.0-rc.25", features = ["derive", "typescript"] }
 tungstenite = { version = "0.30", default-features = false, features = ["handshake", "rustls-tls-webpki-roots"] }
 opus = "0.4"
 # PKCE verifiers and sign-in states for plugins signing in to online accounts.
-getrandom = "0.3"
+getrandom = "0.4"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2-app-kit = { version = "0.3", features = ["NSWindow", "NSScreen", "NSResponder", "NSRunningApplication", "NSWorkspace", "NSPasteboard", "libc"] }
