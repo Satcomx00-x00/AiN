@@ -29,6 +29,8 @@ export interface General {
   readonly greeting: string;
   /** How long the cursor must rest at the top center to show a hidden pill (the Hidden style). */
   readonly revealDelay: number;
+  /** The screen the pill sits on, by id (see shell/screens.ts); null for the primary. While it's unplugged, the pill sits on the primary. */
+  readonly screen: string | null;
 }
 
 export interface Settings {
@@ -76,7 +78,7 @@ export function adopt(layout: Layout, fallback: Layout, seen: readonly string[])
   };
 }
 
-export const DEFAULT_GENERAL: General = { openDelay: 140, closeDelay: 260, pillWidth: 200, pillSize: "normal", style: "pill", pillCurve: 100, theme: "island", pillColor: "#000000", accentColor: "#0a84ff", greeting: "hello", revealDelay: 500 };
+export const DEFAULT_GENERAL: General = { openDelay: 140, closeDelay: 260, pillWidth: 200, pillSize: "normal", style: "pill", pillCurve: 100, theme: "island", pillColor: "#000000", accentColor: "#0a84ff", greeting: "hello", revealDelay: 500, screen: null };
 export const PILL_SIZE_IDS = ["low", "normal", "large"] as const satisfies readonly PillSize[];
 /** The style that keeps the pill hidden until the cursor rests on its spot. */
 export const HIDDEN_STYLE = "hidden";
@@ -125,6 +127,7 @@ export function parseSettings(raw: unknown, fallback: Settings): Settings {
         accentColor: color(fallback.general.accentColor),
         greeting: z.string().regex(ID).catch(fallback.general.greeting),
         revealDelay: within(REVEAL_RANGE)(fallback.general.revealDelay),
+        screen: z.string().min(1).max(256).nullable().catch(fallback.general.screen),
       })
       .catch(fallback.general),
     options: z.record(z.string(), z.record(z.string(), z.unknown())).catch(fallback.options),

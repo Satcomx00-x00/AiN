@@ -10,6 +10,7 @@ import type { SettingsPorts } from "./ports";
 import type { Report, UpdaterPort } from "../../updater";
 import { advance, environment, pick, press, restore, system, type System } from "../../../integration/harness";
 import { onProblem } from "../../../sdk/report";
+import { fixedScreens } from "../../screens";
 
 const dialog = vi.hoisted(() => ({ open: vi.fn<(options: Record<string, unknown>) => Promise<string | string[] | null>>() }));
 vi.mock("@tauri-apps/plugin-dialog", () => dialog);
@@ -144,6 +145,28 @@ describe("Settings → General", () => {
     press(page.field("Quit AiN"), "Quit");
     await advance(0);
     expect(page.toasts()).toEqual(["[QUIT] Couldn't quit AiN: busy"]);
+  });
+
+  it("puts the pill on the picked screen, or back on the primary", async () => {
+    environment();
+    const sys = system();
+    const screen = (id: string, primary: boolean) => ({ id, name: id, width: 1920, height: 1080, x: 0, y: 0, scale: 1, primary });
+    const page = await load(sys, "", { screens: fixedScreens([screen("Built-in", true), screen("DELL U2720Q", false)]) });
+    pick(page.field("Screen"), "DELL U2720Q");
+    await page.saved();
+    expect((await sys.settings()).general.screen).toBe("DELL U2720Q");
+    pick(page.field("Screen"), "Primary screen");
+    await page.saved();
+    expect((await sys.settings()).general.screen).toBeNull();
+  });
+
+  it("keeps an unplugged screen chosen and listed", async () => {
+    environment();
+    const sys = system();
+    await sys.save((s) => ({ ...s, general: { ...s.general, screen: "Projector" } }));
+    const page = await load(sys);
+    expect(page.field("Screen").querySelector(".ui-select-trigger")?.textContent).toContain("Projector");
+    expect(page.field("Screen").textContent).toContain("Unplugged");
   });
 
   it("saves how long the island waits to open and to close", async () => {

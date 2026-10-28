@@ -91,6 +91,12 @@ describe("settings", () => {
     for (const bad of ["huge", 2, null]) expect(parseSettings({ general: { pillSize: bad } }, fallback).general.pillSize).toBe("normal");
   });
 
+  it("keeps the pill on the primary screen unless one was picked", () => {
+    expect(DEFAULT_GENERAL.screen).toBeNull();
+    expect(parseSettings({ general: { screen: "DELL U2720Q #2" } }, fallback).general.screen).toBe("DELL U2720Q #2");
+    for (const bad of ["", 3, "x".repeat(257), undefined]) expect(parseSettings({ general: { screen: bad } }, fallback).general.screen).toBeNull();
+  });
+
   it("removes duplicate ids in a placement", () =>
     expect(parseSettings({ layout: { glance: { left: ["clock", "clock"], right: [] }, tabs: [] } }, fallback).layout.glance.left).toEqual(["clock"]));
 

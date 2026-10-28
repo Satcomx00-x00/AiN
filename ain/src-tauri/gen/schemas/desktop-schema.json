@@ -2595,10 +2595,10 @@
           "markdownDescription": "Denies the unregister_all command without any pre-configured scope."
         },
         {
-          "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-info`\n- `allow-layout`\n- `allow-auto-hide`",
+          "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-info`\n- `allow-layout`\n- `allow-auto-hide`\n- `allow-screens`",
           "type": "string",
           "const": "island:default",
-          "markdownDescription": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-info`\n- `allow-layout`\n- `allow-auto-hide`"
+          "markdownDescription": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-info`\n- `allow-layout`\n- `allow-auto-hide`\n- `allow-screens`"
         },
         {
           "description": "Enables the auto_hide command without any pre-configured scope.",
@@ -2619,6 +2619,12 @@
           "markdownDescription": "Enables the layout command without any pre-configured scope."
         },
         {
+          "description": "Enables the screens command without any pre-configured scope.",
+          "type": "string",
+          "const": "island:allow-screens",
+          "markdownDescription": "Enables the screens command without any pre-configured scope."
+        },
+        {
           "description": "Denies the auto_hide command without any pre-configured scope.",
           "type": "string",
           "const": "island:deny-auto-hide",
@@ -2635,6 +2641,12 @@
           "type": "string",
           "const": "island:deny-layout",
           "markdownDescription": "Denies the layout command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the screens command without any pre-configured scope.",
+          "type": "string",
+          "const": "island:deny-screens",
+          "markdownDescription": "Denies the screens command without any pre-configured scope."
         },
         {
           "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-state`\n- `allow-artwork`\n- `allow-control`",
