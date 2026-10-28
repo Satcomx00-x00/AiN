@@ -73,7 +73,7 @@ function suggestBox(value: string, label: string, placeholder: string, onChange:
  */
 export function enginePanel(
   port: ProvidersPort,
-  host: SettingsHost<EngineValues>,
+  host: Pick<SettingsHost<EngineValues>, "options" | "setOptions">,
   capability: Capability,
   onLocal: (local: boolean) => void,
   own = ON_THIS_COMPUTER,

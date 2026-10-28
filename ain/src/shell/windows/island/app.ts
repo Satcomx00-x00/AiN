@@ -3,11 +3,15 @@ import { catalogue, extensionRules } from "../../../features";
 import { greetings } from "../../../features/greetings";
 import { layout } from "../../../features/layout";
 import { styles } from "../../../features/styles";
-import { type Services, tauriServices } from "../../../features/services";
+import { type Services, notificationCenter, tauriServices } from "../../../features/services";
 import type { Greeting } from "../../../sdk/greeting";
 import type { Fields } from "../../../sdk/options";
 import type { Plugin } from "../../../sdk/plugin";
+import type { Notifier } from "../../../sdk/notify";
 import type { AnyStyle } from "../../../sdk/style";
+import type { Center } from "../../notifications";
+import { type ToastPort, noToasts } from "../../notice-view";
+import { tauriToasts } from "../../toasts";
 import { type PopupPort, bindings, tauriPopup } from "../../commands";
 import { type Extension, type ExtensionsPort, type Importer, idOf, importSource, loadExtensions, tauriExtensions } from "../../extensions";
 import { type IslandHandle, mount } from "../../host";
@@ -58,6 +62,9 @@ export async function start(
   extensions: ExtensionsPort = tauriExtensions,
   importer: Importer = importSource,
   secrets: SecretsPort = tauriSecrets,
+  notices: Center = notificationCenter,
+  // Outside the app (tests, previews) there is no toast window.
+  toasts: ToastPort = "__TAURI_INTERNALS__" in window ? tauriToasts() : noToasts,
 ): Promise<IslandHandle<Services>> {
   const fallback = defaults(layout);
   const loader = extensionLoader(extensions, importer);
@@ -69,11 +76,15 @@ export async function start(
   let choices: readonly Greeting[] = greetings;
   /** Built-in pill styles, then those from enabled files. */
   let looks: readonly AnyStyle[] = styles;
+  /** Ways to show notifications, from enabled files. */
+  let notifiers: readonly Notifier[] = [];
+  /** Built-in features, then the plugins from enabled files: what has shortcuts. */
+  let commanding: readonly Plugin<Services, Fields>[] = catalogue;
 
   // Global shortcuts follow the settings; re-registered only when they actually change.
   let bound = "";
   const rebind = (settings: Settings) => {
-    const map = bindings(catalogue, settings.shortcuts);
+    const map = bindings(commanding, settings.shortcuts);
     const key = JSON.stringify(map);
     if (key === bound) return;
     bound = key;
@@ -93,8 +104,12 @@ export async function start(
     plugins = [...catalogue, ...all.flatMap((e) => (e.plugin ? [e.plugin as Plugin<Services, Fields>] : []))];
     choices = [...greetings, ...all.flatMap((e) => (e.greeting && settings.extensions.includes(e.file) ? [e.greeting] : []))];
     looks = [...styles, ...all.flatMap((e) => (e.style && settings.extensions.includes(e.file) ? [e.style] : []))];
+    notifiers = all.flatMap((e) => (e.notifier && settings.extensions.includes(e.file) ? [e.notifier] : []));
+    commanding = [...catalogue, ...all.flatMap((e) => (e.plugin && settings.extensions.includes(e.file) ? [e.plugin as Plugin<Services, Fields>] : []))];
     // Newer settings may have arrived while loading; those win.
-    if (settings === latest) island?.configure(effective(settings), plugins, choices, looks);
+    if (settings !== latest) return;
+    rebind(settings);
+    island?.configure(effective(settings), plugins, choices, looks, notifiers);
   };
 
   await store.watch((raw) => {
@@ -115,7 +130,9 @@ export async function start(
   const quit = () => void store.quit().catch((e: unknown) => console.error("[island] could not quit", e));
   // The Play button in Settings.
   await store.onPlayGreeting((id) => island?.play(id));
-  island = await mount(root, plugins, services, win, effective(initial), { openSettings, saveOptions, readSecret, quit, greetings: choices, styles: looks });
+  island = await mount(root, plugins, services, win, effective(initial), { openSettings, saveOptions, readSecret, quit, greetings: choices, styles: looks, notices, toasts, notifiers });
+  // Shortcuts of plugins from the plugins folder ("action" commands) reach their widget.
+  await popup.onAction((command, kind) => island?.command(command, kind));
   // Settings that changed while the island was starting.
   if (latest !== initial) island.configure(effective(latest), plugins);
   return island;

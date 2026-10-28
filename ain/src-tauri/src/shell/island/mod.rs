@@ -23,11 +23,23 @@ use crate::{
 use hit::{AutoHide, HitArea};
 use screens::{Screen, ScreensChanged};
 pub use window::Island;
+/// Only the toasts' Linux placement asks.
+#[cfg(target_os = "linux")]
+pub use window::is_wayland_surface;
 
 const LABEL: &str = "widget";
 
 #[derive(Debug, Clone, Copy, Deserialize, Type)]
 pub struct Size {
+    width: f64,
+    height: f64,
+}
+
+/// A part of the window that takes input besides the pill (a bubble), in logical px from its top left.
+#[derive(Debug, Clone, Copy, Deserialize, Type)]
+pub struct Area {
+    x: f64,
+    y: f64,
     width: f64,
     height: f64,
 }
@@ -108,13 +120,14 @@ fn watch_screens(app: &AppHandle) -> io::Result<()> {
     Ok(())
 }
 
-/// `canvas` is the largest the window ever needs to be; `region` is the part that takes input now.
+/// `canvas` is the largest the window ever needs to be; `region` is the part that takes input now,
+/// with the `extra` areas (bubbles beside or under the pill).
 ///
 /// Async on purpose: a sync command runs inside WebView2's IPC callback on the main thread, and
 /// resizing the window from there deadlocks. Off the main thread, window calls are queued instead.
 #[tauri::command]
 #[specta::specta]
-async fn layout(window: Window, hit: State<'_, Arc<HitArea>>, canvas: Size, region: Size) -> Res<()> {
+async fn layout(window: Window, hit: State<'_, Arc<HitArea>>, canvas: Size, region: Size, extra: Vec<Area>) -> Res<()> {
     let (canvas, region) = (window::clamp(canvas.width, canvas.height), window::clamp(region.width, region.height));
     // Not resized to the region there: each resize (and move, under XWayland) lands a frame or more
     // after the last, so the pill jumped and shook as it opened and folded.
@@ -122,10 +135,11 @@ async fn layout(window: Window, hit: State<'_, Arc<HitArea>>, canvas: Size, regi
     #[cfg(target_os = "linux")]
     if window::is_wayland() {
         hit.ensure_canvas(canvas, place)?;
-        return window::take_input(&window, canvas, region);
+        let areas: Vec<_> = extra.iter().map(|a| (a.x, a.y, a.width, a.height)).collect();
+        return window::take_input(&window, canvas, region, &areas);
     }
     hit.ensure_canvas(canvas, place)?;
-    hit.set_region(region);
+    hit.set_regions(region, extra.iter().map(|a| (a.x, a.y, a.width, a.height)).collect());
     hit.ensure_tracking(|area| {
         let w = window.clone();
         hit::track(window.clone(), area, move |shown| {

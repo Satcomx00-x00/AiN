@@ -9,6 +9,9 @@ export interface Island {
 
 export type Size = { width: number; height: number };
 
+/** A rectangle in the window, in px from its top left. */
+export type Area = { x: number; y: number; width: number; height: number };
+
 /** The backend's measurement, which every layout computation divides and scales by: it must be a real size. */
 export function checkIsland(i: Wire): Island {
   const { width, height } = i;
@@ -22,8 +25,9 @@ export interface WindowPort {
   /**
    * `canvas`: the largest the window ever needs to be. `region`: the part that takes input now.
    * The backend decides how: click-through hit-testing, or shaping the window's input where the cursor can't be seen (Wayland).
+   * `extra`: more parts that take input, anywhere in the window (bubbles beside the pill).
    */
-  layout(canvas: Size, region: Size): Promise<void>;
+  layout(canvas: Size, region: Size, extra?: readonly Area[]): Promise<void>;
   /**
    * Hides the pill until the cursor rests on it (top center) for `dwell` ms; once shown, it hides
    * again `grace` ms after the cursor leaves. `dwell: null` keeps it shown. The backend watches the
@@ -36,7 +40,7 @@ export interface WindowPort {
 
 export const tauriWindow: WindowPort = {
   island: async () => checkIsland(await commands.info()),
-  layout: async (canvas, region) => void (await commands.layout(canvas, region)),
+  layout: async (canvas, region, extra = []) => void (await commands.layout(canvas, region, [...extra])),
   autoHide: async (dwell, grace) => void (await commands.autoHide(dwell, grace)),
   onReveal: (onReveal) => events.revealed.listen((e) => onReveal(e.payload)),
 };

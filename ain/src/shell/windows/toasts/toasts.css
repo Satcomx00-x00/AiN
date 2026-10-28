@@ -1,0 +1,19 @@
+html,
+body {
+  margin: 0;
+  background: transparent;
+  overflow: hidden;
+}
+
+/* Room around the cards for their shadow; the window is exactly this tall. */
+.toasts {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  box-sizing: border-box;
+}
+
+.toasts[data-corner^="bottom"] {
+  justify-content: flex-end;
+}

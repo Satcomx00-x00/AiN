@@ -10,6 +10,11 @@ export const commands = {
 	models: (provider: Provider) => __TAURI_INVOKE<string[]>("plugin:providers|models", { provider }),
 	/**  Where Settings' provider presets point, environment overrides applied. */
 	presetUrls: () => __TAURI_INVOKE<PresetUrls>("plugin:providers|preset_urls"),
+	/**
+	 *  What the model the user picked for plugins answers to `text`, following `instructions`. The
+	 *  island only lets plugins that list "ai" in `needs` call it.
+	 */
+	ask: (instructions: string, text: string) => __TAURI_INVOKE<string>("plugin:providers|ask", { instructions, text }),
 };
 
 /* Types */

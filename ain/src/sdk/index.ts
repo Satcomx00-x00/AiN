@@ -8,6 +8,8 @@
  * export default (island) => island.defineGreeting({ id: "wave", label: "Wave", play(stage) { … } });
  * // or a pill style:
  * export default (island) => island.defineStyle({ id: "neon", label: "Neon", mount(root, ctx) { … } });
+ * // or a way to show notifications:
+ * export default (island) => island.defineNotifier({ id: "ticker", label: "Ticker", show(stage, n, ctx) { … } });
  * ```
  *
  * Bump `version` on any change that could break such a plugin.
@@ -18,6 +20,7 @@ import * as dom from "./dom";
 import { defineGreeting, settle } from "./greeting";
 import { choice, color as colorOption, folder, list, number, secret, text, toggle } from "./options";
 import { glanceSlot } from "./glance";
+import { defineNotifier } from "./notify";
 import { definePlugin } from "./plugin";
 import { select } from "./select";
 import { defineStyle } from "./style";
@@ -27,6 +30,7 @@ export const sdk = Object.freeze({
   definePlugin,
   defineGreeting,
   defineStyle,
+  defineNotifier,
   /** Waits for Web Animations to end; a cancelled one counts as ended. */
   settle,
   options: Object.freeze({ toggle, number, choice, list, folder, text, secret, color: colorOption }),

@@ -11,5 +11,5 @@ export const layout: Layout = {
     // progress, a volume change pops up briefly, mic/camera use stays visible, then a running timer, what's playing, and CPU load.
     right: ["dictation", "transcript", "tts", "spelling", "persona", "volume", "privacy", "timer", "media", "stats"],
   },
-  tabs: ["media", "clock", "timer", "volume", "clipboard", "stats", "privacy", "dictation", "transcript", "tts", "spelling", "persona"],
+  tabs: ["media", "clock", "timer", "volume", "clipboard", "stats", "privacy", "dictation", "transcript", "tts", "spelling", "persona", "notifications"],
 };

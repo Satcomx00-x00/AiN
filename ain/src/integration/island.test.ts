@@ -98,6 +98,7 @@ describe("opening and closing", () => {
       "tab-tts",
       "tab-spelling",
       "tab-persona",
+      "tab-notifications",
     ]);
     await island.leave();
     expect(island.el.dataset.open).toBe("false");

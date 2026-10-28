@@ -13,6 +13,7 @@ import { reportProblem } from "../sdk/report";
 import type { Greeting, Stage } from "../sdk/greeting";
 import { isHex } from "../sdk/color";
 import { type Field, type Fields, patternOf } from "../sdk/options";
+import type { Notifier } from "../sdk/notify";
 import type { AnyPlugin, Host, Widget } from "../sdk/plugin";
 import type { AnyStyle } from "../sdk/style";
 import { type Found, commands } from "./bindings/extensions";
@@ -26,6 +27,8 @@ export interface Extension {
   readonly greeting: Greeting | null;
   /** Or the pill style, for a file that defines one instead. */
   readonly style: AnyStyle | null;
+  /** Or the way to show notifications, for a file that defines one instead. */
+  readonly notifier: Notifier | null;
   /** Services it asked for. */
   readonly needs: readonly string[];
   /** Why it can't be used, when it can't. */
@@ -33,7 +36,7 @@ export interface Extension {
 }
 
 /** The id a loaded file claims, if any. */
-export const idOf = (ext: Extension): string | null => ext.plugin?.id ?? ext.greeting?.id ?? ext.style?.id ?? null;
+export const idOf = (ext: Extension): string | null => ext.plugin?.id ?? ext.greeting?.id ?? ext.style?.id ?? ext.notifier?.id ?? null;
 
 export interface Rules {
   /** Ids already in use (the built-in features, startup animations and pill styles). */
@@ -133,13 +136,67 @@ export function check(def: unknown, rules: Rules): { plugin: AnyPlugin; needs: s
   if (def.page !== undefined && typeof def.page !== "function") return "page must be a function";
   if (def.panelHeight !== undefined && !(typeof def.panelHeight === "number" && Number.isFinite(def.panelHeight) && def.panelHeight > 0))
     return "panelHeight must be a height in pixels";
-  if (cmds !== undefined && !(Array.isArray(cmds) && cmds.length === 0)) return "shortcut commands are only available to built-in features";
+  const commandProblem = commandsProblem(cmds);
+  if (commandProblem) return commandProblem;
   if (!Array.isArray(needs) || !needs.every((n) => typeof n === "string")) return "needs must list service names";
   const unknown = needs.filter((n: string) => !rules.services.includes(n));
   if (unknown.length) return `unknown services: ${unknown.join(", ")} (available: ${rules.services.join(", ")})`;
   const problem = optionsProblem(def.options);
   if (problem) return problem;
-  return { plugin: def as unknown as AnyPlugin, needs: [...new Set(needs as string[])] };
+  // Their commands have no popup: the shortcut goes to the widget's onCommand.
+  const plugin = (Array.isArray(cmds) && cmds.length ? { ...def, commands: cmds.map((c: Record<string, unknown>) => ({ ...c, surface: "action" })) } : def) as unknown as AnyPlugin;
+  return { plugin, needs: [...new Set(needs as string[])] };
+}
+
+const COMMAND_ID = /^[a-z][a-z0-9-]{0,31}$/;
+
+/**
+ * Why a plugin file's shortcut commands can't be used, or null. They have no window of their own:
+ * the widget's `onCommand` hears them (surface "action").
+ */
+function commandsProblem(cmds: unknown): string | null {
+  if (cmds === undefined) return null;
+  if (!Array.isArray(cmds) || cmds.length > 8) return "commands must list at most 8 commands";
+  const ids = new Set<string>();
+  for (const c of cmds) {
+    if (!isObject(c)) return "each command must be an object";
+    if (typeof c.id !== "string" || !COMMAND_ID.test(c.id) || ids.has(c.id)) return "each command needs its own id: 1–32 lowercase letters, digits or dashes";
+    ids.add(c.id);
+    if (typeof c.label !== "string" || !c.label.trim() || c.label.length > 40) return `command "${c.id}": label must be 1–40 characters`;
+    if (typeof c.description !== "string") return `command "${c.id}": description must be a string`;
+    if (c.shortcut !== null && (typeof c.shortcut !== "string" || !/^((Ctrl|Alt|Shift|Super)\+)*\w+$/.test(c.shortcut))) return `command "${c.id}": shortcut must look like "Ctrl+Alt+KeyN", or be null`;
+    if (c.surface !== undefined && c.surface !== "action") return `command "${c.id}": plugins from the plugins folder only have surface "action" (their widget's onCommand hears it)`;
+    if (c.popup !== undefined) return `command "${c.id}": popups are only available to built-in features`;
+  }
+  return null;
+}
+
+/** Checks a notifier's definition; returns the problem, or the notifier. */
+export function checkNotifier(def: Record<string, unknown>, taken: ReadonlySet<string>): Notifier | string {
+  const { id, label, description, show } = def;
+  if (typeof id !== "string" || !ID.test(id)) return "id must be 2–32 lowercase letters, digits or dashes, starting with a letter";
+  if (taken.has(id)) return `the id "${id}" is already used`;
+  if (["pill", "bubble", "toast"].includes(id)) return `the id "${id}" is a built-in way to show notifications`;
+  if (typeof label !== "string" || !label.trim() || label.length > 40) return "label must be 1–40 characters";
+  if (description !== undefined && typeof description !== "string") return "description must be a string";
+  if (typeof show !== "function") return "show must be a function";
+  return { id, label, show: show as Notifier["show"], ...(description !== undefined && { description }) };
+}
+
+/** The notifier as the island runs it: a failure is reported, and that notification simply doesn't show. */
+export function confineNotifier(notifier: Notifier, log: (message: string) => void = console.error): Notifier {
+  return {
+    ...notifier,
+    show(stage, n, ctx) {
+      try {
+        const stop = notifier.show.call(notifier, stage, n, ctx);
+        return typeof stop === "function" ? fuse(`notifier "${notifier.id}" cleanup`, stop, undefined, (what, e) => log(`[island] ${what} failed: ${String(e)}`)) : undefined;
+      } catch (e) {
+        log(`[island] notifier "${notifier.id}" failed: ${String(e)}`);
+        return undefined;
+      }
+    },
+  };
 }
 
 /** Checks a startup animation's definition; returns the problem, or the animation. */
@@ -247,6 +304,23 @@ export function isolate(widget: Widget, report: (what: string, e: unknown) => vo
   if (widget.glance) out.glance = fuse("glance", widget.glance, null, report);
   if (widget.tick) out.tick = fuse("tick", widget.tick, undefined, report);
   if (widget.ambient) out.ambient = fuse("ambient", widget.ambient, null, report);
+  if (widget.onNotificationAction) out.onNotificationAction = fuse("onNotificationAction", widget.onNotificationAction, undefined, report);
+  if (widget.onCommand) out.onCommand = fuse("onCommand", widget.onCommand, undefined, report);
+  if (widget.onNotification) {
+    // Switched off on its first failure: notifications then pass through untouched.
+    const hook = widget.onNotification;
+    let blown = false;
+    out.onNotification = (n) => {
+      if (blown) return n;
+      try {
+        return hook(n);
+      } catch (e) {
+        blown = true;
+        report("onNotification", e);
+        return n;
+      }
+    };
+  }
   return out;
 }
 
@@ -289,7 +363,9 @@ export function confine(plugin: AnyPlugin, needs: readonly string[], log: (messa
       const granted = grant(services);
       try {
         const widget = plugin.setup(granted as never, host);
-        return isolate(isObject(widget) ? (widget as Widget) : {}, report);
+        const { onNotification, ...rest } = isObject(widget) ? (widget as Widget) : {};
+        // Seeing every notification is what `needs: ["notifications"]` asks the user for.
+        return isolate(needs.includes("notifications") && onNotification ? { ...rest, onNotification } : rest, report);
       } catch (e) {
         report("setup", e);
         return {};
@@ -303,7 +379,7 @@ export async function loadExtensions(found: readonly Found[], rules: Rules, impo
   const taken = new Set(rules.taken);
   const out: Extension[] = [];
   for (const { file, source, problem } of found) {
-    const fail = (why: string) => out.push({ file, plugin: null, greeting: null, style: null, needs: [], problem: why });
+    const fail = (why: string) => out.push({ file, plugin: null, greeting: null, style: null, notifier: null, needs: [], problem: why });
     if (source === null) {
       fail(problem ?? "couldn't be read");
       continue;
@@ -329,7 +405,7 @@ export async function loadExtensions(found: readonly Found[], rules: Rules, impo
         continue;
       }
       taken.add(greeting.id);
-      out.push({ file, plugin: null, greeting: confineGreeting(greeting), style: null, needs: [], problem: null });
+      out.push({ file, plugin: null, greeting: confineGreeting(greeting), style: null, notifier: null, needs: [], problem: null });
       continue;
     }
     // A definition with `mount` and no `setup` is a pill style.
@@ -340,7 +416,18 @@ export async function loadExtensions(found: readonly Found[], rules: Rules, impo
         continue;
       }
       taken.add(style.id);
-      out.push({ file, plugin: null, greeting: null, style: confineStyle(style), needs: [], problem: null });
+      out.push({ file, plugin: null, greeting: null, style: confineStyle(style), notifier: null, needs: [], problem: null });
+      continue;
+    }
+    // A definition with `show` and no `setup` is a way to show notifications.
+    if (isObject(def) && "show" in def && !("setup" in def)) {
+      const notifier = checkNotifier(def, taken);
+      if (typeof notifier === "string") {
+        fail(notifier);
+        continue;
+      }
+      taken.add(notifier.id);
+      out.push({ file, plugin: null, greeting: null, style: null, notifier: confineNotifier(notifier), needs: [], problem: null });
       continue;
     }
     const checked = check(def, { ...rules, taken });
@@ -349,7 +436,7 @@ export async function loadExtensions(found: readonly Found[], rules: Rules, impo
       continue;
     }
     taken.add(checked.plugin.id);
-    out.push({ file, plugin: confine(checked.plugin, checked.needs), greeting: null, style: null, needs: checked.needs, problem: null });
+    out.push({ file, plugin: confine(checked.plugin, checked.needs), greeting: null, style: null, notifier: null, needs: checked.needs, problem: null });
   }
   return out;
 }
@@ -362,6 +449,7 @@ export interface FileRow {
   readonly plugin: AnyPlugin | null;
   readonly greeting: Greeting | null;
   readonly style: AnyStyle | null;
+  readonly notifier: Notifier | null;
   readonly needs: readonly string[];
   readonly problem: string | null;
 }
@@ -375,7 +463,7 @@ export function fileRows(found: readonly Pick<Found, "file">[], enabled: readonl
     const ext = on ? loaded.get(file) : undefined;
     const problem = on && !present.has(file) ? "No longer in the plugins folder" : (ext?.problem ?? null);
     const shown = present.has(file) ? ext : undefined;
-    return { file, on, plugin: shown?.plugin ?? null, greeting: shown?.greeting ?? null, style: shown?.style ?? null, needs: ext?.needs ?? [], problem };
+    return { file, on, plugin: shown?.plugin ?? null, greeting: shown?.greeting ?? null, style: shown?.style ?? null, notifier: shown?.notifier ?? null, needs: ext?.needs ?? [], problem };
   });
 }
 

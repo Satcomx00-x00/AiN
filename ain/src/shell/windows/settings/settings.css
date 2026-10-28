@@ -2408,6 +2408,29 @@ kbd {
   }
 }
 
+/* Do not disturb's daily hours. */
+.time-range {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+}
+
+.time-input {
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  color-scheme: dark;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.time-input:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
 /* The widget's settings sit in a narrow column: labels keep to one line. */
 .pill-inspector .field-label {
   white-space: nowrap;
