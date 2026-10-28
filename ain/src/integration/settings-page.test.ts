@@ -149,6 +149,31 @@ describe("Settings → Plugins", () => {
       setup: () => ({ glance: () => null }),
     });
 
+  it("names each shortcut in the head of a plugin's page when it has several", async () => {
+    environment();
+    const sys = system();
+    sys.addFile("orbit.js", (island) =>
+      island.definePlugin({
+        id: "orbit",
+        label: "Orbit",
+        description: "A clock.",
+        icon: "",
+        slots: ["glance"],
+        commands: [
+          { id: "start", label: "Start", description: "Starts it.", shortcut: "Super+Alt+KeyS", surface: "action" },
+          { id: "stop", label: "Stop", description: "Stops it.", shortcut: null, surface: "action" },
+        ],
+        setup: () => ({ glance: () => null }),
+      }),
+    );
+    await startIsland(sys);
+    const page = await startSettings(sys, "plugins");
+    [...page.page.querySelectorAll<HTMLElement>(".card")].find((c) => c.textContent?.includes("orbit.js"))!.querySelector<HTMLElement>("[role=switch]")!.click();
+    await page.saved();
+    await page.open("Orbit");
+    expect([...page.page.querySelectorAll(".page-head .page-shortcut-label")].map((l) => l.textContent)).toEqual(["Start", "Stop"]);
+  });
+
   it("sets a plugin's options right under its switch once it's on", async () => {
     environment();
     const sys = system();

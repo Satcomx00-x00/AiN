@@ -1434,7 +1434,8 @@ void popup.watchFailures((next) => {
     reportProblem(`The shortcut for ${e ? e.command.label : id} doesn't work`, `${why}: pick another one in Shortcuts.`, "SHORTCUT_REGISTER");
   }
   failures = next;
-  if (section === "shortcuts") render();
+  // The Shortcuts page and a widget's page (its shortcut in the head) show them.
+  if (section === "shortcuts" || (section === "widgets" && widget)) render();
 });
 
 void store.watch((raw) => {

@@ -205,12 +205,14 @@ describe("settings", () => {
     expect(await tauriSettings.open("widgets:clock")).toBeUndefined();
     expect(await tauriSettings.open()).toBeUndefined();
     expect(await tauriSettings.playGreeting("hello")).toBeUndefined();
+    expect(await tauriSettings.testNotification()).toBeUndefined();
     expect(await tauriSettings.setAutostart(true)).toBeUndefined();
     expect(vi.mocked(invoke).mock.calls).toEqual([
       ["plugin:settings|set", { value }],
       ["plugin:settings|open", { target: "widgets:clock" }],
       ["plugin:settings|open", { target: null }],
       ["plugin:settings|play_greeting", { id: "hello" }],
+      ["plugin:settings|test_notification"],
       ["plugin:settings|set_autostart", { enabled: true }],
     ]);
   });
@@ -228,11 +230,14 @@ describe("settings", () => {
     const greetings: string[] = [];
     const stopNavigate = await tauriSettings.onNavigate((t) => targets.push(t));
     const stopPlay = await tauriSettings.onPlayGreeting((id) => greetings.push(id));
-    expect(log).toEqual(["listen plugin:settings:navigate", "listen plugin:settings:play-greeting"]);
-    expect([targets, greetings]).toEqual([["widgets:clock"], ["widgets:clock"]]);
+    let tests = 0;
+    const stopTest = await tauriSettings.onTestNotification(() => tests++);
+    expect(log).toEqual(["listen plugin:settings:navigate", "listen plugin:settings:play-greeting", "listen plugin:settings:test-notification"]);
+    expect([targets, greetings, tests]).toEqual([["widgets:clock"], ["widgets:clock"], 1]);
     stopNavigate();
     stopPlay();
-    expect(log.slice(-2)).toEqual(["unlisten plugin:settings:navigate", "unlisten plugin:settings:play-greeting"]);
+    stopTest();
+    expect(log.slice(-3)).toEqual(["unlisten plugin:settings:navigate", "unlisten plugin:settings:play-greeting", "unlisten plugin:settings:test-notification"]);
   });
 });
 

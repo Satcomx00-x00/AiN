@@ -12,6 +12,9 @@ export interface Tabs {
 /** The most tabs the bar holds, so each stays wide enough to hit; the rest wait behind a last "More" tab. */
 export const MAX_TABS = 10;
 
+/** The bar's padding, where the highlight starts (`.tabs` and `.tab-indicator` in island.css). */
+const INSET = 3;
+
 const MORE = `<circle cx="3.5" cy="8" r="1.25" fill="currentColor" stroke="none"/><circle cx="8" cy="8" r="1.25" fill="currentColor" stroke="none"/><circle cx="12.5" cy="8" r="1.25" fill="currentColor" stroke="none"/>`;
 
 /** Segmented tab bar with a sliding highlight; each plugin renders into its own panel. */
@@ -57,6 +60,22 @@ export function tabs(placed: readonly Mounted[], onChange: (id: string) => void,
       })()
     : null;
 
+  /**
+   * Puts the highlight under the selected tab as laid out. Placed by index alone it drifts: engines
+   * round each tab's width (WebKit by over a pixel across a narrow bar). Until the bar is laid out
+   * (folded, or not on screen yet) the index places it.
+   */
+  const align = () => {
+    const at = listing ? MAX_TABS : views.findIndex((v) => v.id === current);
+    // The More list, or a plugin from it, is under the More tab.
+    const tab = at >= MAX_TABS ? more?.tab : views[at]?.tab;
+    if (!tab?.offsetWidth) return;
+    bar.style.setProperty("--x", `${tab.offsetLeft - INSET}px`);
+    bar.style.setProperty("--w", `${tab.offsetWidth}px`);
+  };
+  // The bar's width changes as the pill opens, or takes another size.
+  new ResizeObserver(align).observe(bar);
+
   const show = (id: string | null, animate: boolean) => {
     const from = listing ? MAX_TABS : views.findIndex((v) => v.id === current);
     const to = id === null ? MAX_TABS : views.findIndex((v) => v.id === id);
@@ -72,8 +91,8 @@ export function tabs(placed: readonly Mounted[], onChange: (id: string) => void,
       // Holding a plugin from the list, it wears that plugin's icon, so the bar says what is open.
       more.tab.replaceChildren(icon(to >= MAX_TABS && !listing ? views[to]!.glyph : MORE));
     }
-    // Positioned by index in CSS, so it is right at any width, even mid-animation.
     bar.style.setProperty("--i", String(Math.min(to, MAX_TABS)));
+    align();
     const panel = listing ? more?.panel : views[to]?.panel;
     if (panel && animate && from !== to && !reducedMotion())
       panel.animate(

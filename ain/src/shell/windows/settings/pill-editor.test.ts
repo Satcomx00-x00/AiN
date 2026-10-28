@@ -205,6 +205,11 @@ describe("Settings → Pill: the editor", async () => {
     expect([off.field("Position"), off.field("Icon")]).toEqual([undefined, undefined]);
   });
 
+  it("offers no place for a widget that has none, only its settings", () => {
+    const { field } = editor({ selected: "shot" });
+    expect([field("Side"), field("In the tabs")]).toEqual([undefined, undefined]);
+  });
+
   it("keeps a tab-only widget off the pill", () => {
     const { ed, field, press } = editor({ selected: "notes" });
     expect(field("Side")).toBeUndefined();

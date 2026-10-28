@@ -124,6 +124,16 @@ describe("settings", () => {
     expect(played).toEqual(["sparkle"]);
   });
 
+  it("the in-memory store passes test notification requests on to listeners, until they stop", async () => {
+    const store = memorySettings();
+    let tests = 0;
+    const stop = await store.onTestNotification(() => tests++);
+    await store.testNotification();
+    stop();
+    await store.testNotification();
+    expect(tests).toBe(1);
+  });
+
   it("the in-memory store remembers whether to start with the system, and has no window to open or app to quit", async () => {
     const store = memorySettings();
     expect(await store.autostart()).toBe(false);

@@ -283,6 +283,19 @@ describe("Settings → Appearance", () => {
     expect((await sys.settings()).general.greeting).toBe("none");
   });
 
+  it("says when the island can't show a test notification, and how one goes while do not disturb is on", async () => {
+    environment();
+    const sys = system();
+    vi.spyOn(sys.store, "testNotification").mockRejectedValue(new Error("island closed"));
+    await sys.save((s) => ({ ...s, notifications: { ...s.notifications, quiet: true } }));
+    const page = await load(sys, "notifications");
+    const test = buttonIn(page.page.querySelector(".page-head")!, "Send a test")!;
+    expect(test.title).toBe("Do not disturb is on: it goes to the history without showing.");
+    test.click();
+    await advance(0);
+    expect(page.toasts()).toEqual(["[NOTIFICATION_TEST] Couldn't send a test notification: island closed"]);
+  });
+
   it("says when the island can't play it", async () => {
     environment();
     const sys = system();
@@ -1213,6 +1226,29 @@ describe("Finding your way", () => {
     return box;
   };
   const results = () => [...document.querySelectorAll<HTMLElement>(".results .list-row")].map((r) => `${r.querySelector(".list-title")?.textContent} — ${r.querySelector(".list-where")?.textContent}`);
+
+  it("leads back from the notification history to Notifications, under which it is listed", async () => {
+    environment();
+    const page = await load(system(), "widgets:notifications");
+    expect(page.heading()).toBe("Notification history");
+    press(page.page.querySelector(".crumbs")!, "Notifications");
+    await advance(0);
+    expect(page.heading()).toBe("Notifications");
+  });
+
+  it("shows a widget's shortcut in its page's head, and says when the system wouldn't take it", async () => {
+    environment();
+    const sys = system();
+    let report: (failures: Record<string, string>) => void = () => {};
+    const popup = { ...sys.popup, watchFailures: async (onChange: typeof report) => ((report = onChange), onChange({}), () => {}) };
+    const page = await load(sys, "widgets:dictation", { popup });
+    const head = () => page.page.querySelector<HTMLElement>(".page-head .page-shortcut")!;
+    expect([head().dataset.failed, head().querySelector(".page-shortcut-label")?.textContent]).toEqual([undefined, "Shortcut"]);
+    report({ "dictation.toggle": "already used by another app" });
+    await advance(0);
+    expect([head().dataset.failed, head().querySelector(".page-shortcut-label")?.textContent]).toEqual(["true", "Shortcut — not set"]);
+    expect(head().querySelector(".page-shortcut-label")?.getAttribute("title")).toBe("already used by another app: pick another shortcut.");
+  });
 
   it("lists every widget in the menu, each with its own page, and a way back to them all", async () => {
     environment();

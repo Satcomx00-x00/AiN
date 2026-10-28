@@ -47,6 +47,22 @@ describe("matching", () => {
   it("finds nothing when a word is missing", () => expect(matching(clips, "ship moon")).toEqual([]));
 });
 
+describe("the in-memory clipboard", () => {
+  it("brings copied text to the front, as a new clip or the one it already was, and restores by id", async () => {
+    const { memoryClipboard } = await import("./service");
+    const port = memoryClipboard([clip("a"), clip("b")]);
+    await port.copy("b");
+    await port.copy("new");
+    const texts = async () => (await port.history()).map((c) => c.text);
+    expect(await texts()).toEqual(["new", "b", "a"]);
+    const added = (await port.history())[0]!;
+    expect(added.id).toBeGreaterThan(idOf("b"));
+    await port.restore(idOf("a"));
+    expect(await texts()).toEqual(["a", "new", "b"]);
+    await expect(port.restore(999)).rejects.toThrow("that clip is no longer in the history");
+  });
+});
+
 describe("the clipboard popup", () => {
   async function open(clips: Clip[], paste = true) {
     const clipboard = port(clips);
@@ -126,6 +142,14 @@ describe("the clipboard popup", () => {
     p.key({ key: "Enter" });
     await vi.advanceTimersByTimeAsync(0);
     expect([p.clipboard.copied, p.ctx.paste.mock.calls.length]).toEqual([[`image ${shot.id}`], 1]);
+  });
+
+  it("still pastes when the clip can't be put back on the clipboard", async () => {
+    const p = await open([clip("a")]);
+    p.clipboard.restore = async () => Promise.reject(new Error("busy"));
+    p.key({ key: "Enter" });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(p.ctx.paste).toHaveBeenCalledTimes(1);
   });
 
   it("only copies, and closes, when pasting is turned off", async () => {

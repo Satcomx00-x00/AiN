@@ -129,9 +129,7 @@ export function pillEditor(ed: PillEditor): Node[] {
 
   // ---------- each side, as an ordered list ----------
   /** One widget of a side's list: its place in the order, what it is, and whether the pill shows it now. */
-  const sideRow = (id: string, zone: Side, at: number): HTMLElement | null => {
-    const p = byId.get(id);
-    if (!p) return null;
+  const sideRow = (p: AnyPlugin, zone: Side, at: number): HTMLElement => {
     const row = h(
       "div",
       { class: "side-row", title: p.label, "data-waiting": String(at >= look.perSide) },
@@ -140,11 +138,11 @@ export function pillEditor(ed: PillEditor): Node[] {
       h("span", { class: "ico", "aria-hidden": "true" }, icon(p.icon)),
       h("span", { class: "side-name" }, p.label),
     );
-    row.classList.toggle("selected", ed.selected === id);
-    return draggable(row, id, zone);
+    row.classList.toggle("selected", ed.selected === p.id);
+    return draggable(row, p.id, zone);
   };
   const sideCard = (zone: Side) => {
-    const rows = layout.glance[zone].filter((id) => byId.has(id)).flatMap((id, i) => sideRow(id, zone, i) ?? []);
+    const rows = layout.glance[zone].flatMap((id) => byId.get(id) ?? []).map((p, i) => sideRow(p, zone, i));
     // Where the pill's share ends: the rest show only when one before them has nothing to show.
     if (rows.length > look.perSide) rows.splice(look.perSide, 0, h("div", { class: "side-split" }, "Waiting their turn"));
     return h(

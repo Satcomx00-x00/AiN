@@ -454,18 +454,20 @@ button:focus-visible {
   background: var(--faint);
 }
 
-/* Equal-width tabs, so the highlight is placed by index (--i of --n) and never needs measuring. */
+/* Under the selected tab as measured (--x, --w); before the bar is laid out, by its index (--i of --n). */
 .tab-indicator {
   position: absolute;
   top: 3px;
   bottom: 3px;
   left: 3px;
-  width: calc((100% - 6px) / var(--n, 1));
+  width: var(--w, calc((100% - 6px) / var(--n, 1)));
   border-radius: calc(var(--r-inner) - 3px);
   background: color-mix(in srgb, var(--ambient) 16%, color-mix(in srgb, var(--fg) 10%, transparent));
   box-shadow: inset 0 0.5px 0 color-mix(in srgb, var(--fg) 14%, transparent);
-  transform: translateX(calc(var(--i, 0) * 100%));
-  transition: transform 0.45s var(--spring);
+  transform: translateX(var(--x, calc(var(--i, 0) * 100%)));
+  transition:
+    transform 0.45s var(--spring),
+    width 0.45s var(--spring);
 }
 
 /* No minimum width: a tab that kept its content's width would break the equal widths the highlight relies on, in a row too narrow for every icon. */

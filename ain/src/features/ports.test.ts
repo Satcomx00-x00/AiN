@@ -66,6 +66,9 @@ describe("clipboard", () => {
     vi.mocked(invoke).mockResolvedValueOnce(undefined);
     expect(await tauriClipboard.clear()).toBeUndefined();
     expect(invoke).toHaveBeenLastCalledWith("plugin:clipboard|clear");
+    vi.mocked(invoke).mockResolvedValueOnce(null);
+    expect(await tauriClipboard.restore(7)).toBeUndefined();
+    expect(invoke).toHaveBeenLastCalledWith("plugin:clipboard|restore", { id: 7 });
   });
 });
 
