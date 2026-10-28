@@ -50,3 +50,15 @@ export const frame = ({ width, height }: Size, open = false, scale = 1): Size =>
   const pad = open ? SLACK : 0;
   return { width: width + 2 * (earFor(scale) + pad), height: height + pad };
 };
+
+/** Room the window keeps for bubbles (geometry of `.bubbles` in island.css): cards this wide, this far from the pill, three of them this tall. */
+export const BUBBLE = { width: 300, gap: 10, height: 220 } as const;
+
+/**
+ * The window's size with room for bubbles at `side` of the folded `pill` (at its widest): under it,
+ * or beside it, level with it.
+ */
+export const bubbleCanvas = (side: "left" | "center" | "right", pill: Size, scale = 1): Size =>
+  side === "center"
+    ? { width: Math.max(pill.width + 2 * earFor(scale), BUBBLE.width) + 2 * SLACK, height: pill.height + BUBBLE.gap + BUBBLE.height }
+    : { width: pill.width + 2 * (earFor(scale) + BUBBLE.gap + BUBBLE.width + SLACK), height: Math.max(pill.height, BUBBLE.height) + SLACK };

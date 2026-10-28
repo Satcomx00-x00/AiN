@@ -3,6 +3,21 @@
 All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.17.0](https://github.com/Satcomx00-x00/AiN/compare/v0.16.0..v0.17.0) - 2026-10-28
+
+### Features
+
+- **pill:** Drag widgets onto a live pill preview, with icons, idle and several per side ([#49](https://github.com/Satcomx00-x00/AiN/pull/49)) ([2bc9edb](https://github.com/Satcomx00-x00/AiN/commit/2bc9edb5c8cfc646ed1f02d121a114276f1ad321))
+- **island:** Pick the screen the pill sits on ([#46](https://github.com/Satcomx00-x00/AiN/pull/46)) ([d893e8e](https://github.com/Satcomx00-x00/AiN/commit/d893e8e2c409dc37b895ad11b533c12a945d50d0))
+- **notifications:** Notification center for the pill, bubbles and toasts ([#50](https://github.com/Satcomx00-x00/AiN/pull/50)) ([726c5a5](https://github.com/Satcomx00-x00/AiN/commit/726c5a5dd47ecd1695f1a69f5b7dfe0e7e6f00f0))
+
+### Miscellaneous
+
+- [**breaking**] Remove macOS support ([#48](https://github.com/Satcomx00-x00/AiN/pull/48)) ([e7ed81a](https://github.com/Satcomx00-x00/AiN/commit/e7ed81a13e3be632e73934213762c32939ccc2c2))
+
+### CI
+
+- Bump the actions group across 1 directory with 3 updates ([#45](https://github.com/Satcomx00-x00/AiN/pull/45)) ([ed324c9](https://github.com/Satcomx00-x00/AiN/commit/ed324c9c42b0280008e0e01661f9d6d42055d1ac))
 ## [0.16.0](https://github.com/Satcomx00-x00/AiN/compare/v0.15.1..v0.16.0) - 2026-10-28
 
 ### Features

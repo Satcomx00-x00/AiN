@@ -16,7 +16,7 @@ describe("the example plugin", () => {
 
     let limit = 85;
     const log = vi.fn();
-    const host = { refresh() {}, options: () => ({ limit }) as never, setOptions() {}, secret: async () => "", openSettings() {}, openPage() {}, appearance: () => ({ style: "pill", size: "normal", theme: "island", tone: "dark", notch: false }) as const };
+    const host = { refresh() {}, options: () => ({ limit }) as never, setOptions() {}, secret: async () => "", openSettings() {}, openPage() {}, appearance: () => ({ style: "pill", size: "normal", theme: "island", tone: "dark", notch: false }) as const, notify: () => ({ id: "", update() {}, dismiss() {} }), on: () => () => {} };
     const stats = { stats: async () => ({ cpu: 90, memUsed: 0, memTotal: 1, rxPerSec: 0, txPerSec: 0, sampledAt: 0 }) };
     const widget = confine(checked.plugin, checked.needs, log).setup({ stats, clipboard: {} } as never, host);
     const root = document.createElement("section");

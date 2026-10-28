@@ -1,3 +1,4 @@
+import type { AnyNotice, HookResult, Notification, NotificationHandle } from "./notify";
 import type { Fields, Values } from "./options";
 import type { PillSize } from "./style";
 
@@ -44,6 +45,15 @@ export interface Widget {
   readonly tick?: (ctx: TickContext) => void | Promise<void>;
   /** A color that tints the island while this plugin is in focus, or null for the default. */
   readonly ambient?: () => string | null;
+  /**
+   * Sees each notification from another source before it shows; returns it (changed or not),
+   * "silent" or null (see `HookResult`). Only for plugins that list `notifications` in `needs`.
+   */
+  readonly onNotification?: (n: Notification) => HookResult;
+  /** One of this plugin's notifications had action `actionId` pressed. */
+  readonly onNotificationAction?: (notificationId: string, actionId: string) => void;
+  /** One of this plugin's `commands` was triggered by its shortcut: pressed, released, or tapped (Try it). */
+  readonly onCommand?: (commandId: string, kind: CommandKind) => void;
 }
 
 /** How the island looks right now, for plugins that adapt to it. */
@@ -82,7 +92,32 @@ export interface Host<Options = unknown> {
   openPage(params?: PageParams): void;
   /** How the island looks now; read it when drawing, since the user can change it anytime. */
   appearance(): Appearance;
+  /**
+   * Posts a notification, shown the way the user chose, unless they turned this plugin's notifications
+   * off. Takes AiN's own notice, or one in freedesktop's, the W3C's or a Windows toast's format.
+   */
+  notify(notice: AnyNotice): NotificationHandle;
+  /** Calls `listener` on each `event`; returns how to stop. */
+  on<E extends keyof HostEvents>(event: E, listener: (payload: HostEvents[E]) => void): () => void;
 }
+
+/**
+ * What happens on the island, for `host.on`. The services a plugin needs have their own `watch`
+ * (now playing, volume, mic and camera…).
+ */
+export interface HostEvents {
+  /** The island opened (true) or folded (false). */
+  readonly open: boolean;
+  /** The pill's look changed (style, size, theme, colors). */
+  readonly appearance: Appearance;
+  /** This plugin's options changed, e.g. in Settings. */
+  readonly options: unknown;
+  /** The count of notifications the user hasn't seen changed. */
+  readonly unseen: number;
+}
+
+/** How a command's shortcut fired. */
+export type CommandKind = "press" | "release" | "tap";
 
 /** What a plugin's settings panel can do with its options. */
 export interface SettingsHost<Options = unknown> {
@@ -135,7 +170,8 @@ export interface Command<Services = unknown, Options = unknown> {
   /**
    * Where it shows: the small launcher `popup` (default), or `screen`, a full-screen window over a
    * capture of the monitor under the pointer, taken just before it appears; or `action`, no window
-   * at all: the plugin's backend acts on the key press (and release, for "hold to talk").
+   * at all: the plugin's backend acts on the key press (and release, for "hold to talk"), and
+   * its widget's `onCommand` hears it. Plugins from the plugins folder only have `action`.
    */
   readonly surface?: Surface;
   /** Builds the popup's content once; `show` runs on every appearance. Not used by `action` commands. */
@@ -165,7 +201,7 @@ export interface Plugin<Services = unknown, F extends Fields = Fields> {
    * out, the preview shows its label.
    */
   sample?(options: Values<F>): Glance;
-  /** Actions on global shortcuts, each with its own popup. Built-in features only. */
+  /** Actions on global shortcuts: built-in features may open a popup; plugins from the plugins folder get `onCommand`. */
   readonly commands?: readonly Command<Services, Values<F>>[];
   /**
    * For plugins from the plugins folder: the services `setup` receives (e.g. `["media"]`); it gets

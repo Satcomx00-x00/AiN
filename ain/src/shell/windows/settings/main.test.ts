@@ -994,6 +994,20 @@ describe("Settings → AI providers", () => {
     expect(page.card("Groq")).toBeDefined();
   });
 
+  it("lets plugins ask a provider's model once the user picks one for them", async () => {
+    environment();
+    const sys = system();
+    const page = await load(sys, "providers");
+    expect(page.card("Plugins")).toBeUndefined();
+    press(page.page, "Add");
+    await page.saved();
+    const card = page.page.querySelector<HTMLElement>("#card-provider-plugins")!;
+    expect(card.textContent).toContain("Off");
+    pick(card, "OpenAI");
+    await page.saved();
+    expect((await sys.settings()).options["plugin-ai"]).toMatchObject({ engine: "openai", remoteModel: expect.any(String) });
+  });
+
   it("starts new providers at the presets' addresses the environment overrides", async () => {
     environment();
     const sys = system();
@@ -1095,6 +1109,99 @@ describe("Settings → AI providers", () => {
     await page.saved();
     expect((await sys.settings()).options.dictation).toMatchObject({ engine: "lab", remoteModel: "whisper-1" });
     expect(page.field("Speech model").hidden).toBe(true);
+  });
+});
+
+describe("Settings → Notifications", () => {
+  const switchIn = (row: HTMLElement) => row.querySelector<HTMLElement>("[role=switch]")!;
+  const time = (row: HTMLElement, label: string, value: string) => {
+    const input = row.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`)!;
+    input.value = value;
+    input.dispatchEvent(new Event("change"));
+  };
+
+  it("picks how they show, and where", async () => {
+    environment();
+    const sys = system();
+    const page = await load(sys, "notifications");
+    expect(page.heading()).toBe("Notifications");
+    expect(page.field("Bubble position")).toBeDefined();
+    press(page.field("Bubble position"), "Left");
+    pick(page.field("Show as"), "Corner toast");
+    await page.saved();
+    expect(page.field("Bubble position")).toBeUndefined();
+    press(page.field("Corner"), "Bottom left");
+    slide(page.field("On screen at once"), 4);
+    await page.saved();
+    expect((await sys.settings()).notifications).toMatchObject({ format: "toast", side: "left", corner: "bottom-left", max: 4 });
+    pick(page.field("Show as"), "In the pill");
+    await page.saved();
+    expect([page.field("Corner"), page.field("Bubble position")]).toEqual([undefined, undefined]);
+  });
+
+  it("sets how long they show and how they move, with or without the time left", async () => {
+    environment();
+    const sys = system();
+    const page = await load(sys, "notifications");
+    slide(page.field("Duration"), 9);
+    switchIn(page.field("Time remaining bar")).click();
+    press(page.field("Animation"), "Fade");
+    press(page.field("Speed"), "Slow");
+    switchIn(page.field("Larger text")).click();
+    switchIn(page.field("Action buttons")).click();
+    await page.saved();
+    expect((await sys.settings()).notifications).toMatchObject({ seconds: 9, bar: false, animation: "fade", speed: "slow", largeText: true, actions: false });
+    switchIn(page.field("Keep until closed")).click();
+    await page.saved();
+    expect([page.field("Duration"), page.field("Time remaining bar")]).toEqual([undefined, undefined]);
+    expect((await sys.settings()).notifications.sticky).toBe(true);
+  });
+
+  it("keeps quiet now, every day between two times, letting urgent ones through or not", async () => {
+    environment();
+    const sys = system();
+    const page = await load(sys, "notifications");
+    expect(page.field("From")).toBeUndefined();
+    switchIn(page.field("Do not disturb")).click();
+    switchIn(page.field("Every day")).click();
+    await page.saved();
+    time(page.field("From"), "From", "21:30");
+    time(page.field("From"), "To", "");
+    time(page.field("From"), "To", "06:45");
+    switchIn(page.field("Let urgent ones through")).click();
+    await page.saved();
+    expect((await sys.settings()).notifications).toMatchObject({ quiet: true, schedule: true, from: "21:30", to: "06:45", urgent: false });
+  });
+
+  it("turns each plugin's notifications off and on", async () => {
+    environment();
+    const sys = system();
+    const page = await load(sys, "notifications");
+    switchIn(page.field("Clock")).click();
+    switchIn(page.field("Now playing")).click();
+    await page.saved();
+    expect((await sys.settings()).notifications.muted).toEqual(["clock", "media"]);
+    switchIn(page.field("Clock")).click();
+    await page.saved();
+    expect((await sys.settings()).notifications.muted).toEqual(["media"]);
+  });
+
+  it("offers the notifiers of plugin files turned on, and shows a gone one as a bubble", async () => {
+    environment();
+    const sys = system();
+    sys.addFile("ticker.js", (island: Sdk) => island.defineNotifier({ id: "ticker", label: "Ticker", show: () => {} }));
+    await sys.store.save({ ...(await sys.settings()), extensions: ["ticker.js"], notifications: { ...(await sys.settings()).notifications, format: "gone" } });
+    const page = await load(sys, "plugins");
+    await advance(0);
+    await page.open("Notifications");
+    expect(page.field("Show as").querySelector(".ui-select-trigger")?.textContent).toContain("Bubble");
+    pick(page.field("Show as"), "Ticker");
+    await page.saved();
+    expect((await sys.settings()).notifications.format).toBe("ticker");
+    await page.open("Plugins");
+    await turnOn(page, "ticker.js");
+    await page.open("Notifications");
+    expect(page.field("Show as").querySelector(".ui-select-trigger")?.textContent).toContain("Bubble");
   });
 });
 
