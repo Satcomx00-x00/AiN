@@ -131,7 +131,7 @@ describe("its status", () => {
     expect(statusText({ phase: "needsModel" }, 0)).toContain("speech model");
     expect(statusText({ phase: "listening", level: 0, seconds: 0 }, 0)).toContain("Listening");
     expect(statusText({ phase: "finishing" }, 3)).toContain("last words");
-    expect(statusText({ phase: "error", message: "No parec" }, 0)).toBe("No parec");
+    expect(statusText({ phase: "error", message: "No PipeWire" }, 0)).toBe("No PipeWire");
   });
 
   it("writes the transcript as text", () => {
