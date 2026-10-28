@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { commands } from "./bindings/providers";
-import type { Auth, Provider } from "./bindings/providers";
+import type { Auth, PresetUrls, Provider } from "./bindings/providers";
 
 export type { Auth };
 
@@ -59,7 +59,10 @@ export const PRESETS = [
 export type PresetId = (typeof PRESETS)[number]["id"];
 const PRESET_IDS = PRESETS.map((p) => p.id) as [PresetId, ...PresetId[]];
 
-export const presetById = (id: string): Preset => PRESETS.find((p) => p.id === id) ?? PRESETS[PRESETS.length - 1]!;
+export const presetById = (id: string, presets: readonly Preset[] = PRESETS): Preset => presets.find((p) => p.id === id) ?? presets[presets.length - 1]!;
+
+/** The presets, each at the address the backend reports (its `AIN_PROVIDER_*_URL` override, if set). */
+export const presetsAt = (urls: Partial<PresetUrls>): readonly Preset[] => PRESETS.map((p) => ({ ...p, baseUrl: urls[p.id] ?? p.baseUrl }));
 
 /** A provider in the settings: what the backend reads (`Provider`), and the preset it started from. */
 export interface AiProvider extends Provider {
@@ -137,3 +140,12 @@ export const memoryProviders = (providers: readonly AiProvider[] = [], models: r
   watch: async (onChange) => (onChange(providers), () => {}),
   models: async () => [...models],
 });
+
+/** The presets Settings starts new providers from. */
+export type PresetsPort = () => Promise<readonly Preset[]>;
+
+/** The presets as built in, for previews and tests. */
+export const builtInPresets: PresetsPort = async () => PRESETS;
+
+/** The presets at the addresses the backend reports; as built in if it can't say. */
+export const tauriPresets: PresetsPort = () => commands.presetUrls().then(presetsAt, () => PRESETS);

@@ -73,6 +73,7 @@ fn get(store: State<'_, Store>) -> Raw {
 fn set(app: AppHandle, store: State<'_, Store>, value: Raw) -> Res<()> {
     let _guard = store.lock.lock().unwrap_or_else(|e| e.into_inner());
     write(&store.path, &value.0)?;
+    super::net::follow(&value.0);
     SettingsChanged(value).emit(&app)?;
     Ok(())
 }
@@ -131,14 +132,29 @@ const QUIT_GRACE: std::time::Duration = std::time::Duration::from_secs(3);
 pub fn quit_app(app: &AppHandle) {
     let _ = std::thread::Builder::new().name("quit-deadline".into()).spawn(|| {
         std::thread::sleep(QUIT_GRACE);
-        std::process::exit(0);
+        end_now();
     });
     app.exit(0);
 }
 
+/// Ends the process at once. On Linux without running exit handlers: a C++ library's (ONNX
+/// Runtime, WebKitGTK) can wait forever for a lock the stuck main thread holds, and then quitting
+/// did nothing at all.
+fn end_now() -> ! {
+    #[cfg(target_os = "linux")]
+    // SAFETY: `_exit` only ends the process; nothing runs after it.
+    unsafe {
+        libc::_exit(0)
+    }
+    #[cfg(not(target_os = "linux"))]
+    std::process::exit(0)
+}
+
+/// Async, so quitting starts off the main thread: there, with the IPC callback still running,
+/// `exit` could wait on the event loop it holds up.
 #[tauri::command]
 #[specta::specta]
-fn quit(app: AppHandle) {
+async fn quit(app: AppHandle) {
     quit_app(&app);
 }
 
@@ -222,7 +238,8 @@ crate::ipc::settings!();
 
 pub fn init() -> TauriPlugin<tauri::Wry> {
     ipc().plugin(|app| {
-        let path = app.path().app_config_dir()?.join(FILE);
+        let path = crate::config::config_dir(app.app_handle())?.join(FILE);
+        super::net::follow(&read(&path));
         app.manage(Store { path, lock: Mutex::new(()) });
         Ok(())
     })

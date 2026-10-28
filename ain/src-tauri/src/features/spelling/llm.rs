@@ -1,7 +1,8 @@
 //! The small language model spelling runs on this machine first: an instruction-tuned Qwen2.5 in
 //! GGUF (Apache 2.0), run on the CPU by llama.cpp. It corrects spelling and grammar alike; the
 //! dictionaries take over when it isn't downloaded, fails, or answers something else than the text.
-//! Each model is one `.gguf` file from Hugging Face, downloaded on request into its own folder.
+//! Each model is one `.gguf` file from Hugging Face (or the models source), downloaded on request into
+//! its own folder.
 
 use std::{
     fmt::Display,
@@ -58,7 +59,7 @@ pub const MODELS: &[Model] = &[
 
 impl Model {
     fn url(&self) -> String {
-        format!("https://huggingface.co/{}/resolve/main/{}?download=true", self.repo, self.file)
+        format!("{}/{}/resolve/main/{}?download=true", crate::config::base(crate::config::HF_URL), self.repo, self.file)
     }
 }
 
@@ -81,9 +82,11 @@ impl Downloadable for Model {
     }
 
     fn download(&self, base: &Path, cancel: &AtomicBool, progress: &mut dyn FnMut(u64, u64)) -> Result<(), DownloadError> {
-        // Served over HTTPS by Hugging Face; a GGUF that doesn't load says so when first used.
+        // Served over HTTPS by Hugging Face (or from the models source, as `<folder>/<file>`); a GGUF
+        // that doesn't load says so when first used.
         let whole = |fetched: &download::Fetched| fetched.size > 0;
-        download::fetch_file(&base.join(self.folder), self.file, &self.url(), whole, cancel, |received| {
+        let url = download::source(self.url(), &format!("{}/{}", self.folder, self.file));
+        download::fetch_file(&base.join(self.folder), self.file, &url, whole, cancel, |received| {
             progress(received, self.size.max(received));
         })
     }

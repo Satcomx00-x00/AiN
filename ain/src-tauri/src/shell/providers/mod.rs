@@ -14,7 +14,7 @@ use tauri::{Wry, async_runtime::spawn_blocking, plugin::TauriPlugin};
 
 pub use auth::Auth;
 
-use crate::{Error, Res, shell::settings};
+use crate::{Error, Res, config, shell::settings};
 
 /// What one request to a text-to-speech endpoint reads at most: short enough to start soon,
 /// and well under the usual limit (4096 characters).
@@ -147,6 +147,33 @@ impl Remote {
 async fn models(provider: Provider) -> Res<Vec<String>> {
     provider.check().map_err(Error::msg)?;
     spawn_blocking(move || client::models(&provider)).await.map_err(|_| Error::WorkerGone)?.map_err(Error::msg)
+}
+
+/// The presets' addresses, by preset id, after their `AIN_PROVIDER_*_URL` overrides.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
+pub struct PresetUrls {
+    pub openai: String,
+    pub groq: String,
+    pub mistral: String,
+    pub custom: String,
+}
+
+impl PresetUrls {
+    fn current() -> Self {
+        Self {
+            openai: config::OPENAI_URL.get(),
+            groq: config::GROQ_URL.get(),
+            mistral: config::MISTRAL_URL.get(),
+            custom: config::CUSTOM_URL.get(),
+        }
+    }
+}
+
+/// Where Settings' provider presets point, environment overrides applied.
+#[tauri::command]
+#[specta::specta]
+fn preset_urls() -> PresetUrls {
+    PresetUrls::current()
 }
 
 crate::ipc::providers!();

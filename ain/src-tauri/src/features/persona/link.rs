@@ -11,7 +11,7 @@ use std::{
 };
 
 use tungstenite::{
-    Message, WebSocket,
+    Connector, Message, WebSocket,
     client::IntoClientRequest,
     http::{HeaderValue, Uri, header::AUTHORIZATION},
     stream::MaybeTlsStream,
@@ -132,7 +132,9 @@ fn connect(target: &Target) -> Result<Socket, String> {
     let tcp = addresses(&uri)?.iter().find_map(|a| TcpStream::connect_timeout(a, CONNECT_TIMEOUT).ok()).ok_or_else(unreachable)?;
     tcp.set_read_timeout(Some(CONNECT_TIMEOUT)).map_err(|e| e.to_string())?;
     let _ = tcp.set_nodelay(true);
-    let (mut socket, _) = tungstenite::client_tls(request, tcp).map_err(|e| format!("The server refused the conversation: {e}"))?;
+    let tls = Connector::Rustls(crate::shell::net::tls_client()?);
+    let (mut socket, _) = tungstenite::client_tls_with_config(request, tcp, None, Some(tls))
+        .map_err(|e| format!("The server refused the conversation: {e}"))?;
     // Set on the socket itself, under TLS: a clone's timeout doesn't reach it on Windows.
     let tcp = match socket.get_mut() {
         MaybeTlsStream::Plain(tcp) => tcp,

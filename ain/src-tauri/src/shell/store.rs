@@ -10,10 +10,8 @@ use serde_json::Value;
 use specta::Type;
 use tauri::{AppHandle, Wry, async_runtime::spawn_blocking, plugin::TauriPlugin};
 
-use crate::{Error, Res, shell::extensions};
+use crate::{Error, Res, config, shell::extensions};
 
-/// Where the store is read from.
-pub const URL: &str = "https://raw.githubusercontent.com/Satcomx00-x00/AiN/store/store.yaml";
 /// The store and the plugins it lists are small text files.
 const MAX_BYTES: u64 = 1024 * 1024;
 
@@ -110,7 +108,7 @@ impl Listed {
         if !valid_entry(entry) {
             return Err(format!("invalid entry \"{entry}\""));
         }
-        Ok(format!("https://raw.githubusercontent.com/{owner}/{name}/{git_ref}/{entry}"))
+        Ok(format!("{}/{owner}/{name}/{git_ref}/{entry}", config::base(config::GITHUB_RAW_URL)))
     }
 
     fn offer(&self) -> Offer {
@@ -137,12 +135,12 @@ fn parse(yaml: &str) -> Res<Vec<Listed>> {
 }
 
 fn get(url: &str) -> Res<String> {
-    let mut response = ureq::get(url).call().map_err(|e| Error::msg(format!("couldn't reach {url}: {e}")))?;
+    let mut response = super::net::agent().get(url).call().map_err(|e| Error::msg(format!("couldn't reach {url}: {e}")))?;
     response.body_mut().with_config().limit(MAX_BYTES).read_to_string().map_err(|e| Error::msg(format!("couldn't read {url}: {e}")))
 }
 
 async fn fetch() -> Res<Vec<Listed>> {
-    spawn_blocking(|| parse(&get(URL)?)).await.map_err(|_| Error::WorkerGone)?
+    spawn_blocking(|| parse(&get(&config::STORE_URL.get())?)).await.map_err(|_| Error::WorkerGone)?
 }
 
 /// The store's entry for `id`.
@@ -166,7 +164,7 @@ fn save(dir: &Path, plugin: &Listed, source: &str) -> Res<String> {
 #[tauri::command]
 #[specta::specta]
 async fn catalog() -> Res<Shelf> {
-    Ok(Shelf { url: URL.into(), plugins: fetch().await?.iter().map(Listed::offer).collect() })
+    Ok(Shelf { url: config::STORE_URL.get(), plugins: fetch().await?.iter().map(Listed::offer).collect() })
 }
 
 /// Downloads a store plugin into the plugins folder (replacing an older copy), and returns its file.
@@ -313,7 +311,7 @@ plugins:
     #[test]
     #[ignore]
     fn the_published_store_works() {
-        let plugins = parse(&get(URL).unwrap()).unwrap();
+        let plugins = parse(&get(&config::STORE_URL.get()).unwrap()).unwrap();
         assert!(!plugins.is_empty());
         for plugin in plugins.iter().filter(|p| p.download_url().is_ok()) {
             let source = get(&plugin.download_url().unwrap()).unwrap();

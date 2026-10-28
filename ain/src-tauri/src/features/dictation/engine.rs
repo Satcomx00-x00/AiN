@@ -13,7 +13,7 @@ use std::{
 use serde_json::Value;
 use tauri::AppHandle;
 
-use super::{Command, FEATURE, KEEP_WARM, MAX_SECONDS, Phase, Shared, chunk, deliver, lock, model};
+use super::{Command, FEATURE, KEEP_WARM, MAX_SECONDS, Phase, Shared, SpeechModels, chunk, deliver, lock, model, pastes};
 use crate::{
     features::microphone,
     shell::{
@@ -88,20 +88,22 @@ fn decode(recognizer: &sherpa_onnx::OfflineRecognizer, samples: &[f32]) -> Strin
 }
 
 /// What turns speech into text: the model on this machine, or a provider's.
-enum Recognizer {
+pub enum Recognizer {
     Local(Arc<sherpa_onnx::OfflineRecognizer>),
     Remote(Remote),
 }
 
 impl Recognizer {
-    fn open(shared: &Shared, engine: Engine) -> Result<Self, String> {
+    /// Loads `engine`: the chosen speech model of `models` (loaded once and shared), or a provider's.
+    pub fn open(models: &SpeechModels, engine: Engine) -> Result<Self, String> {
         match engine {
-            Engine::Local => shared.models.engine().map(Self::Local),
+            Engine::Local => models.engine().map(Self::Local),
             Engine::Remote(remote) => Ok(Self::Remote(remote)),
         }
     }
 
-    fn transcribe(&self, samples: &[f32]) -> Result<String, String> {
+    /// What is said in `samples`, mono at 16 kHz.
+    pub fn transcribe(&self, samples: &[f32]) -> Result<String, String> {
         match self {
             Self::Local(recognizer) => Ok(decode(recognizer, samples)),
             Self::Remote(remote) => remote.transcribe(samples, chunk::RATE),
@@ -113,7 +115,7 @@ impl Recognizer {
 fn decoder(app: AppHandle, shared: Arc<Shared>, id: u64, engine: Engine, chunks: Receiver<Vec<f32>>, finished: Receiver<()>) {
     let current = || shared.session.load(Ordering::SeqCst) == id;
     let local = engine == Engine::Local;
-    let recognizer = match Recognizer::open(&shared, engine) {
+    let recognizer = match Recognizer::open(&shared.models, engine) {
         Ok(r) => r,
         Err(message) => {
             return if current() {
@@ -147,8 +149,9 @@ fn decoder(app: AppHandle, shared: Arc<Shared>, id: u64, engine: Engine, chunks:
     }
     let text = chunk::join(&parts);
     let delivery = (!text.is_empty()).then(|| {
-        let trailing = settings::option(&settings::current(&app), FEATURE, "trailingSpace").and_then(Value::as_bool).unwrap_or(true);
-        deliver(&app, &if trailing { format!("{text} ") } else { text.clone() })
+        let settings = settings::current(&app);
+        let trailing = settings::option(&settings, FEATURE, "trailingSpace").and_then(Value::as_bool).unwrap_or(true);
+        deliver(&app, &if trailing { format!("{text} ") } else { text.clone() }, pastes(&settings))
     });
     shared.publish(&app, Phase::Done { text, delivery });
 }

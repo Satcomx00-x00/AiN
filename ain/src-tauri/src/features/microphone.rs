@@ -1,5 +1,5 @@
 //! Microphones: listing them, and capturing one into a buffer of mono samples, for the features
-//! that listen (dictation, conversation).
+//! that listen (dictation, conversation); `record` also captures what speakers play (transcript).
 
 use std::sync::{Arc, Mutex};
 
@@ -33,7 +33,7 @@ where
         .build_input_stream::<T, _, _>(
             config,
             move |data: &[T], _: &cpal::InputCallbackInfo| lock(&captured).extend(audio::mono(data, channels, f32::from_sample_)),
-            |e| eprintln!("island: microphone: {e}"),
+            |e| eprintln!("island: audio input: {e}"),
             None,
         )
         .map_err(|e| e.to_string())
@@ -41,13 +41,13 @@ where
 
 /// The microphones the system offers, by stable id and name.
 pub fn list() -> Vec<Microphone> {
-    let Ok(devices) = cpal::default_host().input_devices() else { return Vec::new() };
+    let Ok(devices) = super::audio::host().input_devices() else { return Vec::new() };
     devices.filter_map(|d| Some(Microphone { id: d.id().ok()?.to_string(), name: d.to_string() })).collect()
 }
 
 /// The chosen microphone when it is connected, else the system's default one.
 fn input_device(chosen: Option<&str>) -> Option<cpal::Device> {
-    let host = cpal::default_host();
+    let host = super::audio::host();
     let wanted = chosen.and_then(|id| id.parse::<cpal::DeviceId>().ok()).and_then(|id| host.device_by_id(&id));
     if chosen.is_some() && wanted.is_none() {
         eprintln!("island: the chosen microphone isn't connected; using the default one");
@@ -60,16 +60,22 @@ fn input_device(chosen: Option<&str>) -> Option<cpal::Device> {
 pub fn open(chosen: Option<&str>, captured: Captured) -> Result<(cpal::Stream, u32), String> {
     let device = input_device(chosen).ok_or("No microphone found")?;
     let supported = device.default_input_config().map_err(|e| e.to_string())?;
+    record(&device, &supported, captured)
+}
+
+/// Records `device` in its `supported` format into `captured`, as mono samples; an output device
+/// is recorded in loopback (what it plays) where the host allows it. Also returns the rate.
+pub fn record(device: &cpal::Device, supported: &cpal::SupportedStreamConfig, captured: Captured) -> Result<(cpal::Stream, u32), String> {
     let (format, config) = (supported.sample_format(), supported.config());
     let rate = config.sample_rate;
     let stream = match format {
-        SampleFormat::F32 => open_stream::<f32>(&device, config, captured),
-        SampleFormat::I16 => open_stream::<i16>(&device, config, captured),
-        SampleFormat::I32 => open_stream::<i32>(&device, config, captured),
-        SampleFormat::U16 => open_stream::<u16>(&device, config, captured),
-        SampleFormat::U8 => open_stream::<u8>(&device, config, captured),
-        SampleFormat::I8 => open_stream::<i8>(&device, config, captured),
-        other => Err(format!("Unsupported microphone format {other}")),
+        SampleFormat::F32 => open_stream::<f32>(device, config, captured),
+        SampleFormat::I16 => open_stream::<i16>(device, config, captured),
+        SampleFormat::I32 => open_stream::<i32>(device, config, captured),
+        SampleFormat::U16 => open_stream::<u16>(device, config, captured),
+        SampleFormat::U8 => open_stream::<u8>(device, config, captured),
+        SampleFormat::I8 => open_stream::<i8>(device, config, captured),
+        other => Err(format!("Unsupported audio format {other}")),
     }?;
     stream.play().map_err(|e| e.to_string())?;
     Ok((stream, rate))

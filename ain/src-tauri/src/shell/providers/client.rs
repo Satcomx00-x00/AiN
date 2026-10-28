@@ -13,7 +13,7 @@ const MAX_BYTES: u64 = 64 * 1024 * 1024;
 const TIMEOUT: Duration = Duration::from_secs(120);
 
 fn agent() -> ureq::Agent {
-    ureq::Agent::config_builder().http_status_as_error(false).timeout_global(Some(TIMEOUT)).build().into()
+    crate::shell::net::config().http_status_as_error(false).timeout_global(Some(TIMEOUT)).build().into()
 }
 
 /// `base` and `path` joined by one slash.

@@ -1,5 +1,9 @@
 //! Model downloads shared by the features that run models on this machine (dictation, read aloud,
 //! spelling): streamed over HTTPS, hashed on the fly, stoppable, reporting progress along the way.
+//!
+//! Without internet, they come from the models source instead (`shell::net::models_source`): a
+//! folder (or `file://` URL) or an HTTP server laid out like the models folder, e.g. the models
+//! folder of a connected machine, copied. Each file is checked against its known hash all the same.
 
 use std::{
     fs::{self, File},
@@ -12,6 +16,8 @@ use std::{
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use specta::Type;
+
+use crate::shell::net;
 
 /// How often download progress is reported.
 const PROGRESS_EVERY: Duration = Duration::from_millis(200);
@@ -31,8 +37,10 @@ pub enum DownloadError {
     Cancelled,
     #[error("{0} is damaged (checksum mismatch), try again")]
     Corrupt(&'static str),
-    #[error("network: {0}")]
+    #[error("network: {0}. Without internet, set a models source in Settings › General › Network")]
     Network(String),
+    #[error("not in the models source: {0}")]
+    NotInSource(String),
     #[error(transparent)]
     Io(#[from] io::Error),
 }
@@ -44,10 +52,45 @@ pub struct Fetched {
     pub sha256: String,
 }
 
+/// `relative` in the models source when one is set, else `official`.
+pub fn source(official: String, relative: &str) -> String {
+    net::models_source().map_or(official, |base| format!("{}/{relative}", base.trim_end_matches(['/', '\\'])))
+}
+
+/// The file a local source names: `file://…`, or a path (anything but http and https).
+fn local(url: &str) -> Option<PathBuf> {
+    if let Some(path) = url.strip_prefix("file://") {
+        return Some(PathBuf::from(path));
+    }
+    (!url.starts_with("http://") && !url.starts_with("https://")).then(|| PathBuf::from(url))
+}
+
+/// `folder` in a local models source, when there is one and it has it.
+pub fn local_folder(folder: &str) -> Option<PathBuf> {
+    local(&source(String::new(), folder)).filter(|p| p.is_dir())
+}
+
+/// Copies the folder `from` into `to`, recursively.
+pub fn copy_dir(from: &Path, to: &Path) -> io::Result<()> {
+    fs::create_dir_all(to)?;
+    for entry in fs::read_dir(from)? {
+        let entry = entry?;
+        let target = to.join(entry.file_name());
+        if entry.file_type()?.is_dir() {
+            copy_dir(&entry.path(), &target)?;
+        } else {
+            fs::copy(entry.path(), target)?;
+        }
+    }
+    Ok(())
+}
+
 /// Streams `url` into `out`, hashing it, calling `progress(received)` at most every `PROGRESS_EVERY`.
 pub fn fetch(url: &str, out: &mut impl Write, cancel: &AtomicBool, mut progress: impl FnMut(u64)) -> Result<Fetched, DownloadError> {
-    let response = ureq::get(url).call().map_err(|e| DownloadError::Network(e.to_string()))?;
-    let mut body = response.into_body().into_reader();
+    let mut body: Box<dyn Read> = match local(url) {
+        Some(path) => Box::new(fs::File::open(&path).map_err(|e| DownloadError::NotInSource(format!("{} ({e})", path.display())))?),
+        None => Box::new(net::agent().get(url).call().map_err(|e| DownloadError::Network(e.to_string()))?.into_body().into_reader()),
+    };
     let mut hash = Sha256::new();
     let mut buf = vec![0; 1 << 16];
     let mut received = 0;
@@ -176,6 +219,30 @@ mod tests {
         fs::create_dir_all(dir.join("inner")).unwrap();
         remove(&dir).unwrap();
         assert!(!dir.exists());
+        remove(&dir).unwrap();
+    }
+
+    #[test]
+    fn reads_local_sources() {
+        assert_eq!(local("file:///srv/models/a.onnx"), Some(PathBuf::from("/srv/models/a.onnx")));
+        assert_eq!(local("/srv/models/a.onnx"), Some(PathBuf::from("/srv/models/a.onnx")));
+        assert_eq!(local("https://example.com/a.onnx"), None);
+        assert_eq!(local("http://mirror.lan/a.onnx"), None);
+    }
+
+    #[test]
+    fn fetches_and_copies_from_a_folder() {
+        let dir = std::env::temp_dir().join(format!("island-source-test-{}", std::process::id()));
+        fs::create_dir_all(dir.join("model/inner")).unwrap();
+        fs::write(dir.join("model/inner/abc.txt"), b"abc").unwrap();
+        let mut out = Vec::new();
+        let fetched = fetch(dir.join("model/inner/abc.txt").to_str().unwrap(), &mut out, &AtomicBool::new(false), |_| {}).unwrap();
+        assert_eq!((out.as_slice(), fetched.size), (b"abc".as_slice(), 3));
+        assert_eq!(fetched.sha256, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+        let missing = fetch(dir.join("gone").to_str().unwrap(), &mut out, &AtomicBool::new(false), |_| {}).unwrap_err();
+        assert!(matches!(missing, DownloadError::NotInSource(_)));
+        copy_dir(&dir.join("model"), &dir.join("copy")).unwrap();
+        assert_eq!(fs::read(dir.join("copy/inner/abc.txt")).unwrap(), b"abc");
         remove(&dir).unwrap();
     }
 

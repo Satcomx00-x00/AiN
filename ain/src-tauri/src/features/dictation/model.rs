@@ -1,5 +1,6 @@
 //! The speech models the user can pick from, all run by sherpa-onnx. Each is downloaded on request
-//! from Hugging Face at a pinned revision, checked against known hashes, into its own folder.
+//! from Hugging Face at a pinned revision (or from the models source, as `<folder>/<file>`), checked
+//! against known hashes, into its own folder.
 
 use std::{path::Path, sync::atomic::AtomicBool};
 
@@ -143,7 +144,7 @@ impl Model {
     }
 
     pub fn url(&self, file: &str) -> String {
-        format!("https://huggingface.co/{}/resolve/{}/{file}?download=true", self.repo, self.revision)
+        format!("{}/{}/resolve/{}/{file}?download=true", crate::config::base(crate::config::HF_URL), self.repo, self.revision)
     }
 
     /// Ready once every file is there at its full size (hashes were checked when it was downloaded).
@@ -179,7 +180,8 @@ impl Downloadable for Model {
     }
 
     fn download(&self, base: &Path, cancel: &AtomicBool, progress: &mut dyn FnMut(u64, u64)) -> Result<(), DownloadError> {
-        download::fetch_pinned(&base.join(self.folder), self.files, |f| self.url(f.name), cancel, progress)
+        let url = |f: &ModelFile| download::source(self.url(f.name), &format!("{}/{}", self.folder, f.name));
+        download::fetch_pinned(&base.join(self.folder), self.files, url, cancel, progress)
     }
 }
 

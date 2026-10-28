@@ -36,7 +36,7 @@ All x64 (64-bit).
 | --- | --- | --- | --- | --- |
 | **Windows 11** | `windows-2025` | Rust (MSVC), with coverage | Chromium, WebKit | NSIS installer, silent, per user; the installed `AiN.exe` launched, its window found; uninstalled |
 | **Linux (Ubuntu 24.04)** | `ubuntu-24.04` | TypeScript (with the coverage gate), Rust, with coverage | Chromium, WebKit | AppImage on Xvfb: the island's window must reach its laid-out size |
-| **Fedora 44** | `fedora:44` container | TypeScript, Rust, against Fedora's own GTK, WebKitGTK and PipeWire | — | `.rpm` built, installed with `dnf`, the installed binary launched on Xvfb |
+| **Fedora 43, 44** | `fedora:43`, `fedora:44` containers | TypeScript, Rust, against Fedora's own GTK, WebKitGTK and PipeWire | — | `.rpm` built, installed with `dnf`, the installed binary launched on Xvfb |
 | **macOS** (Intel) | `macos-15-intel` | Rust, with coverage | Chromium, WebKit | `AiN.app` launched, its window found through the window server |
 
 GitHub offers no hosted Windows 11 x64 runner. Windows Server 2025 is built from the same release

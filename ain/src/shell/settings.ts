@@ -29,6 +29,10 @@ export interface General {
   readonly greeting: string;
   /** How long the cursor must rest at the top center to show a hidden pill (the Hidden style). */
   readonly revealDelay: number;
+  /** Trust any server certificate (self-signed, unknown CA): for closed networks only. */
+  readonly acceptAnyCertificate: boolean;
+  /** A folder or URL laid out like the models folder, to get models from without internet; "" for the internet. */
+  readonly modelsSource: string;
 }
 
 export interface Settings {
@@ -76,7 +80,7 @@ export function adopt(layout: Layout, fallback: Layout, seen: readonly string[])
   };
 }
 
-export const DEFAULT_GENERAL: General = { openDelay: 140, closeDelay: 260, pillWidth: 200, pillSize: "normal", style: "pill", pillCurve: 100, theme: "island", pillColor: "#000000", accentColor: "#0a84ff", greeting: "hello", revealDelay: 500 };
+export const DEFAULT_GENERAL: General = { openDelay: 140, closeDelay: 260, pillWidth: 200, pillSize: "normal", style: "pill", pillCurve: 100, theme: "island", pillColor: "#000000", accentColor: "#0a84ff", greeting: "hello", revealDelay: 500, acceptAnyCertificate: false, modelsSource: "" };
 export const PILL_SIZE_IDS = ["low", "normal", "large"] as const satisfies readonly PillSize[];
 /** The style that keeps the pill hidden until the cursor rests on its spot. */
 export const HIDDEN_STYLE = "hidden";
@@ -125,6 +129,8 @@ export function parseSettings(raw: unknown, fallback: Settings): Settings {
         accentColor: color(fallback.general.accentColor),
         greeting: z.string().regex(ID).catch(fallback.general.greeting),
         revealDelay: within(REVEAL_RANGE)(fallback.general.revealDelay),
+        acceptAnyCertificate: z.boolean().catch(fallback.general.acceptAnyCertificate),
+        modelsSource: z.string().trim().catch(fallback.general.modelsSource),
       })
       .catch(fallback.general),
     options: z.record(z.string(), z.record(z.string(), z.unknown())).catch(fallback.options),

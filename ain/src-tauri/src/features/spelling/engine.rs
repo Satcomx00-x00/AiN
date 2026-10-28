@@ -126,7 +126,7 @@ pub fn fix(app: &AppHandle, shared: &Shared, selection: Selection) -> Phase {
     let text = format!("{before}{}{after}", correction.text);
     let delivery = match (changed, preferences.replace) {
         (false, _) => None,
-        (true, true) => Some(delivery::deliver(app, &text)),
+        (true, true) => Some(delivery::deliver(app, &text, delivery::pastes(&settings, FEATURE))),
         (true, false) if delivery::copy(app, &text) => Some(Delivery::Copied),
         (true, false) => return Phase::Error { message: "The correction couldn't be copied".into() },
     };

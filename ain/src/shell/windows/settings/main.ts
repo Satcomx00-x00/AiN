@@ -32,12 +32,13 @@ import { NO_GREETING } from "../../greet";
 import { type SelectOption, select } from "../../../sdk/select";
 import { tauriServices } from "../../../features/services";
 import { THEMES, themeById } from "../../themes";
-import { type SecretAccess, aroundPanel, colorPicker, field, optionControl, rangeControl, segmented, standardFields, switchControl, themeGrid } from "./controls";
+import { type SecretAccess, aroundPanel, colorPicker, field, folderControl, optionControl, rangeControl, segmented, standardFields, switchControl, themeGrid } from "./controls";
 import type { Field, Fields } from "../../../sdk/options";
 import { memorySecrets } from "../../secrets";
 import { settingsPorts } from "./ports";
 import { slotList } from "./slots";
 import { PROVIDERS_ICON, PROVIDERS_LEAD, providersSection } from "./providers";
+import { PRESETS, type Preset, builtInPresets } from "../../providers";
 import { type Report, type Tone, demoUpdater, describe, noteLines } from "../../updater";
 import { messageOf, onProblem, reportProblem } from "../../../sdk/report";
 import { toaster } from "./toasts";
@@ -48,9 +49,11 @@ const SAVE_DELAY = 250;
 let plugins: readonly AnyPlugin[] = catalogue;
 const fallback = defaults(defaultLayout);
 // The app's backend, or in-memory stand-ins outside Tauri (the browser preview, integration tests).
-const { store, popup, folder, importer, community = noCommunity, updater = demoUpdater(), secrets = memorySecrets(), services = tauriServices, inApp: inTauri } = settingsPorts();
+const { store, popup, folder, importer, community = noCommunity, updater = demoUpdater(), secrets = memorySecrets(), presets: loadPresets = builtInPresets, services = tauriServices, inApp: inTauri } = settingsPorts();
 /** The updater's last report, kept current by its events; null until the first one arrives. */
 let update: Report | null = null;
+/** The AI provider presets, at their addresses once the backend has said (environment overrides). */
+let presets: readonly Preset[] = PRESETS;
 // Only built-in features offer shortcuts.
 const entries = commandsOf(catalogue);
 /** Shortcuts the island couldn't register, and why. */
@@ -278,6 +281,7 @@ function general(): Page {
           button("Appearance", () => goTo("appearance"), { class: "secondary" }),
         ),
       ),
+      group("Network", ...networkRows()),
       group(
         "App",
         field(
@@ -288,6 +292,27 @@ function general(): Page {
       ),
     ],
   };
+}
+
+/** Closed networks: servers with a self-signed or internal certificate, and models without internet. */
+function networkRows(): HTMLElement[] {
+  const anyCertificate = switchControl(settings.general.acceptAnyCertificate, (on) => {
+    setGeneral({ acceptAnyCertificate: on });
+    if (on) toasts.note("Certificates are no longer checked: use this on a network you trust only");
+  }, "Accept any certificate");
+  return [
+    field(
+      "Accept any certificate",
+      "Connects to servers whose certificate isn't trusted (self-signed, internal CA): AI providers, the store, downloads and updates. Anyone on the network could then read and change the traffic. A company CA installed on the system is trusted without this.",
+      anyCertificate,
+    ),
+    field(
+      "Models source",
+      "Without internet, models come from here: a folder (USB drive, network share) or an http(s) address laid out like a models folder. Copy the models folder of a connected computer to make one.",
+      folderControl(settings.general.modelsSource, "The internet", pickFolder, (v) => setGeneral({ modelsSource: v }), "Models source"),
+      true,
+    ),
+  ];
 }
 
 const PILL_SIZES: readonly { value: PillSize; label: string }[] = [
@@ -984,6 +1009,7 @@ const providers = (): Page => ({
     providers: () => settings.providers,
     save: (next, redraw) => commit({ ...settings, providers: next }, redraw),
     port: services.providers,
+    presets,
     pickFile: (current) => pickFolder(current, false),
   }),
 });
@@ -999,6 +1025,8 @@ const SEARCHABLE: Partial<Record<Section, readonly (readonly [label: string, hin
     ["Open delay", "How long the pointer rests on the pill before the island opens", "hover speed"],
     ["Close delay", "How long the island stays open once the pointer leaves it", "hover speed"],
     ["Hide the pill", "Show the pill only at the top center of the screen", "hidden auto-hide games"],
+    ["Accept any certificate", "Trust self-signed or internal servers", "tls ssl https certificate proxy insecure"],
+    ["Models source", "Get models from a folder or a server without internet", "offline mirror air-gapped usb download"],
     ["Quit AiN", "Closes the island and this window", "exit close stop"],
   ],
   appearance: [
@@ -1341,6 +1369,10 @@ const showUpdate = (report: Report) => {
 };
 void updater.watch(showUpdate);
 void updater.status().then(showUpdate, () => {});
+void loadPresets().then((next) => {
+  presets = next;
+  if (section === "providers") render();
+});
 void rescan().then(() => {
   scanned = true;
   render();

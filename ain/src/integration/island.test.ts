@@ -94,6 +94,7 @@ describe("opening and closing", () => {
       "tab-stats",
       "tab-privacy",
       "tab-dictation",
+      "tab-transcript",
       "tab-tts",
       "tab-spelling",
       "tab-persona",

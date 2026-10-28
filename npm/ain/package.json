@@ -1,0 +1,22 @@
+{
+  "name": "@satcomx00/ain",
+  "version": "0.0.0",
+  "description": "A dynamic-island style widget bar for the desktop",
+  "license": "MIT",
+  "homepage": "https://github.com/Satcomx00-x00/AiN",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Satcomx00-x00/AiN.git",
+    "directory": "npm/ain"
+  },
+  "keywords": ["desktop", "widget", "dynamic-island", "tauri"],
+  "type": "module",
+  "bin": {
+    "ain": "bin/ain.js"
+  },
+  "files": ["bin"],
+  "engines": {
+    "node": ">=18"
+  },
+  "optionalDependencies": {}
+}

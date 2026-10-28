@@ -174,12 +174,15 @@ jobs:
             target: x86_64-unknown-linux-gnu
             # The AppImage runs on any distro, immutable ones (Fedora Silverblue) included.
             bundles: deb,rpm,appimage
+            npm: linux-x64
           - name: Windows x64
             os: windows-latest
             target: x86_64-pc-windows-msvc
+            npm: win32-x64
           - name: macOS x64
             os: macos-15-intel
             target: x86_64-apple-darwin
+            npm: darwin-x64
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -237,6 +240,67 @@ jobs:
           # latest.json's plain `windows-x86_64` entry: the per-user NSIS installer (no admin
           # prompt), not the MSI. (The updater looks for `windows-x86_64-<nsis|msi>` first.)
           updaterJsonPreferNsis: true
+      # The app itself for its npm package (see npm/build.ts), in a tarball: artifacts drop the
+      # executable bit.
+      - name: Stage the npm binary
+        if: vars.NPM_PUBLISH == 'true'
+        shell: bash
+        working-directory: ain/src-tauri/target/${{ matrix.target }}/release
+        env:
+          PLATFORM: ${{ matrix.npm }}
+        run: |
+          rm -rf npm && mkdir npm
+          case "$PLATFORM" in
+            win32-*) cp ain.exe npm/ ;;
+            darwin-*) cp -R bundle/macos/*.app npm/ ;;
+            linux-*) cp bundle/appimage/*.AppImage npm/AiN.AppImage ;;
+          esac
+          tar -czf "npm-$PLATFORM.tgz" -C npm .
+      - if: vars.NPM_PUBLISH == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: npm-${{ matrix.npm }}
+          path: ain/src-tauri/target/${{ matrix.target }}/release/npm-${{ matrix.npm }}.tgz
+          if-no-files-found: error
+          retention-days: 7
+
+  # `@satcomx00/ain-fedora<release>`: the app built on each Fedora against its own libraries, for npm
+  # only (see npm/README.md). npm can't tell distros apart, so users pick these packages by name.
+  fedora:
+    name: Build (Fedora ${{ matrix.release }} x64, npm)
+    needs: [plan, prepare]
+    if: ${{ !cancelled() && needs.prepare.result == 'success' && vars.NPM_PUBLISH == 'true' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        release: [43, 44]
+    runs-on: ubuntu-24.04
+    container: fedora:${{ matrix.release }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.plan.outputs.tag }}
+          persist-credentials: false
+      - name: Install Fedora system dependencies
+        run: ./.github/scripts/fedora-deps.sh
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
+      # The bare executable (the frontend is built into it), tarred as for the other platforms.
+      - name: Build the app
+        working-directory: ain
+        run: |
+          bun install --frozen-lockfile
+          bun run tauri build --ci --no-bundle
+          mkdir -p npm && cp src-tauri/target/release/ain npm/
+          tar -czf npm-fedora.tgz -C npm .
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: npm-fedora${{ matrix.release }}
+          path: ain/npm-fedora.tgz
+          if-no-files-found: error
+          retention-days: 7
 
   publish:
     name: Publish release
@@ -287,3 +351,63 @@ jobs:
           assets="$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets | length')"
           [[ "$assets" -gt 0 ]] || { echo "::error::$TAG has no assets: left as a draft"; exit 1; }
           gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --latest
+
+  # `bun i -g @satcomx00/ain`: one package per platform, and the main one, whose optional
+  # dependencies make npm/bun fetch only the one for the machine (see npm/README.md). Off until the
+  # `NPM_PUBLISH` variable is `true`. Publishes with npm's trusted publishing (OIDC, with
+  # provenance), or with the `NPM_TOKEN` secret when set (needed for each package's first version).
+  npm:
+    name: Publish to npm
+    needs: [plan, fedora, publish]
+    if: >-
+      !cancelled() && needs.publish.result == 'success' && needs.fedora.result == 'success' &&
+      vars.NPM_PUBLISH == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # trusted publishing and provenance
+    defaults:
+      run:
+        working-directory: npm
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.plan.outputs.tag }}
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: npm-*
+          path: ${{ runner.temp }}/downloads
+      # Trusted publishing needs npm 11.5.1 or later. Pinned, as the action and tool versions above.
+      - run: npm install --global npm@11.21.1 # zizmor: ignore[adhoc-packages]
+      - name: Build the packages
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
+        run: |
+          binaries="$RUNNER_TEMP/binaries"
+          # Each artifact in its own folder, named after it: npm-<platform>/<tarball>.
+          for dir in "$RUNNER_TEMP"/downloads/npm-*/; do
+            platform="$(basename "$dir")"
+            mkdir -p "$binaries/${platform#npm-}"
+            tar -xzf "$dir"/*.tgz -C "$binaries/${platform#npm-}"
+          done
+          bun build.ts "$VERSION" "$binaries" "$RUNNER_TEMP/packages" > "$RUNNER_TEMP/packages.txt"
+      - name: Publish
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          [[ -z "$NODE_AUTH_TOKEN" ]] || echo "//registry.npmjs.org/:_authToken=\${NODE_AUTH_TOKEN}" > "$HOME/.npmrc"
+          # Platforms first, the main package last: it never points at a version that isn't out.
+          while read -r dir; do
+            name="$(jq -r .name "$dir/package.json")"
+            # A rerun skips what the previous attempt published.
+            if npm view "$name@$VERSION" version >/dev/null 2>&1; then
+              echo "$name@$VERSION is already out"
+              continue
+            fi
+            npm publish "$dir" --access public --provenance
+          done < "$RUNNER_TEMP/packages.txt"
