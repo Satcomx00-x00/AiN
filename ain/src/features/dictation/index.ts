@@ -95,6 +95,16 @@ export const dictation = definePlugin({
     modelDir: folder("Model folder", "Default folder"),
     keepLoaded: keepLoaded(),
     trailingSpace: toggle("Space after the text", true),
+    typing: choice(
+      "Put the text in by",
+      "auto",
+      [
+        ["auto", "Automatic"],
+        ["paste", "Pasting"],
+        ["keys", "Typing keys"],
+      ],
+      "Pasting works with any keyboard layout (AZERTY…) but replaces the clipboard. Automatic pastes on Linux, where typed keys can come out wrong, and types elsewhere.",
+    ),
   },
   commands: [
     {

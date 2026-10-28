@@ -1,6 +1,6 @@
 [package]
 name = "ain"
-version = "0.12.0"
+version = "0.14.0"
 edition = "2024"
 
 [lib]
@@ -28,7 +28,10 @@ serde_yaml_ng = "0.10"
 keyring = { version = "3.6", features = ["apple-native", "windows-native", "sync-secret-service", "crypto-rust"] }
 xcap = "0.9.8"
 cpal = "0.18.2"
-ureq = "3.4.2"
+ureq = { version = "3.4.2", features = ["platform-verifier"] }
+# TLS for the WebSocket (PersonaPlex): the system's trust store, or any certificate when the user says so.
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+rustls-platform-verifier = "0.7"
 base64 = "0.23"
 # Speech recognition for dictation and speech synthesis for read aloud, from prebuilt static
 # libraries (Windows, Linux and macOS x64).
@@ -60,6 +63,8 @@ gtk-layer-shell = { version = "0.8", features = ["v0_6"] }
 cpal = { version = "0.18.2", features = ["pipewire"] }
 # So helper processes (pactl) end with the app, however it ends.
 libc = "0.2"
+# Dictation's Ctrl+V on Wayland through the desktop's Remote Desktop portal: nothing to install.
+ashpd = { version = "0.13", default-features = false, features = ["tokio", "remote_desktop", "screencast"] }
 # Now playing, from MPRIS players over D-Bus.
 mpris = "2.1"
 

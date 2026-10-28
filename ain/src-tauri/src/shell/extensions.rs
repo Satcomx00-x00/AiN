@@ -38,7 +38,7 @@ struct Folder(PathBuf);
 
 /// The folder plugins are read from.
 pub fn dir(app: &AppHandle) -> tauri::Result<PathBuf> {
-    Ok(app.path().app_config_dir()?.join(FOLDER))
+    Ok(crate::config::config_dir(app)?.join(FOLDER))
 }
 
 /// Plugin entry points in `dir`, sorted by name: `*.js` files and `*/index.js`.

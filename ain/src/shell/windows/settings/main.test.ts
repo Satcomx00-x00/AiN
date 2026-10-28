@@ -146,6 +146,32 @@ describe("Settings → General", () => {
     expect(page.toasts()).toEqual(["[QUIT] Couldn't quit AiN: busy"]);
   });
 
+  it("accepts any certificate only once asked, and warns", async () => {
+    environment();
+    const sys = system();
+    const page = await load(sys);
+    const any = page.field("Accept any certificate").querySelector<HTMLButtonElement>("[role=switch]")!;
+    expect(any.getAttribute("aria-checked")).toBe("false");
+    any.click();
+    await page.saved();
+    expect((await sys.settings()).general.acceptAnyCertificate).toBe(true);
+    expect(document.querySelector(".toasts")?.textContent).toContain("no longer checked");
+    any.click();
+    await page.saved();
+    expect((await sys.settings()).general.acceptAnyCertificate).toBe(false);
+  });
+
+  it("saves where models come from without internet", async () => {
+    environment();
+    const sys = system();
+    const page = await load(sys);
+    const input = page.field("Models source").querySelector<HTMLInputElement>("input")!;
+    input.value = " /mnt/usb/models ";
+    input.dispatchEvent(new Event("change"));
+    await page.saved();
+    expect((await sys.settings()).general.modelsSource).toBe("/mnt/usb/models");
+  });
+
   it("saves how long the island waits to open and to close", async () => {
     environment();
     const sys = system();
@@ -872,6 +898,18 @@ describe("Settings → AI providers", () => {
     await page.saved();
     expect((await sys.settings()).providers.map((p) => p.id)).toEqual(["openai", "groq"]);
     expect(page.card("Groq")).toBeDefined();
+  });
+
+  it("starts new providers at the presets' addresses the environment overrides", async () => {
+    environment();
+    const sys = system();
+    const { PRESETS } = await import("../../providers");
+    const presets = async () => PRESETS.map((p) => (p.id === "openai" ? { ...p, baseUrl: "https://gw.example/v1" } : p));
+    const page = await load(sys, "providers", { presets });
+    await advance(0);
+    press(page.page, "Add");
+    await page.saved();
+    expect((await sys.settings()).providers[0]?.baseUrl).toBe("https://gw.example/v1");
   });
 
   it("edits a custom server: its name, its address, and a token file", async () => {

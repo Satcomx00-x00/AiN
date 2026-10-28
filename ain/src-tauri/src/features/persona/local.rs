@@ -22,7 +22,7 @@ use serde::Serialize;
 use specta::Type;
 
 use super::super::{download, live::Live, lock};
-use crate::platform;
+use crate::{config, platform};
 
 /// NVIDIA's package, bundled with the app as a wheel (made by `scripts/personaplex-wheel.py`), so
 /// installing it clones nothing; only its dependencies come from PyPI.
@@ -35,7 +35,18 @@ const PACKAGE: &str =
 /// installed before it from PyTorch's own index: PyPI's is built for the CPU alone on Windows. macOS
 /// has no CUDA, so PyPI's is all there is.
 const TORCH: &str = "torch==2.4.1";
-const TORCH_INDEX: Option<&str> = if cfg!(target_os = "macos") { None } else { Some("https://download.pytorch.org/whl/cu124") };
+/// Points huggingface_hub at [`config::HF_URL`] when overridden; else leaves the user's own `HF_ENDPOINT` be.
+fn hf_endpoint(command: &mut Command) {
+    if let Some(url) = config::HF_URL.set() {
+        command.env("HF_ENDPOINT", url.trim_end_matches('/'));
+    }
+}
+
+/// PyTorch's index: [`config::TORCH_INDEX_URL`]; PyPI's (none) on macOS unless overridden.
+fn torch_index() -> Option<String> {
+    let index = config::TORCH_INDEX_URL;
+    index.set().or_else(|| (!cfg!(target_os = "macos")).then(|| index.default.into()))
+}
 /// What `--cpu-offload` needs besides.
 const EXTRAS: &[&str] = &["accelerate"];
 /// The Python its pinned torch supports; uv fetches it when the computer has none.
@@ -188,7 +199,7 @@ fn find_uv() -> Option<PathBuf> {
 /// What an install records: the package, and the PyTorch build under it. An install made otherwise
 /// (an older package, or PyTorch for the CPU alone) is redone.
 fn build() -> String {
-    format!("{PACKAGE}\n{TORCH} from {}", TORCH_INDEX.unwrap_or("PyPI"))
+    format!("{PACKAGE}\n{TORCH} from {}", torch_index().as_deref().unwrap_or("PyPI"))
 }
 
 /// A Python that can make PersonaPlex's environment when uv is missing: how to start it, and its
@@ -377,10 +388,10 @@ fn install(place: &Place, wheel: &Path, cancel: &AtomicBool, report: &mut dyn Fn
             let mut venv = Command::new(&uv);
             venv.args(["venv", "--python", PYTHON]).arg(place.venv());
             run(venv, "uv", "Making its Python environment…", cancel, report)?;
-            if let Some(index) = TORCH_INDEX {
+            if let Some(index) = torch_index() {
                 report("Installing PyTorch for NVIDIA GPUs (about 2.5 GB)…");
                 let mut torch = Command::new(&uv);
-                torch.args(["pip", "install", "--python"]).arg(place.python()).args([TORCH, "--index-url", index]);
+                torch.args(["pip", "install", "--python"]).arg(place.python()).args([TORCH, "--index-url", &index]);
                 run(torch, "uv", "Installing PyTorch for NVIDIA GPUs (about 2.5 GB)…", cancel, report)?;
             }
             let mut pip = Command::new(&uv);
@@ -392,11 +403,11 @@ fn install(place: &Place, wheel: &Path, cancel: &AtomicBool, report: &mut dyn Fn
             let mut venv = python.command();
             venv.args(["-m", "venv"]).arg(place.venv());
             run(venv, "Python", "Making its Python environment…", cancel, report)?;
-            if let Some(index) = TORCH_INDEX {
+            if let Some(index) = torch_index() {
                 report("Installing PyTorch for NVIDIA GPUs (about 2.5 GB)…");
                 let mut torch = Command::new(place.python());
                 torch
-                    .args(["-m", "pip", "install", "--disable-pip-version-check", TORCH, "--index-url", index])
+                    .args(["-m", "pip", "install", "--disable-pip-version-check", TORCH, "--index-url", &index])
                     .env("PYTHONUNBUFFERED", "1");
                 run(torch, "pip", "Installing PyTorch for NVIDIA GPUs (about 2.5 GB)…", cancel, report)?;
             }
@@ -430,6 +441,7 @@ fn fetch_weights(place: &Place, token: Option<&str>, cancel: &AtomicBool, report
     fetch.args(["-c", FETCH, REPO]).args(FILES).env("HF_HOME", place.hf()).env("HF_TOKEN", token).env("PYTHONUNBUFFERED", "1");
     // Without links (Windows without developer mode), the cache only copies: nothing to warn about.
     fetch.env("HF_HUB_DISABLE_SYMLINKS_WARNING", "1");
+    hf_endpoint(&mut fetch);
     run(fetch, "the download", "Downloading the model…", cancel, report)?;
     if place.downloaded() { Ok(()) } else { Err("the download ended without every file.".into()) }
 }
@@ -498,6 +510,7 @@ impl Server {
             command.arg("--cpu-offload");
         }
         command.env("HF_HOME", place.hf()).env("PYTHONUNBUFFERED", "1");
+        hf_endpoint(&mut command);
         if let Some(token) = &launch.token {
             command.env("HF_TOKEN", token);
         }

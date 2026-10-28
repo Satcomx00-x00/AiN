@@ -4,7 +4,7 @@
  */
 import { button, h, icon } from "../../../sdk/dom";
 import { select } from "../../../sdk/select";
-import { type AiProvider, type Auth, PRESETS, type ProvidersPort, newProvider, presetById, providerProblem } from "../../providers";
+import { type AiProvider, type Auth, type Preset, type ProvidersPort, newProvider, presetById, providerProblem } from "../../providers";
 import { messageOf, reportProblem } from "../../../sdk/report";
 import { field, flag, segmented } from "./controls";
 
@@ -23,6 +23,8 @@ export interface ProvidersSection {
   /** Saves the list; `redraw` rebuilds the section (after adding or removing one). */
   save(next: readonly AiProvider[], redraw?: boolean): void;
   readonly port: Pick<ProvidersPort, "models">;
+  /** The presets, at their addresses after environment overrides. */
+  readonly presets: readonly Preset[];
   /** The system's file picker; null when cancelled. */
   pickFile(current: string): Promise<string | null>;
 }
@@ -52,7 +54,7 @@ function providerCard(at: number, s: ProvidersSection): HTMLElement {
   };
   const title = h("h2", {}, p.name);
   const name = textBox(p.name, "Name", presetById(p.preset).name, (v) => (v ? update({ name: v }) : (name.value = p.name)));
-  const url = textBox(p.baseUrl, "Address", presetById(p.preset).baseUrl, (v) => update({ baseUrl: v }));
+  const url = textBox(p.baseUrl, "Address", presetById(p.preset, s.presets).baseUrl, (v) => update({ baseUrl: v }));
   const urlField = field("Address", "The API's root, before /audio/… and /models", url, true);
 
   const env = textBox(p.auth.kind === "env" ? p.auth.name : "", "Environment variable", "OPENAI_API_KEY", (v) => update({ auth: { kind: "env", name: v } }));
@@ -110,14 +112,14 @@ function providerCard(at: number, s: ProvidersSection): HTMLElement {
 }
 
 export function providersSection(s: ProvidersSection): Node[] {
-  let preset: string = PRESETS[0].id;
+  let preset: string = s.presets[0]!.id;
   const picker = select(
-    PRESETS.map((p) => ({ value: p.id, label: p.name, detail: p.baseUrl })),
+    s.presets.map((p) => ({ value: p.id, label: p.name, detail: p.baseUrl })),
     preset,
     (id) => (preset = id),
     "Provider",
   );
-  const add = button("Add", () => s.save([...s.providers(), newProvider(presetById(preset), s.providers().map((p) => p.id))], true), { class: "primary" });
+  const add = button("Add", () => s.save([...s.providers(), newProvider(presetById(preset, s.presets), s.providers().map((p) => p.id))], true), { class: "primary" });
   return [
     h("section", { class: "card", id: "card-provider-add" }, field("Add a provider", "A known service, or any server speaking the OpenAI API", h("div", { class: "path" }, picker.el, add), true)),
     ...(s.providers().length ? [h("h2", { class: "subhead" }, "Your providers")] : []),

@@ -102,6 +102,7 @@ function install(backend: Backend): void {
       plugins: [{ id: "orbit-clock", name: "Orbit clock", description: "An analog clock.", repo: "https://github.com/o/r", file: "orbit-clock/index.js", problem: null }],
     }),
     "plugin:store|install": () => "orbit-clock/index.js",
+    "plugin:providers|preset_urls": () => ({ openai: "https://api.openai.com/v1", groq: "https://api.groq.com/openai/v1", mistral: "https://api.mistral.ai/v1", custom: "http://localhost:8000/v1" }),
     "plugin:store|open_repo": () => null,
     "plugin:popup|bind": () => ({}),
     "plugin:popup|failures": () => ({}),

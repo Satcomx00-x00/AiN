@@ -392,7 +392,7 @@ crate::ipc::persona!();
 pub fn init() -> TauriPlugin<Wry> {
     ipc()
         .builder(|app| {
-            let models = app.path().app_data_dir()?.join("models");
+            let models = crate::config::data_dir(app)?.join("models");
             let handle = app.clone();
             let wheel = bundled_wheel(app.path().resource_dir()?, std::env::current_exe().ok());
             let local =
