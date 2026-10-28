@@ -35,6 +35,7 @@ export const privacy = definePlugin({
   description: "Apps using the microphone or camera.",
   icon: SHIELD,
   slots: ["glance", "tab"],
+  sample: () => ({ text: "Teams", mark: "mic" }),
   options: {
     ignore: list("Ignored apps", [], "App name"),
   },

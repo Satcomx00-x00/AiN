@@ -18,7 +18,7 @@ import { start } from "../shell/windows/island/app";
 import { idlePopup } from "../shell/commands";
 import { noExtensions } from "../shell/extensions";
 import { memorySecrets } from "../shell/secrets";
-import { type General, PILL_SIZE_IDS, defaults, memorySettings, parseSettings } from "../shell/settings";
+import { type General, PILL_SIZE_IDS, type PillLook, defaults, memorySettings, parseSettings } from "../shell/settings";
 import { themeById } from "../shell/themes";
 import { layout } from "../features/layout";
 import type { Services } from "../features/services";
@@ -244,6 +244,11 @@ Object.assign(window, {
     update: async (patch: Partial<General>) => {
       const current = parseSettings(stored, defaults(layout));
       await store.save({ ...current, general: { ...current.general, ...patch } });
+    },
+    /** How the pill dresses its glances, as Settings → Pill would. */
+    dress: async (patch: Partial<PillLook>) => {
+      const current = parseSettings(stored, defaults(layout));
+      await store.save({ ...current, pill: { ...current.pill, ...patch } });
     },
   },
 });

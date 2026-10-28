@@ -33,9 +33,11 @@ export const media = definePlugin({
   icon: NOTE,
   slots: ["glance", "tab"],
   options: {
-    wide: toggle("Expand the pill while playing", true),
+    title: { ...toggle("Title on the pill", true), pill: true },
+    wide: { ...toggle("Expand the pill while playing", true), pill: true },
     tint: toggle("Tint with the album art", true),
   },
+  sample: (o) => ({ text: o.title ? "Midnight City" : "", mark: "eq" }),
   setup({ media: port }: { media: MediaPort }, host) {
     let track: Track | null = null;
     let artKey = "";
@@ -125,7 +127,7 @@ export const media = definePlugin({
       tick: ({ visible, now }) => (visible ? draw(now) : undefined),
       glance: () =>
         track?.playing
-          ? { text: clip(track.title, GLANCE_CHARS), mark: "eq", wide: host.options().wide, ...(artUrl ? { art: artUrl } : {}) }
+          ? { text: host.options().title ? clip(track.title, GLANCE_CHARS) : "", mark: "eq", wide: host.options().wide, ...(artUrl ? { art: artUrl } : {}) }
           : null,
       ambient: () => (host.options().tint ? ambient : null),
     };
