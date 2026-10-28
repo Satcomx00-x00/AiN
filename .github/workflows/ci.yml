@@ -108,8 +108,6 @@ jobs:
             os: ubuntu-24.04
           - name: Windows 11 x64
             os: windows-2025
-          - name: macOS x64
-            os: macos-15-intel
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -119,7 +117,7 @@ jobs:
         with:
           bun-version: ${{ env.BUN_VERSION }}
       - run: bun install --frozen-lockfile
-      # Chromium is the engine of Windows' WebView2; WebKit, of macOS' WKWebView and Linux's WebKitGTK.
+      # Chromium is the engine of Windows' WebView2; WebKit, of Linux's WebKitGTK.
       - run: bunx playwright install --with-deps chromium webkit
       # End to end: the island and its windows in both engines, on the dev server and the preview's fake backend.
       - run: bun run test:e2e
@@ -173,20 +171,17 @@ jobs:
       - name: Build, install and launch
         run: | # zizmor: ignore[adhoc-packages]
           bin="$RUNNER_TEMP/bin" out="$RUNNER_TEMP/out" ran="$RUNNER_TEMP/ran"
-          mkdir -p "$bin/linux-x64" "$bin/fedora43" "$bin/fedora44" "$bin/win32-x64" "$bin/darwin-x64/AiN.app/Contents/MacOS"
+          mkdir -p "$bin/linux-x64" "$bin/fedora43" "$bin/fedora44" "$bin/win32-x64"
           # Stand-ins that write their name and arguments where the checks below look.
           for app in linux-x64/AiN.AppImage fedora43/ain fedora44/ain; do
             printf '#!/bin/sh\necho %s "$@" > %s\n' "${app%%/*}" "$ran" > "$bin/$app"
             chmod +x "$bin/$app"
           done
-          touch "$bin/win32-x64/ain.exe" "$bin/darwin-x64/AiN.app/Contents/MacOS/AiN"
-          echo '<plist><dict><key>CFBundleExecutable</key><string>AiN</string></dict></plist>' \
-            > "$bin/darwin-x64/AiN.app/Contents/Info.plist"
+          touch "$bin/win32-x64/ain.exe"
           bun build.ts 1.2.3 "$bin" "$out"
           # The Fedora packages are only ever installed by name.
-          jq -e '.optionalDependencies | keys == ["@satcomx00/ain-darwin-x64", "@satcomx00/ain-linux-x64", "@satcomx00/ain-win32-x64"]' \
+          jq -e '.optionalDependencies | keys == ["@satcomx00/ain-linux-x64", "@satcomx00/ain-win32-x64"]' \
             "$out/ain/package.json"
-          jq -e '.executable == "AiN.app/Contents/MacOS/AiN"' "$out/ain-darwin-x64/package.json"
           (cd "$out" && npm pack ./ain-linux-x64 ./ain-fedora44 ./ain)
 
           ran_with() { # <expected output>: what the stand-in app last ran with
@@ -246,10 +241,6 @@ jobs:
           - name: Windows 11 x64
             os: windows-2025
             target: x86_64-pc-windows-msvc
-            min_lines: 48
-          - name: macOS x64
-            os: macos-15-intel
-            target: x86_64-apple-darwin
             min_lines: 48
     runs-on: ${{ matrix.os }}
     steps:
@@ -367,7 +358,7 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  # The packaged app on Windows and macOS, as users get it: installed (Windows) and launched.
+  # The packaged app on Windows, as users get it: installed and launched.
   # Linux's counterparts are the AppImage job below and Fedora's .rpm above.
   launch:
     name: Install and launch (${{ matrix.name }})
@@ -379,9 +370,6 @@ jobs:
           - name: Windows 11 x64
             os: windows-2025
             bundles: nsis
-          - name: macOS x64
-            os: macos-15-intel
-            bundles: app
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -416,11 +404,6 @@ jobs:
           if (-not $exe) { Write-Output "::error::nothing installed in $dir"; exit 1 }
           ../.github/scripts/launch-check.ps1 -App $exe.FullName -Out launch-check
           Start-Process (Join-Path $dir 'uninstall.exe') -ArgumentList '/S' -Wait
-      - name: Launch (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          app=(src-tauri/target/release/bundle/macos/*.app)
-          ../.github/scripts/launch-check-macos.sh "${app[0]}" launch-check
       - if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:

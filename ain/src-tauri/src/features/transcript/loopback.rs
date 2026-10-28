@@ -1,5 +1,4 @@
-//! Recording what the computer plays, through cpal: WASAPI loopback on Windows, a Core Audio process
-//! tap on macOS 14.6+, and on Linux a PipeWire stream capturing the default sink (its monitor), in
+//! Recording what the computer plays, through cpal: WASAPI loopback on Windows, and on Linux a PipeWire stream capturing the default sink (its monitor), in
 //! the app's own process: nothing else to install.
 
 use std::sync::{Arc, Mutex};

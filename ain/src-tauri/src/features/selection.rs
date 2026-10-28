@@ -24,20 +24,14 @@ fn grab() -> Option<String> {
     copied(keys::copy, keys::clipboard_count)
 }
 
-#[cfg(target_os = "macos")]
-fn grab() -> Option<String> {
-    use crate::platform::macos::keys;
-    copied(keys::copy, keys::clipboard_count)
-}
-
-#[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
+#[cfg(not(any(windows, target_os = "linux")))]
 fn grab() -> Option<String> {
     None
 }
 
 /// Presses the copy shortcut with `copy` and reads what it put on the clipboard once `count`
 /// changes; none when it doesn't (nothing selected, or keys can't be sent).
-#[cfg(any(windows, target_os = "macos"))]
+#[cfg(windows)]
 fn copied(copy: fn() -> bool, count: fn() -> i64) -> Option<String> {
     use std::{
         thread,
