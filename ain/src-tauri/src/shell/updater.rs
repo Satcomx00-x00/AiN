@@ -3,15 +3,16 @@
 //!
 //! Each release publishes, next to its installers, a `latest.json` manifest (version, notes, and a
 //! download URL plus signature per platform) built by `tauri-action`. The app reads the latest
-//! one from GitHub Releases ([`REPO`]), compares versions, and on the user's go downloads
+//! one from GitHub Releases ([`config::REPO`]), compares versions, and on the user's go downloads
 //! the installer for its own platform and bundle type, checks its signature against the public key
 //! in `tauri.conf.json`, installs it and restarts.
 //!
 //! The app only ever checks on its own (shortly after launch, then every few hours); downloading
-//! and installing wait for the user. Builds without a public key (or debug builds) report
-//! `disabled` and never reach the network.
+//! and installing wait for the user. Builds without a public key, debug builds and copies installed by
+//! npm or bun (which update them) report `disabled` and never reach the network.
 
 use std::{
+    path::{Path, PathBuf},
     sync::{Mutex, MutexGuard},
     thread,
     time::Duration,
@@ -23,29 +24,28 @@ use tauri::{AppHandle, Manager, Url, Wry, plugin::TauriPlugin};
 use tauri_plugin_updater::{Update, UpdaterExt};
 use tauri_specta::Event;
 
-use crate::{Error, Res};
+use crate::{Error, Res, config};
 
-/// The GitHub repository (`owner/repo`) whose releases carry `latest.json`.
-pub const REPO: &str = "Satcomx00-x00/AiN";
+/// The repository (`owner/repo`) whose releases carry `latest.json`: [`config::REPO`].
+fn repo() -> String {
+    config::REPO.get()
+}
+
+/// The releases page of `repo` on `github`, for people who'd rather download by hand.
+pub fn releases(github: &str, repo: &str) -> String {
+    format!("{}/{repo}/releases", github.trim_end_matches('/'))
+}
 
 /// The latest release's `latest.json`.
-pub fn manifest(repo: &str) -> String {
-    format!("https://github.com/{repo}/releases/latest/download/latest.json")
+pub fn manifest(github: &str, repo: &str) -> String {
+    format!("{}/latest/download/latest.json", releases(github, repo))
 }
 
-/// Overrides where `latest.json` is read from, to try updates against a local server (see
-/// docs/updates.md). The signature is checked all the same; plain `http://` also needs
-/// `dangerousInsecureTransportProtocol` in the build's updater config.
-const MANIFEST_OVERRIDE: &str = "AIN_UPDATE_URL";
-
-/// `latest.json`'s URL: GitHub's, unless overridden.
+/// `latest.json`'s URL: GitHub's, unless [`config::UPDATE_URL`] overrides it, to try updates against
+/// a local server (see docs/updates.md). The signature is checked all the same; plain `http://` also
+/// needs `dangerousInsecureTransportProtocol` in the build's updater config.
 fn manifest_url() -> String {
-    std::env::var(MANIFEST_OVERRIDE).ok().filter(|u| !u.trim().is_empty()).unwrap_or_else(|| manifest(REPO))
-}
-
-/// The releases page, for people who'd rather download by hand.
-pub fn releases(repo: &str) -> String {
-    format!("https://github.com/{repo}/releases")
+    config::UPDATE_URL.set().unwrap_or_else(|| manifest(&config::GITHUB_URL.get(), &repo()))
 }
 
 /// First check, once the app has settled after launch.
@@ -151,10 +151,23 @@ fn emit(app: &AppHandle, report: Report) {
     }
 }
 
+/// Whether this path lies in a package manager's install (npm, bun, pnpm, yarn: all `node_modules`).
+fn in_node_modules(path: &Path) -> bool {
+    path.components().any(|c| c.as_os_str() == "node_modules")
+}
+
+/// The installed file: the AppImage itself rather than its mount point, else the executable.
+fn installed_path() -> Option<PathBuf> {
+    std::env::var_os("APPIMAGE").map(PathBuf::from).or_else(|| std::env::current_exe().ok())
+}
+
 /// Why updates are off in this build, if they are.
 fn disabled_reason(app: &AppHandle) -> Option<&'static str> {
     if cfg!(debug_assertions) {
         return Some("Development build: updates are off.");
+    }
+    if installed_path().is_some_and(|p| in_node_modules(&p)) {
+        return Some("Installed with npm or bun: update with `bun update -g @satcomx00/ain`.");
     }
     let pubkey = app.config().plugins.0.get("updater").and_then(|u| u.get("pubkey")).and_then(|k| k.as_str());
     pubkey.is_none_or(|k| k.trim().is_empty()).then_some("This build has no update key: updates are off.")
@@ -163,7 +176,13 @@ fn disabled_reason(app: &AppHandle) -> Option<&'static str> {
 /// Asks the release host for a newer version.
 async fn find(app: &AppHandle) -> Result<Option<Update>, String> {
     let url = Url::parse(&manifest_url()).map_err(|e| e.to_string())?;
-    let updater = app.updater_builder().endpoints(vec![url]).and_then(|b| b.build()).map_err(|e| e.to_string())?;
+    let updater = app
+        .updater_builder()
+        // reqwest's own TLS: it follows "Accept any certificate" too.
+        .configure_client(|client| client.danger_accept_invalid_certs(super::net::insecure()))
+        .endpoints(vec![url])
+        .and_then(|b| b.build())
+        .map_err(|e| e.to_string())?;
     updater.check().await.map_err(|e| e.to_string())
 }
 
@@ -261,7 +280,7 @@ async fn install(app: AppHandle) -> Res<()> {
 #[tauri::command]
 #[specta::specta]
 fn open_releases() -> Res<()> {
-    crate::platform::open_url(&releases(REPO))?;
+    crate::platform::open_url(&releases(&config::GITHUB_URL.get(), &repo()))?;
     Ok(())
 }
 
@@ -289,7 +308,8 @@ fn init() -> TauriPlugin<Wry> {
     ipc().plugin(|app| {
         let disabled = disabled_reason(app);
         let state = disabled.map_or(State::Idle, |reason| State::Disabled { reason: reason.into() });
-        let report = Report { current: app.package_info().version.to_string(), state, releases: releases(REPO) };
+        let report =
+            Report { current: app.package_info().version.to_string(), state, releases: releases(&config::GITHUB_URL.get(), &repo()) };
         app.manage(Updates { report: Mutex::new(report), pending: Mutex::new(None) });
         if disabled.is_none() {
             schedule(app.clone())?;
@@ -304,9 +324,17 @@ mod tests {
 
     #[test]
     fn github_urls() {
-        assert_eq!(manifest("me/app"), "https://github.com/me/app/releases/latest/download/latest.json");
-        assert_eq!(releases("me/app"), "https://github.com/me/app/releases");
-        assert!(Url::parse(&manifest(REPO)).is_ok());
+        assert_eq!(manifest("https://github.com/", "me/app"), "https://github.com/me/app/releases/latest/download/latest.json");
+        assert_eq!(releases("https://git.example", "me/app"), "https://git.example/me/app/releases");
+        assert!(Url::parse(&manifest(config::GITHUB_URL.default, config::REPO.default)).is_ok());
+    }
+
+    #[test]
+    fn package_manager_installs() {
+        assert!(in_node_modules(Path::new("/usr/lib/node_modules/@satcomx00/ain-linux-x64/AiN.AppImage")));
+        assert!(in_node_modules(Path::new("C:/Users/me/.bun/install/global/node_modules/@satcomx00/ain-win32-x64/ain.exe")));
+        assert!(!in_node_modules(Path::new("/Applications/AiN.app/Contents/MacOS/AiN")));
+        assert!(!in_node_modules(Path::new("/opt/not_node_modules/AiN.AppImage")));
     }
 
     #[test]

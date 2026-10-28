@@ -128,9 +128,10 @@ Each widget can show on the pill, in its own tab, or both.
 | **Volume** | A mixer for your outputs and apps; pin the ones you want. A pop-up shows on the pill when the volume changes | ✅ outputs and apps, with a level meter | ⚠️ outputs only (macOS has no per-app volume), no level meter | ⚠️ outputs and apps, no level meter |
 | **Mic & camera** | Which apps use the microphone (orange) or the camera (green) right now | ✅ | ⚠️ apps on the mic from macOS 14; for the camera, only that one is in use | ✅ your own apps |
 | **Clipboard** | Your recently copied text, one click to copy it again; kept in memory only, never written to disk | ✅ | ✅ | ✅ |
-| **Dictation** | Speak, and the words are typed where your cursor is. Recognized on your computer by one of 7 models you download once (Parakeet, Whisper, SenseVoice, Moonshine) | ✅ | ⚠️ typing needs Accessibility access | ⚠️ typing needs `xdotool` (X11), `wtype` or `ydotool` (Wayland) |
-| **Transcript** | Writes down what your computer plays (a video, a call, a chat app) as it is heard, with the time of each line; copy it in one click. Recognized by dictation's speech model on your computer, or by one of your AI providers | ✅ | ⚠️ macOS 14.6+, asks once to record the system's audio | ⚠️ needs `parec` (pulseaudio-utils; PulseAudio or PipeWire) |
+| **Dictation** | Speak, and the words are typed where your cursor is. Recognized on your computer by one of 7 models you download once (Parakeet, Whisper, SenseVoice, Moonshine) | ✅ | ⚠️ typing needs Accessibility access | ✅ pasted through the desktop's Remote Desktop portal (asks once), any keyboard layout; or `xdotool`, `wtype`, `ydotool` |
+| **Transcript** | Writes down what your computer plays (a video, a call, a chat app) as it is heard, with the time of each line; copy it in one click. Recognized by dictation's speech model on your computer, or by one of your AI providers | ✅ | ⚠️ macOS 14.6+, asks once to record the system's audio | ⚠️ PipeWire (the default on Fedora and Ubuntu); nothing to install |
 | **Read aloud** | Select text in any app, press the shortcut, and it is read out loud. Spoken on your computer by one of 6 voice models you download once (Kokoro, Kitten, Piper in English, French, German and Spanish), with a choice of voice and speed | ✅ | ⚠️ reading the selection needs Accessibility access | ✅ |
+| **Spelling** | Select French or English text in any app, press the shortcut, and its mistakes are corrected in place. On your computer, a small language model you download once (Qwen2.5, 1.5B or 0.5B, run by llama.cpp) fixes spelling and grammar, and the Hunspell dictionaries built into the app take over when it can't; or one of your AI providers' chat models | ✅ | ⚠️ reading the selection and typing need Accessibility access | ⚠️ typing needs `xdotool` (X11), `wtype` or `ydotool` (Wayland) |
 | **Conversation** | Talk with NVIDIA [PersonaPlex](https://github.com/NVIDIA/personaplex), a full-duplex speech-to-speech model: it listens while it speaks, so you can interrupt it. Pick one of its 18 voices and the persona it plays. The model runs on this computer, where the app installs PersonaPlex (with [uv](https://docs.astral.sh/uv/)), starts its server when you talk and stops it once unused (an NVIDIA GPU with 24 GB, or less with CPU offload; a Hugging Face token for its weights), or on a server behind one of your AI providers, which brings its token | ✅ | ✅ | ✅ |
 
 Where typing isn't allowed, dictated text is copied for you to paste (see [permissions](#permissions-and-helper-tools)).
@@ -146,6 +147,7 @@ Global shortcuts open these even while the island is folded. You can rebind them
 | **Dictation** | Starts and stops dictating | ✅ | ✅ | ✅ |
 | **Transcript** | Starts and stops writing down the computer's sound | ✅ | ✅ | ✅ |
 | **Read aloud** | Reads the selected text, or stops reading | ✅ | ✅ | ✅ |
+| **Spelling** | Corrects the selected text | ✅ | ✅ | ✅ |
 | **Conversation** | Starts or ends a conversation with PersonaPlex | ✅ | ✅ | ✅ |
 | **Command palette** | One search for your apps, files, the app's own commands and system actions (lock, sleep, sign out, restart, shut down, empty the trash), with a calculator; `>` runs a command line in a terminal, `?` searches the web, a typed path browses its folder. What you pick often comes first | ✅ apps from the Start menu (desktop and Store) | ✅ apps from the Applications folders; locking needs Accessibility access | ✅ apps from desktop entries (Flatpak and Snap too) |
 | **Zones** | Snap windows into a layout of zones (priority grid, columns, rows, grid, focus) on every screen: drag a window with <kbd>Shift</kbd> held (<kbd>Ctrl</kbd> too to span zones), pick a zone by its number, or send a window to the next or previous zone, on to the next screen | ✅ | ⚠️ needs Accessibility access | ✅ X11<br>⚠️ GNOME on Wayland: with AiN's GNOME Shell helper, installed from **Settings → Zones**, running after you log in again<br>⚠️ other Wayland desktops (KDE, Sway…): not yet, they let no app move another's windows |
@@ -188,16 +190,41 @@ On Wayland, the desktop's shortcuts portal binds them, [as above](#shortcut-tool
 
 ## Install
 
-Download the latest build for your OS from [Releases](https://github.com/Satcomx00-x00/AiN/releases) (x64 only):
+Every build is x64. Pick one way to install:
 
-| OS | Packages |
-| --- | --- |
-| Windows | `.msi`, NSIS `.exe` (per-user install) |
-| Linux | `.deb`, `.rpm`, `.AppImage` (requires `gtk-layer-shell`) |
-| macOS | `.dmg`, `.app` |
+| Way | Windows | macOS | Linux |
+| --- | --- | --- | --- |
+| [Releases](https://github.com/Satcomx00-x00/AiN/releases) | `.msi`, or NSIS `-setup.exe` (per-user, no admin) | `.dmg` | `.deb`, `.rpm`, `.AppImage` |
+| npm / bun ([details](npm/README.md)) | `@satcomx00/ain` | `@satcomx00/ain` | `@satcomx00/ain` (AppImage), or `@satcomx00/ain-fedora43` / `-fedora44` |
+
+```sh
+bun i -g @satcomx00/ain   # or: npm i -g @satcomx00/ain
+ain                       # starts it
+```
+
+Installed from Releases, AiN updates itself; installed with npm or bun, `bun update -g @satcomx00/ain` updates it, and
+`ain uninstall` removes it (add `--purge` to also delete its settings and speech models). Keep a single copy: `ain`
+refuses to start when an installer already put AiN on the machine.
 
 > [!NOTE]
-> The binaries are not signed yet, so Windows SmartScreen and macOS Gatekeeper will show a warning on first launch.
+> The binaries are not signed yet, so Windows SmartScreen and macOS Gatekeeper will show a warning on first launch
+> of a downloaded installer (npm and bun installs don't get this warning).
+
+### What each install needs
+
+| Install | Needs |
+| --- | --- |
+| Windows (any) | Windows 10 or 11 x64, and [WebView2](https://developer.microsoft.com/microsoft-edge/webview2/) (built into Windows 11 and up-to-date Windows 10; the installers fetch it if missing, the npm package doesn't) |
+| macOS (any) | macOS 10.13 or later. The build is Intel: on Apple silicon it runs through Rosetta 2 (`softwareupdate --install-rosetta`) |
+| `.deb` | Ubuntu 24.04+ or Debian 13+ (built on Ubuntu 24.04). `apt install ./AiN_*.deb` pulls WebKitGTK 4.1, GTK 3 and `libgtk-layer-shell0` |
+| `.rpm` | Fedora 40+ or another rpm distro of the same age. `dnf install ./AiN-*.rpm` pulls `webkit2gtk4.1`, `gtk-layer-shell` and `libayatana-appindicator-gtk3` |
+| `.AppImage`, `@satcomx00/ain-linux-x64` | Any distro with glibc 2.39+ (Ubuntu 24.04, Fedora 40, Debian 13 or newer). It carries WebKitGTK; it needs FUSE 2 (`libfuse2t64` on Ubuntu/Debian, `fuse-libs` on Fedora) and `gtk-layer-shell` |
+| `@satcomx00/ain-fedora43`, `@satcomx00/ain-fedora44` | That Fedora release, with: `sudo dnf install webkit2gtk4.1 gtk-layer-shell libayatana-appindicator-gtk3 alsa-lib` |
+| npm / bun (all) | Node.js 18+ or Bun, for the `ain` command |
+
+On Linux, the tray icon needs a tray: GNOME shows it only with the
+[AppIndicator extension](https://extensions.gnome.org/extension/615/appindicator-support/) (on by default on Ubuntu).
+What dictation, the clipboard picker and read aloud need on top is [below](#permissions-and-helper-tools).
 
 > [!IMPORTANT]
 > Up to v0.1.2 the app was called **widget**. AiN installs as a new app: quit the old one, start AiN once (it brings
@@ -206,15 +233,20 @@ Download the latest build for your OS from [Releases](https://github.com/Satcomx
 ### Permissions and helper tools
 
 Typing dictated text and pasting from the clipboard picker press keys in another app, which macOS and Linux only
-allow in some conditions. When they can't, the text stays on the clipboard for you to paste. Read aloud copies the
+allow in some conditions. When they can't, the text stays on the clipboard for you to paste. Read aloud and spelling copy the
 selection on Windows and macOS (then puts back the text you had copied); on Linux it reads the primary selection,
 with no keys pressed.
 
 | OS | What it needs |
 | --- | --- |
 | macOS | Allow AiN under **System Settings → Privacy & Security → Accessibility** (macOS asks the first time); zones need it to move windows. Now playing asks once to control Spotify or Music, dictation to use the microphone, transcript to record the system's audio, and the command palette to ask Terminal, System Events or the Finder for a command line, signing out, restarting, shutting down or emptying the Trash. |
-| Linux, X11 | [`xdotool`](https://github.com/jordansissel/xdotool) |
-| Linux, Wayland | [`wtype`](https://github.com/atx/wtype) (wlroots compositors, KDE), or [`ydotool`](https://github.com/ReimuNotMoe/ydotool) with its daemon running and its socket open to you (any compositor, GNOME included; Fedora's `ydotool.service` keeps its socket root-only in `/tmp`, where the client doesn't look: run `ydotoold --socket-path=$XDG_RUNTIME_DIR/.ydotool_socket --socket-own=$(id -u):$(id -g)` instead) |
+| Linux | Dictation pastes its text (so AZERTY and other layouts come out right) by pressing Ctrl+V through the desktop's Remote Desktop portal (GNOME, KDE): nothing to install, the desktop asks once and remembers. Pick **Typing keys** in Dictation's settings to type instead. |
+| Linux, X11 | [`xdotool`](https://github.com/jordansissel/xdotool) (else the portal) |
+| Linux, Wayland | The portal, [`wtype`](https://github.com/atx/wtype) (wlroots compositors, KDE), or [`ydotool`](https://github.com/ReimuNotMoe/ydotool) with its daemon running and its socket open to you (any compositor, GNOME included; Fedora's `ydotool.service` keeps its socket root-only in `/tmp`, where the client doesn't look: run `ydotoold --socket-path=$XDG_RUNTIME_DIR/.ydotool_socket --socket-own=$(id -u):$(id -g)` instead) |
+
+## Closed networks and offline machines
+
+See [docs/offline.md](docs/offline.md): servers with a self-signed or internal certificate, and models without internet.
 
 ## Development
 
@@ -243,7 +275,7 @@ Tests:
 The browser tests run in Chromium (the engine of Windows' WebView2) and WebKit (the engine of macOS' WKWebView and
 Linux's WebKitGTK). Install them once: `bunx playwright install chromium webkit`.
 
-The whole strategy, and the systems CI tests on (Windows 11, Ubuntu, Fedora 44, macOS, all x64), is in
+The whole strategy, and the systems CI tests on (Windows 11, Ubuntu, Fedora 43 and 44, macOS, all x64), is in
 [docs/testing.md](docs/testing.md).
 
 Rust checks (from `ain/src-tauri`):
@@ -255,6 +287,7 @@ cargo test             # also regenerates the TypeScript bindings: commit them
 ```
 
 How the code is organized, and how to add a feature: [docs/architecture.md](docs/architecture.md).
+Every built-in URL and folder can be overridden by an `AIN_*` environment variable: [docs/configuration.md](docs/configuration.md).
 
 ## Project layout
 

@@ -33,6 +33,13 @@ mod os {
 
 #[cfg(target_os = "linux")]
 use std::sync::OnceLock;
+
+/// Presses the paste shortcut in whichever app has the focus.
+#[cfg(not(target_os = "linux"))]
+pub fn paste_now() {
+    os::paste_into(None);
+}
+
 use std::{collections::BTreeMap, sync::Mutex, thread, time::Duration};
 
 use serde::{Deserialize, Serialize};

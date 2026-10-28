@@ -65,10 +65,87 @@ pub fn leave_appimage(command: &mut std::process::Command) {
     }
 }
 
+/// Key presses through the desktop's Remote Desktop portal (GNOME, KDE): built into the desktop,
+/// nothing to install. The desktop asks the user once; the answer is remembered (its restore token
+/// is kept in the config folder) and the session stays open while the app runs. Keys are sent by
+/// their position (evdev codes), so Ctrl+V is right whatever the keyboard layout.
+pub mod portal {
+    use std::{fs, path::PathBuf, sync::Mutex};
+
+    use ashpd::desktop::{
+        PersistMode, Session,
+        remote_desktop::{DeviceType, KeyState, RemoteDesktop, SelectDevicesOptions},
+    };
+
+    /// evdev codes: left Ctrl, V.
+    const CTRL: i32 = 29;
+    const V: i32 = 47;
+
+    struct Open {
+        proxy: RemoteDesktop,
+        session: Session<RemoteDesktop>,
+    }
+
+    static OPEN: Mutex<Option<Open>> = Mutex::new(None);
+
+    fn token_file() -> Option<PathBuf> {
+        Some(dirs::config_dir()?.join("dev.satcom.ain").join("remote-desktop-token"))
+    }
+
+    async fn open() -> ashpd::Result<Open> {
+        let proxy = RemoteDesktop::new().await?;
+        let session = proxy.create_session(Default::default()).await?;
+        let token = token_file().and_then(|f| fs::read_to_string(f).ok());
+        let devices = SelectDevicesOptions::default()
+            .set_devices(ashpd::enumflags2::BitFlags::from_flag(DeviceType::Keyboard))
+            .set_persist_mode(PersistMode::ExplicitlyRevoked)
+            .set_restore_token(token.as_deref().map(str::trim));
+        proxy.select_devices(&session, devices).await?;
+        let started = proxy.start(&session, None, Default::default()).await?.response()?;
+        if let (Some(token), Some(file)) = (started.restore_token(), token_file()) {
+            let _ = file.parent().map(fs::create_dir_all);
+            let _ = fs::write(file, token);
+        }
+        Ok(Open { proxy, session })
+    }
+
+    async fn press(open: &Open, keys: &[(i32, KeyState)]) -> ashpd::Result<()> {
+        for &(key, state) in keys {
+            open.proxy.notify_keyboard_keycode(&open.session, key, state, Default::default()).await?;
+        }
+        Ok(())
+    }
+
+    /// Presses Ctrl+V; false when the portal is missing or the user said no.
+    pub fn paste() -> bool {
+        let keys = [(CTRL, KeyState::Pressed), (V, KeyState::Pressed), (V, KeyState::Released), (CTRL, KeyState::Released)];
+        let mut open = OPEN.lock().unwrap_or_else(|e| e.into_inner());
+        tauri::async_runtime::block_on(async {
+            // A session the desktop closed meanwhile is opened again, once.
+            for _ in 0..2 {
+                if open.is_none() {
+                    match self::open().await {
+                        Ok(o) => *open = Some(o),
+                        Err(e) => {
+                            eprintln!("island: remote desktop portal: {e}");
+                            return false;
+                        }
+                    }
+                }
+                match press(open.as_ref().expect("opened above"), &keys).await {
+                    Ok(()) => return true,
+                    Err(_) => *open = None,
+                }
+            }
+            false
+        })
+    }
+}
+
 /// Synthetic key presses, through whichever tool the session allows: `xdotool` on X11; on Wayland,
-/// which lets no app type into another by itself, `wtype` (wlroots and KDE compositors) or, for
-/// Ctrl+V only, `ydotool` (any, with its daemon running). Without one, callers fall back to the
-/// clipboard.
+/// which lets no app type into another by itself, the desktop's portal (Ctrl+V only, see `portal`),
+/// `wtype` (wlroots and KDE compositors) or, for Ctrl+V only, `ydotool` (any, with its daemon
+/// running). Without one, callers fall back to the clipboard.
 pub mod keys {
     use std::process::{Command, Stdio};
 
@@ -107,7 +184,8 @@ pub mod keys {
     pub fn paste(window: Option<isize>) -> bool {
         if wayland() {
             // ydotool takes Linux key codes: 29 is left Ctrl, 47 is V.
-            return run("wtype", &["-M", "ctrl", "-k", "v", "-m", "ctrl"]).is_some()
+            return super::portal::paste()
+                || run("wtype", &["-M", "ctrl", "-k", "v", "-m", "ctrl"]).is_some()
                 || run("ydotool", &["key", "29:1", "47:1", "47:0", "29:0"]).is_some();
         }
         let window = window.map(|w| w.to_string());
@@ -116,7 +194,7 @@ pub mod keys {
             args.extend(["windowactivate", "--sync", w]);
         }
         args.extend(["key", "--clearmodifiers", "ctrl+v"]);
-        run("xdotool", &args).is_some()
+        run("xdotool", &args).is_some() || super::portal::paste()
     }
 }
 

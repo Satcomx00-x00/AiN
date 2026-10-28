@@ -30,6 +30,8 @@ exclude = { glob = [
   "ain/src-tauri/icons/**",
   # Signed test fixtures: a "fixed" byte would break their signature.
   "ain/src-tauri/tests/fixtures/**",
+  # Hunspell dictionaries built into the app, as published upstream (fr.dic is ~1.2 MB).
+  "ain/src-tauri/dictionaries/**",
   "**/*.lock",
   "CHANGELOG.md",
 ] }

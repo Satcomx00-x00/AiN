@@ -1,0 +1,13 @@
+{
+  "name": "ain-npm",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "bun build.ts",
+    "typecheck": "tsc"
+  },
+  "devDependencies": {
+    "@types/bun": "^1",
+    "typescript": "^7"
+  }
+}

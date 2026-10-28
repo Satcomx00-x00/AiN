@@ -53,9 +53,10 @@ disappears is tested on every platform.
 | media | Media transport controls | MPRIS (D-Bus) | Spotify and Music, scripted through `osascript` |
 | volume | Core Audio | PipeWire/PulseAudio (`pactl`) | Core Audio (output devices; macOS has no per-app volume) |
 | privacy | Capability Access Manager | recording streams (`pactl`) and open `/dev/video*` | Core Audio's process list (macOS 14+) and Core Media IO (camera on or off) |
-| dictation | types the text | types it with `xdotool`, `wtype` or `ydotool`, else copies it | types it once Accessibility is allowed, else copies it |
-| transcript | records the default output in loopback (WASAPI, through cpal) | records the default sink's monitor with `parec` | records the default output through a Core Audio process tap (cpal, macOS 14.6+) |
-| tts (read aloud) | copies the selection (Ctrl+C), then puts the clipboard back | reads the primary selection | copies the selection (Cmd+C) once Accessibility is allowed, then puts the clipboard back |
+| dictation | types the text | pastes it (Ctrl+V through the Remote Desktop portal, `xdotool`, `wtype` or `ydotool`), or types it when asked, else copies it | types it once Accessibility is allowed, else copies it |
+| transcript | records the default output in loopback (WASAPI, through cpal) | records the default sink through PipeWire, in-process (cpal's PipeWire host; microphones and speakers stay on ALSA) | records the default output through a Core Audio process tap (cpal, macOS 14.6+) |
+| tts (read aloud), spelling | copies the selection (Ctrl+C), then puts the clipboard back | reads the primary selection | copies the selection (Cmd+C) once Accessibility is allowed, then puts the clipboard back |
+| spelling's correction | types it over the selection | pastes it over the selection, as dictation does | types it once Accessibility is allowed, else copies it |
 | popup paste | `SendInput` | the same tools | Cmd+V, once Accessibility is allowed |
 | palette | the shell's Applications folder (Start menu apps), PowerShell, `shutdown.exe` and the power API | desktop entries, the first terminal found, logind and the session manager | `.app` bundles, Terminal, `pmset`, System Events and the Finder |
 | zones | the foreground window, its frame from the DWM, `SetWindowPos` | EWMH through the X server; on GNOME's Wayland, AiN's GNOME Shell extension over D-Bus | the Accessibility API, once allowed |
@@ -94,8 +95,11 @@ expired JWT is refused before it is sent. Tokens never enter `settings.json`, on
 Every AI feature then picks its engine in its card: its own model on this computer (the default),
 or a provider and that provider's model (and voice). The backend's `shell::providers` reads the
 choice (`chosen(settings, feature)`) and speaks the provider's API (`/audio/transcriptions`,
-`/audio/speech` in WAV, `/models` for Settings' "Test connection"); dictation sends each 30 s chunk,
-read aloud a few sentences at a time. Transcript runs on dictation's speech model (`dictation::speech_models`), or its own provider choice, and sends 8 s chunks, skipping silent ones. A new AI feature adds `engineOptions()` to its options, draws
+`/audio/speech` in WAV, `/chat/completions`, `/models` for Settings' "Test connection"); dictation
+sends each 30 s chunk, read aloud a few sentences at a time, spelling the selected text. Transcript runs on dictation's speech model (`dictation::speech_models`), or its own provider choice, and sends 8 s chunks, skipping silent ones. Spelling's own
+engine is a language model (llama.cpp, linked statically) with Hunspell dictionaries as its fallback,
+which also step in when a provider fails. Apart from the AI models, downloaded on request, everything
+ships inside the app: the dictionaries are compiled in from `src-tauri/dictionaries/`. A new AI feature adds `engineOptions()` to its options, draws
 `enginePanel` in its settings panel and matches on `providers::Engine` in its backend.
 
 ## Adding a feature

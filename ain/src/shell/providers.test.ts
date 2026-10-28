@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 const invoke = vi.hoisted(() => vi.fn(async () => ["whisper-1"]));
 vi.mock("@tauri-apps/api/core", () => ({ invoke }));
 
-const { PRESETS, memoryProviders, newProvider, parseProviders, presetById, providerProblem, settingsProviders, suggestions } = await import("./providers");
+const { PRESETS, builtInPresets, memoryProviders, newProvider, parseProviders, presetById, presetsAt, providerProblem, settingsProviders, suggestions, tauriPresets } = await import("./providers");
 import type { AiProvider } from "./providers";
 
 const openai: AiProvider = { id: "openai", name: "OpenAI", preset: "openai", baseUrl: "https://api.openai.com/v1", auth: { kind: "env", name: "OPENAI_API_KEY" } };
@@ -37,6 +37,18 @@ describe("a provider", () => {
     expect(newProvider(presetById("openai"), ["openai", "openai-2"])).toMatchObject({ id: "openai-3", name: "OpenAI 3" });
     expect(newProvider(presetById("custom"), [])).toMatchObject({ id: "custom", auth: { kind: "none" }, baseUrl: "http://localhost:8000/v1" });
     expect(presetById("gone")).toBe(PRESETS[PRESETS.length - 1]);
+  });
+
+  it("starts from the presets at their overridden addresses", async () => {
+    const presets = presetsAt({ openai: "https://gw.example/v1" });
+    expect(presets.map((p) => p.baseUrl)).toEqual(["https://gw.example/v1", ...PRESETS.slice(1).map((p) => p.baseUrl)]);
+    expect(newProvider(presetById("openai", presets), [])).toEqual({ ...openai, baseUrl: "https://gw.example/v1" });
+    expect(await builtInPresets()).toBe(PRESETS);
+    invoke.mockResolvedValueOnce({ openai: "a", groq: "b", mistral: "c", custom: "d" } as never);
+    expect((await tauriPresets()).map((p) => p.baseUrl)).toEqual(["a", "b", "c", "d"]);
+    expect(invoke).toHaveBeenLastCalledWith("plugin:providers|preset_urls");
+    invoke.mockRejectedValueOnce(new Error("old backend"));
+    expect(await tauriPresets()).toBe(PRESETS);
   });
 
   it("suggests its preset's models first, then those it lists", () => {

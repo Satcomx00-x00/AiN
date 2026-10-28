@@ -10,6 +10,11 @@ extend-exclude = [
   # Lockfiles hold hashes and package names.
   "*.lock",
   "bun.lock",
+  # Spelling's own code and tests are full of misspellings on purpose: what it corrects.
+  "ain/src-tauri/src/features/spelling/",
+  "ain/src/features/spelling/",
+  # The dictionaries themselves.
+  "ain/src-tauri/dictionaries/",
 ]
 
 [default.extend-words]

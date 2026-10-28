@@ -41,13 +41,13 @@ where
 
 /// The microphones the system offers, by stable id and name.
 pub fn list() -> Vec<Microphone> {
-    let Ok(devices) = cpal::default_host().input_devices() else { return Vec::new() };
+    let Ok(devices) = super::audio::host().input_devices() else { return Vec::new() };
     devices.filter_map(|d| Some(Microphone { id: d.id().ok()?.to_string(), name: d.to_string() })).collect()
 }
 
 /// The chosen microphone when it is connected, else the system's default one.
 fn input_device(chosen: Option<&str>) -> Option<cpal::Device> {
-    let host = cpal::default_host();
+    let host = super::audio::host();
     let wanted = chosen.and_then(|id| id.parse::<cpal::DeviceId>().ok()).and_then(|id| host.device_by_id(&id));
     if chosen.is_some() && wanted.is_none() {
         eprintln!("island: the chosen microphone isn't connected; using the default one");

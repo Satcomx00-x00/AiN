@@ -15,7 +15,7 @@ updates:
         patterns: ["*"]
 
   - package-ecosystem: bun
-    directory: /ain
+    directories: [/ain, /npm]
     schedule:
       interval: weekly
     # Wait a week before taking a release, so a broken or compromised one can be pulled first

@@ -5,6 +5,7 @@ import { type PalettePort, tauriPalette } from "./palette/service";
 import { type PersonaPort, tauriPersona } from "./persona/service";
 import { type PrivacyPort, tauriPrivacy } from "./privacy/service";
 import { type CapturePort, tauriCapture } from "./screenshot/service";
+import { type SpellingPort, tauriSpelling } from "./spelling/service";
 import { type StatsPort, tauriStats } from "./stats/service";
 import { type TranscriptPort, tauriTranscript } from "./transcript/service";
 import { type TtsPort, tauriTts } from "./tts/service";
@@ -31,6 +32,7 @@ export interface Services {
   readonly tts: TtsPort;
   readonly transcript: TranscriptPort;
   readonly persona: PersonaPort;
+  readonly spelling: SpellingPort;
   /** Signing in to online accounts; each plugin gets its own, bound to its id. */
   readonly oauth: PerPlugin<OAuthPort>;
   /** The AI providers set up in Settings, which AI features may run on instead of their own model. */
@@ -50,6 +52,7 @@ export const tauriServices: Services = {
   tts: tauriTts,
   transcript: tauriTranscript,
   persona: tauriPersona,
+  spelling: tauriSpelling,
   oauth: tauriOAuth,
   providers: settingsProviders(tauriSettings.watch),
 };
