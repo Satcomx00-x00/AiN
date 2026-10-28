@@ -10,6 +10,7 @@ pub mod palette;
 pub mod persona;
 pub mod privacy;
 pub mod stats;
+pub mod transcript;
 pub mod tts;
 pub mod volume;
 pub mod zones;
@@ -36,6 +37,7 @@ pub fn register(app: Builder<Wry>) -> Builder<Wry> {
         .plugin(palette::init())
         .plugin(zones::init())
         .plugin(tts::init())
+        .plugin(transcript::init())
         .plugin(persona::init())
 }
 

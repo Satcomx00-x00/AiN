@@ -159,6 +159,17 @@ const fake: Services = {
     download: async () => {},
     remove: async () => {},
   },
+  transcript: {
+    watch: async (onChange) => (onChange(params.has("hear") ? { phase: "listening", level: 0.5, seconds: 74 } : { phase: "idle" }), () => {}),
+    watchLines: async (onChange) => (
+      onChange([
+        { at: t0 - 9_000, text: "Welcome back to the show, today we look at desktop widgets." },
+        { at: t0 - 2_000, text: "The island writes down whatever the computer plays." },
+      ]),
+      () => {}
+    ),
+    control: async () => {},
+  },
   tts: {
     watch: async (onChange) => (onChange(params.has("read") ? { phase: "speaking", text: "The island reads any text you select, on this computer." } : { phase: "idle" }), () => {}),
     watchModel: async (onChange) => {

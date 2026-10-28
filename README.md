@@ -129,6 +129,7 @@ Each widget can show on the pill, in its own tab, or both.
 | **Mic & camera** | Which apps use the microphone (orange) or the camera (green) right now | ✅ | ⚠️ apps on the mic from macOS 14; for the camera, only that one is in use | ✅ your own apps |
 | **Clipboard** | Your recently copied text, one click to copy it again; kept in memory only, never written to disk | ✅ | ✅ | ✅ |
 | **Dictation** | Speak, and the words are typed where your cursor is. Recognized on your computer by one of 7 models you download once (Parakeet, Whisper, SenseVoice, Moonshine) | ✅ | ⚠️ typing needs Accessibility access | ⚠️ typing needs `xdotool` (X11), `wtype` or `ydotool` (Wayland) |
+| **Transcript** | Writes down what your computer plays (a video, a call, a chat app) as it is heard, with the time of each line; copy it in one click. Recognized by dictation's speech model on your computer, or by one of your AI providers | ✅ | ⚠️ macOS 14.6+, asks once to record the system's audio | ⚠️ needs `parec` (pulseaudio-utils; PulseAudio or PipeWire) |
 | **Read aloud** | Select text in any app, press the shortcut, and it is read out loud. Spoken on your computer by one of 6 voice models you download once (Kokoro, Kitten, Piper in English, French, German and Spanish), with a choice of voice and speed | ✅ | ⚠️ reading the selection needs Accessibility access | ✅ |
 | **Conversation** | Talk with NVIDIA [PersonaPlex](https://github.com/NVIDIA/personaplex), a full-duplex speech-to-speech model: it listens while it speaks, so you can interrupt it. Pick one of its 18 voices and the persona it plays. The model runs on this computer, where the app installs PersonaPlex (with [uv](https://docs.astral.sh/uv/)), starts its server when you talk and stops it once unused (an NVIDIA GPU with 24 GB, or less with CPU offload; a Hugging Face token for its weights), or on a server behind one of your AI providers, which brings its token | ✅ | ✅ | ✅ |
 
@@ -143,6 +144,7 @@ Global shortcuts open these even while the island is folded. You can rebind them
 | **Clipboard picker** | Search your clipboard history, pick with the arrows or <kbd>Alt</kbd>+<kbd>1</kbd>…<kbd>9</kbd>, and it is pasted into the app you were in | ✅ | ⚠️ pasting needs Accessibility access | ⚠️ pasting needs `xdotool`, `wtype` or `ydotool` |
 | **Screenshot editor** | Freezes the screen; select an area, draw on it (pen, marker, rectangle, ellipse, colors, sizes, undo), then copy or save it as a PNG | ✅ | ✅ | ✅ |
 | **Dictation** | Starts and stops dictating | ✅ | ✅ | ✅ |
+| **Transcript** | Starts and stops writing down the computer's sound | ✅ | ✅ | ✅ |
 | **Read aloud** | Reads the selected text, or stops reading | ✅ | ✅ | ✅ |
 | **Conversation** | Starts or ends a conversation with PersonaPlex | ✅ | ✅ | ✅ |
 | **Command palette** | One search for your apps, files, the app's own commands and system actions (lock, sleep, sign out, restart, shut down, empty the trash), with a calculator; `>` runs a command line in a terminal, `?` searches the web, a typed path browses its folder. What you pick often comes first | ✅ apps from the Start menu (desktop and Store) | ✅ apps from the Applications folders; locking needs Accessibility access | ✅ apps from desktop entries (Flatpak and Snap too) |
@@ -173,6 +175,7 @@ the `store` branch to list it.
 | Clipboard history picker | <kbd>Win</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd> |
 | Annotate a screenshot | <kbd>Win</kbd>+<kbd>Alt</kbd>+<kbd>S</kbd> |
 | Start or stop dictation | <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>D</kbd> |
+| Start or stop transcribing the computer's sound | <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>H</kbd> |
 | Command palette | <kbd>Win</kbd>+<kbd>Alt</kbd>+<kbd>Space</kbd> (<kbd>Option</kbd>+<kbd>Space</kbd> on macOS) |
 | Snap to a zone | <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>Win</kbd>+<kbd>Z</kbd> |
 | Move to the next or previous zone | <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>Win</kbd>+<kbd>→</kbd> / <kbd>←</kbd> |
@@ -209,7 +212,7 @@ with no keys pressed.
 
 | OS | What it needs |
 | --- | --- |
-| macOS | Allow AiN under **System Settings → Privacy & Security → Accessibility** (macOS asks the first time); zones need it to move windows. Now playing asks once to control Spotify or Music, dictation to use the microphone, and the command palette to ask Terminal, System Events or the Finder for a command line, signing out, restarting, shutting down or emptying the Trash. |
+| macOS | Allow AiN under **System Settings → Privacy & Security → Accessibility** (macOS asks the first time); zones need it to move windows. Now playing asks once to control Spotify or Music, dictation to use the microphone, transcript to record the system's audio, and the command palette to ask Terminal, System Events or the Finder for a command line, signing out, restarting, shutting down or emptying the Trash. |
 | Linux, X11 | [`xdotool`](https://github.com/jordansissel/xdotool) |
 | Linux, Wayland | [`wtype`](https://github.com/atx/wtype) (wlroots compositors, KDE), or [`ydotool`](https://github.com/ReimuNotMoe/ydotool) with its daemon running and its socket open to you (any compositor, GNOME included; Fedora's `ydotool.service` keeps its socket root-only in `/tmp`, where the client doesn't look: run `ydotoold --socket-path=$XDG_RUNTIME_DIR/.ydotool_socket --socket-own=$(id -u):$(id -g)` instead) |
 
