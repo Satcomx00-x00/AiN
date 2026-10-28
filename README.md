@@ -32,7 +32,8 @@ system stats, clipboard history and more, then folds back when you leave.
 
 ### The pill
 
-Folded, the island is a pill showing one widget on each side. You choose which in **Settings → Layout**,
+Folded, the island is a pill showing widgets on each side. You place them by dragging them onto a live
+preview in **Settings → Pill**, where each one's icon and content are set too,
 and its [style and size](#the-island) in **Settings → Appearance**.
 
 <p align="center"><img src="img/pill.png" alt="The folded pill showing the time and CPU load" width="460"></p>
@@ -81,9 +82,9 @@ Global shortcuts work even while the island is folded.
 
 Changes apply immediately and are saved automatically.
 
-| General | Layout |
+| General | Pill |
 | :---: | :---: |
-| <img src="img/settings-general.png" alt="General settings: launch at login, hover delays"> | <img src="img/settings-layout.png" alt="Layout settings: pill slots and tab order"> |
+| <img src="img/settings-general.png" alt="General settings: launch at login, hover delays"> | <img src="img/settings-pill.png" alt="Pill settings: a live preview of the pill to drag widgets onto, and the selected widget's settings"> |
 | **Shortcuts** | **Widgets** |
 | <img src="img/settings-shortcuts.png" alt="Shortcut settings with rebindable keys"> | <img src="img/settings-widgets.png" alt="Per-widget options"> |
 | **Appearance** | |
@@ -108,7 +109,7 @@ add to it, from the community store.
 | **Pill sizes** | Low profile (20 px), normal (32 px) or large (44 px), for every style; text, icons and corners ease to the new size live | ✅ | ✅ |
 | **Startup animations** | Hello, Boing, Sparkle or Typewriter when the island starts, or none; a Play button to preview; skipped when the system asks for reduced motion | ✅ | ✅ |
 | **Themes and colors** | 54 themes (AiN, Dracula, Nord, Tokyo Night, Gruvbox, Solarized…), your own pill and accent colors, the pill's width and corner curve | ✅ | ✅ |
-| **Layout** | Which widgets show on each side of the pill (the first with something to say wins) and the order of the tabs | ✅ | ✅ |
+| **Pill layout** | Drag widgets onto a live preview of the pill: each side in priority order, one to four side by side, each with its icon or kept while idle, and the order of the tabs | ✅ | ✅ |
 | **Settings** | A settings window; changes apply at once and are saved automatically | ✅ | ✅ |
 | **Tray icon** | Opens the settings, quits the app | ✅ | ⚠️ needs a tray that supports AppIndicator (GNOME: the AppIndicator extension) |
 | **Launch at login** | Starts the island when you sign in | ✅ | ✅ |
