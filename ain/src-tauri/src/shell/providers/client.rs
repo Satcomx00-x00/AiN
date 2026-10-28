@@ -1,5 +1,5 @@
 //! The OpenAI-compatible HTTP API every provider speaks: its models, speech to text
-//! (`/audio/transcriptions`) and text to speech (`/audio/speech`).
+//! (`/audio/transcriptions`), text to speech (`/audio/speech`) and chat (`/chat/completions`).
 
 use std::time::Duration;
 
@@ -124,6 +124,33 @@ pub fn speech(provider: &Provider, model: &str, voice: Option<&str>, text: &str,
     call(provider, "audio/speech", Some(("application/json", &serde_json::to_vec(&request).map_err(|e| e.to_string())?)))
 }
 
+#[derive(Deserialize)]
+struct Completion {
+    choices: Vec<Choice>,
+}
+
+#[derive(Deserialize)]
+struct Choice {
+    message: Message,
+}
+
+#[derive(Deserialize)]
+struct Message {
+    content: String,
+}
+
+/// What `model` answers to `text`, following `instructions` (the system message).
+pub fn chat(provider: &Provider, model: &str, instructions: &str, text: &str) -> Result<String, String> {
+    let request = json!({
+        "model": model,
+        "temperature": 0,
+        "messages": [{ "role": "system", "content": instructions }, { "role": "user", "content": text }],
+    });
+    let bytes = call(provider, "chat/completions", Some(("application/json", &serde_json::to_vec(&request).map_err(|e| e.to_string())?)))?;
+    let completion: Completion = serde_json::from_slice(&bytes).map_err(|_| "The provider sent no answer".to_string())?;
+    completion.choices.into_iter().next().map(|c| c.message.content).ok_or_else(|| "The provider sent no answer".to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -182,6 +209,17 @@ mod tests {
         let asked = served.join().unwrap();
         assert!(asked.starts_with("GET /v1/models "), "{asked}");
         assert!(asked.to_ascii_lowercase().contains("authorization: bearer "), "{asked}");
+    }
+
+    #[test]
+    fn chats_with_instructions_as_the_system_message() {
+        let (base, served) = serve_once(r#"{"choices":[{"message":{"role":"assistant","content":"Hello there"}}]}"#);
+        let provider = Provider { id: "local".into(), name: "Local".into(), base_url: base, auth: super::super::Auth::None };
+        assert_eq!(chat(&provider, "gpt-4o-mini", "Fix it", "hello there").unwrap(), "Hello there");
+        let asked = served.join().unwrap();
+        assert!(asked.starts_with("POST /v1/chat/completions "), "{asked}");
+        assert!(asked.contains(r#"{"content":"Fix it","role":"system"}"#), "{asked}");
+        assert!(asked.contains(r#"{"content":"hello there","role":"user"}"#), "{asked}");
     }
 
     #[test]

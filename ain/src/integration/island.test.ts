@@ -96,6 +96,7 @@ describe("opening and closing", () => {
       "tab-dictation",
       "tab-transcript",
       "tab-tts",
+      "tab-spelling",
       "tab-persona",
     ]);
     await island.leave();

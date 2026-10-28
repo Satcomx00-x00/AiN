@@ -5,11 +5,10 @@
 //!
 //! A worker thread owns the speakers. Each reading gets a thread that writes the speech a sentence
 //! at a time, so it starts after the first sentence rather than once the whole text is written.
-//! The selection comes from `selection.rs`, the model and its download from `features/models.rs`.
+//! The selection comes from `features/selection.rs`, the model and its download from `features/models.rs`.
 
 mod engine;
 mod model;
-mod selection;
 
 use std::{
     sync::{Arc, atomic::AtomicU64},
@@ -187,7 +186,7 @@ fn spawn(app: AppHandle, shared: Arc<Shared>) -> std::io::Result<Worker<Request>
     super::worker::spawn(
         "tts",
         TICK,
-        || engine::Speaker::new(selection::selected),
+        || engine::Speaker::new(super::selection::selected),
         move |speaker, request| speaker.step(&app, &shared, request),
     )
 }

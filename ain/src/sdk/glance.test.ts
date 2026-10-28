@@ -23,6 +23,17 @@ describe("a glance spot", () => {
     expect(s.part(".mark").dataset.kind).toBe("mic");
   });
 
+  it("shows an icon only when given one, redrawn only when it changes", () => {
+    const s = slot();
+    s.draw({ text: "24%", icon: "<circle/>" });
+    const drawn = s.part(".g-icon svg");
+    expect([s.part(".g-icon").hidden, drawn.innerHTML]).toEqual([false, "<circle></circle>"]);
+    s.draw({ text: "25%", icon: "<circle/>" });
+    expect(s.part(".g-icon svg")).toBe(drawn);
+    s.draw({ text: "26%" });
+    expect(s.part(".g-icon").hidden).toBe(true);
+  });
+
   it("shows a ring only for progress, and a level bar only for a level", () => {
     const s = slot();
     s.draw({ text: "04:12", progress: 0.7 });

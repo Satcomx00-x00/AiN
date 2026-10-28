@@ -6,17 +6,12 @@
 //!
 //! A worker thread owns the microphone stream. While listening it feeds 16 kHz audio to a
 //! decoder thread in 30 s chunks, so long dictations are mostly transcribed by the time they end.
-//! The text is then typed at the cursor (`windows.rs`; on macOS and Linux, the platform's key
-//! helpers), or put on the clipboard when the system won't let us type: macOS until the user allows
-//! Accessibility access, Wayland without `wtype` or `ydotool`, X11 without `xdotool`. On Linux it
-//! is pasted by default (the "typing" option): the typing tools press keys of the US layout, or of
-//! whichever layout they assume, so on AZERTY the words would come out wrong without any error.
+//! The text is then typed at the cursor, or pasted (by default on Linux, the "typing" option), or
+//! put on the clipboard when the system won't let us type (`features/delivery`).
 
 pub(super) mod chunk;
 mod engine;
 mod model;
-#[cfg(windows)]
-mod windows;
 
 use std::{
     sync::{Arc, atomic::AtomicU64},
@@ -30,6 +25,7 @@ use tauri::{AppHandle, Manager, State, Wry, plugin::TauriPlugin};
 use tauri_specta::Event;
 
 use super::{
+    delivery::{Delivery, deliver},
     live::Live,
     lock,
     microphone::{self, Microphone},
@@ -56,16 +52,6 @@ const KEEP_WARM: Duration = Duration::from_secs(10 * 60);
 /// The microphone the settings pick, or `None` for the system's default one.
 pub fn chosen_microphone(settings: &Value) -> Option<String> {
     settings::option(settings, FEATURE, "microphone").and_then(Value::as_str).filter(|id| !id.is_empty()).map(str::to_string)
-}
-
-/// How the text reached the user.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
-#[serde(rename_all = "lowercase")]
-pub enum Delivery {
-    /// Typed at the cursor.
-    Typed,
-    /// Put on the clipboard, to paste.
-    Copied,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, Type)]
@@ -139,73 +125,9 @@ struct Dictation {
     worker: Worker<Command>,
 }
 
-/// Types `text` where the cursor is; false where the system doesn't let us.
-fn type_text(text: &str) -> bool {
-    #[cfg(windows)]
-    {
-        windows::type_text(text);
-        true
-    }
-    #[cfg(target_os = "macos")]
-    return crate::platform::macos::keys::type_text(text);
-    #[cfg(target_os = "linux")]
-    return crate::platform::linux::keys::type_text(text);
-    #[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
-    {
-        let _ = text;
-        false
-    }
-}
-
-/// Whether the text is pasted rather than typed key by key: the "typing" option, which by default
-/// pastes on Linux, where typing depends on the keyboard layout.
+/// Whether the text is pasted rather than typed key by key (the "typing" option).
 pub fn pastes(settings: &Value) -> bool {
-    match settings::option(settings, FEATURE, "typing").and_then(Value::as_str) {
-        Some("paste") => true,
-        Some("keys") => false,
-        _ => cfg!(target_os = "linux"),
-    }
-}
-
-/// Hands the recognized text over: typed at the cursor where the OS allows it (unless it is to be
-/// pasted), else copied, and pasted where a paste key can be pressed.
-fn deliver(app: &AppHandle, text: &str, paste: bool) -> Delivery {
-    if !paste && type_text(text) {
-        return Delivery::Typed;
-    }
-    let copied = match app.try_state::<Arc<super::clipboard::Clipboard>>().map(|c| c.copy(text.to_string())) {
-        Some(Ok(())) => true,
-        Some(Err(e)) => {
-            eprintln!("island: dictation: couldn't copy the text: {e}");
-            false
-        }
-        None => false,
-    };
-    if copied && paste_copied() {
-        return Delivery::Typed;
-    }
-    Delivery::Copied
-}
-
-/// Presses the paste key in the focused app (on GNOME's Wayland, only ydotool can).
-fn paste_copied() -> bool {
-    #[cfg(target_os = "linux")]
-    {
-        // Lets the compositor see the new clipboard before the target app asks for it.
-        std::thread::sleep(Duration::from_millis(80));
-        let pasted = crate::platform::linux::keys::paste(None);
-        if !pasted {
-            eprintln!(
-                "island: dictation: couldn't press Ctrl+V (install ydotool, with ydotoold running, or wtype on Wayland; xdotool on X11)"
-            );
-        }
-        pasted
-    }
-    #[cfg(not(target_os = "linux"))]
-    {
-        popup::paste_now();
-        true
-    }
+    super::delivery::pastes(settings, FEATURE)
 }
 
 #[tauri::command]

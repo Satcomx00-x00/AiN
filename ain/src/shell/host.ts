@@ -4,7 +4,7 @@ import { EASE_OUT, animates, button, h, icon, reducedMotion } from "../sdk/dom";
 import { frame, panelHeight, pillOf, sizeFor } from "./geometry";
 import { intent } from "./intent";
 import { type Fields, resolve } from "../sdk/options";
-import { type Layout, type Placement, pickFrom, place, placedIds } from "./placement";
+import { type Dress, type Layout, type Placement, type Shown, pickAll, place, placedIds } from "./placement";
 import type { AnyPlugin, Appearance, Host, Mounted, Plugin } from "../sdk/plugin";
 import { POWER, armedButton } from "./quit";
 import type { Greeting } from "../sdk/greeting";
@@ -56,6 +56,10 @@ export function load<S>(
   }
   return { mounted: into, problems };
 }
+
+/** Who shows its icon on the pill, and who stays there while idle. */
+const dressOf = ({ pill }: Settings): Dress => ({ icons: new Set(pill.icons), idle: new Set(pill.idle) });
+const spoken = ({ from, glance }: Shown) => ({ glance, from: from.plugin.id });
 
 /** Each placed plugin once, wherever it appears. */
 const placedOnce = (p: Placement): Mounted[] => [...new Set([...p.left, ...p.right, ...p.tabs])];
@@ -299,8 +303,11 @@ export async function mount<S>(
   const beat = ticker(async () => {
     const now = Date.now();
     await Promise.allSettled(active.map((m) => m.widget.tick?.({ now, visible: open && m.plugin.id === view?.active() })));
-    const l = pickFrom(placement.left, now);
-    const r = pickFrom(placement.right, now);
+    const dress = dressOf(settings);
+    const lefts = pickAll(placement.left, now, settings.pill.perSide, dress);
+    const rights = pickAll(placement.right, now, settings.pill.perSide, dress);
+    const l = lefts[0];
+    const r = rights[0];
     const alert = alerting(now) !== undefined;
     el.dataset.alert = String(alert);
 
@@ -310,8 +317,19 @@ export async function mount<S>(
     if (ambient) el.style.setProperty("--ambient", ambient);
     else el.style.removeProperty("--ambient");
 
-    const nextWide = !!(l?.glance.wide || r?.glance.wide);
-    drawLook({ left: l?.glance ?? null, right: r?.glance ?? null, leftFrom: l?.from.plugin.id, rightFrom: r?.from.plugin.id, ambient, alert, wide: nextWide, now });
+    const nextWide = [...lefts, ...rights].some((s) => s.glance.wide);
+    drawLook({
+      left: l?.glance ?? null,
+      right: r?.glance ?? null,
+      leftFrom: l?.from.plugin.id,
+      rightFrom: r?.from.plugin.id,
+      leftAll: lefts.map(spoken),
+      rightAll: rights.map(spoken),
+      ambient,
+      alert,
+      wide: nextWide,
+      now,
+    });
     // The open tab's content grew or shrank (a download's progress, a longer message): so does the panel.
     if (open && el.dataset.open === "true" && measure()) {
       fitPanel();

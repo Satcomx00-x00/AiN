@@ -117,6 +117,11 @@ pub fn pieces(text: &str, max: usize) -> Vec<&str> {
 }
 
 impl Remote {
+    /// What the model answers to `text`, following `instructions`.
+    pub fn chat(&self, instructions: &str, text: &str) -> Result<String, String> {
+        client::chat(&self.provider, &self.model, instructions, text)
+    }
+
     /// What is said in `samples` (mono, at `rate`).
     pub fn transcribe(&self, samples: &[f32], rate: u32) -> Result<String, String> {
         client::transcribe(&self.provider, &self.model, &wav::encode(samples, rate))

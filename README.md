@@ -32,7 +32,8 @@ system stats, clipboard history and more, then folds back when you leave.
 
 ### The pill
 
-Folded, the island is a pill showing one widget on each side. You choose which in **Settings → Layout**,
+Folded, the island is a pill showing widgets on each side. You place them by dragging them onto a live
+preview in **Settings → Pill**, where each one's icon and content are set too,
 and its [style and size](#the-island) in **Settings → Appearance**.
 
 <p align="center"><img src="img/pill.png" alt="The folded pill showing the time and CPU load" width="460"></p>
@@ -81,9 +82,9 @@ Global shortcuts work even while the island is folded.
 
 Changes apply immediately and are saved automatically.
 
-| General | Layout |
+| General | Pill |
 | :---: | :---: |
-| <img src="img/settings-general.png" alt="General settings: launch at login, hover delays"> | <img src="img/settings-layout.png" alt="Layout settings: pill slots and tab order"> |
+| <img src="img/settings-general.png" alt="General settings: launch at login, hover delays"> | <img src="img/settings-pill.png" alt="Pill settings: a live preview of the pill to drag widgets onto, and the selected widget's settings"> |
 | **Shortcuts** | **Widgets** |
 | <img src="img/settings-shortcuts.png" alt="Shortcut settings with rebindable keys"> | <img src="img/settings-widgets.png" alt="Per-widget options"> |
 | **Appearance** | |
@@ -108,7 +109,7 @@ add to it, from the community store.
 | **Pill sizes** | Low profile (20 px), normal (32 px) or large (44 px), for every style; text, icons and corners ease to the new size live | ✅ | ✅ (a notch keeps its own size) | ✅ |
 | **Startup animations** | Hello, Boing, Sparkle or Typewriter when the island starts, or none; a Play button to preview; skipped when the system asks for reduced motion | ✅ | ✅ | ✅ |
 | **Themes and colors** | 54 themes (AiN, Dracula, Nord, Tokyo Night, Gruvbox, Solarized…), your own pill and accent colors, the pill's width and corner curve | ✅ | ✅ | ✅ |
-| **Layout** | Which widgets show on each side of the pill (the first with something to say wins) and the order of the tabs | ✅ | ✅ | ✅ |
+| **Pill layout** | Drag widgets onto a live preview of the pill: each side in priority order, one to four side by side, each with its icon or kept while idle, and the order of the tabs | ✅ | ✅ | ✅ |
 | **Settings** | A settings window; changes apply at once and are saved automatically | ✅ | ✅ | ✅ |
 | **Tray icon** | Opens the settings, quits the app | ✅ | ✅ | ⚠️ needs a tray that supports AppIndicator (GNOME: the AppIndicator extension) |
 | **Launch at login** | Starts the island when you sign in | ✅ | ✅ | ✅ |
@@ -129,6 +130,7 @@ Each widget can show on the pill, in its own tab, or both.
 | **Dictation** | Speak, and the words are typed where your cursor is. Recognized on your computer by one of 7 models you download once (Parakeet, Whisper, SenseVoice, Moonshine) | ✅ | ⚠️ typing needs Accessibility access | ✅ pasted through the desktop's Remote Desktop portal (asks once), any keyboard layout; or `xdotool`, `wtype`, `ydotool` |
 | **Transcript** | Writes down what your computer plays (a video, a call, a chat app) as it is heard, with the time of each line; copy it in one click. Recognized by dictation's speech model on your computer, or by one of your AI providers | ✅ | ⚠️ macOS 14.6+, asks once to record the system's audio | ⚠️ PipeWire (the default on Fedora and Ubuntu); nothing to install |
 | **Read aloud** | Select text in any app, press the shortcut, and it is read out loud. Spoken on your computer by one of 6 voice models you download once (Kokoro, Kitten, Piper in English, French, German and Spanish), with a choice of voice and speed | ✅ | ⚠️ reading the selection needs Accessibility access | ✅ |
+| **Spelling** | Select French or English text in any app, press the shortcut, and its mistakes are corrected in place. On your computer, a small language model you download once (Qwen2.5, 1.5B or 0.5B, run by llama.cpp) fixes spelling and grammar, and the Hunspell dictionaries built into the app take over when it can't; or one of your AI providers' chat models | ✅ | ⚠️ reading the selection and typing need Accessibility access | ⚠️ typing needs `xdotool` (X11), `wtype` or `ydotool` (Wayland) |
 | **Conversation** | Talk with NVIDIA [PersonaPlex](https://github.com/NVIDIA/personaplex), a full-duplex speech-to-speech model: it listens while it speaks, so you can interrupt it. Pick one of its 18 voices and the persona it plays. The model runs on this computer, where the app installs PersonaPlex (with [uv](https://docs.astral.sh/uv/)), starts its server when you talk and stops it once unused (an NVIDIA GPU with 24 GB, or less with CPU offload; a Hugging Face token for its weights), or on a server behind one of your AI providers, which brings its token | ✅ | ✅ | ✅ |
 
 Where typing isn't allowed, dictated text is copied for you to paste (see [permissions](#permissions-and-helper-tools)).
@@ -144,6 +146,7 @@ Global shortcuts open these even while the island is folded. You can rebind them
 | **Dictation** | Starts and stops dictating | ✅ | ✅ | ⚠️ shortcut on X11 only |
 | **Transcript** | Starts and stops writing down the computer's sound | ✅ | ✅ | ⚠️ shortcut on X11 only |
 | **Read aloud** | Reads the selected text, or stops reading | ✅ | ✅ | ⚠️ shortcut on X11 only |
+| **Spelling** | Corrects the selected text | ✅ | ✅ | ⚠️ shortcut on X11 only |
 | **Conversation** | Starts or ends a conversation with PersonaPlex | ✅ | ✅ | ⚠️ shortcut on X11 only |
 
 On Wayland, Linux gives apps no global shortcuts: the island and its tabs work, the shortcuts don't.
@@ -222,7 +225,7 @@ What dictation, the clipboard picker and read aloud need on top is [below](#perm
 ### Permissions and helper tools
 
 Typing dictated text and pasting from the clipboard picker press keys in another app, which macOS and Linux only
-allow in some conditions. When they can't, the text stays on the clipboard for you to paste. Read aloud copies the
+allow in some conditions. When they can't, the text stays on the clipboard for you to paste. Read aloud and spelling copy the
 selection on Windows and macOS (then puts back the text you had copied); on Linux it reads the primary selection,
 with no keys pressed.
 

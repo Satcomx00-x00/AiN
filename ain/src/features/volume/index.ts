@@ -51,8 +51,9 @@ export const volume = definePlugin({
   description: "Volume mixer for outputs and apps.",
   icon: SPEAKER,
   slots: ["glance", "tab"],
+  sample: () => ({ text: percent(0.4), level: 0.4 }),
   options: {
-    popup: toggle("Pop-up on volume changes", true),
+    popup: { ...toggle("Pop-up on volume changes", true), pill: true },
     pinned: list("Pinned sources", [], "Device or app name"),
   },
   setup({ volume: port }: { volume: VolumePort }, host) {

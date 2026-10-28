@@ -69,6 +69,7 @@ export const tts = definePlugin({
   description: "Text to speech, on this computer or by an AI provider.",
   icon: SPEAKER,
   slots: ["glance", "tab"],
+  sample: () => ({ text: "Reading aloud", mark: "eq" }),
   options: {
     // These are drawn by the settings panel, which knows the providers, the downloads and each model's voices.
     ...engineOptions(),

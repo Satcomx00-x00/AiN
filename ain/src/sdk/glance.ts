@@ -1,5 +1,5 @@
 import { sparkline } from "./chart";
-import { EASE_OUT, h, reducedMotion, roll, svg } from "./dom";
+import { EASE_OUT, h, icon, reducedMotion, roll, svg } from "./dom";
 import type { Glance } from "./plugin";
 
 const SPARK_SLOTS = 12;
@@ -10,9 +10,11 @@ export interface GlanceSlot {
   draw(g: Glance | null, source?: string): void;
 }
 
-/** One glance spot on the collapsed pill: optional art, mark, ring, sparkline or level bar, then text. */
+/** One glance spot on the collapsed pill: optional art, icon, mark, ring, sparkline or level bar, then text. */
 export function glanceSlot(): GlanceSlot {
   const art = h("img", { class: "g-art", alt: "" });
+  const ico = h("span", { class: "g-icon", "aria-hidden": "true" });
+  let shownIcon: string | undefined;
   const mark = h("span", { class: "mark", "aria-hidden": "true" }, h("i"), h("i"), h("i"));
   const ring = svg("0 0 16 16", `<circle class="track" cx="8" cy="8" r="6" pathLength="100"/><circle class="fill" cx="8" cy="8" r="6" pathLength="100"/>`, "mini-ring");
   const spark = svg("0 0 24 12", "<polyline/>", "mini-spark");
@@ -20,7 +22,7 @@ export function glanceSlot(): GlanceSlot {
   const line = spark.querySelector("polyline");
   const bar = h("span", { class: "g-bar", "aria-hidden": "true" }, h("i"));
   const text = h("span", { class: "g-text" });
-  const el = h("span", { class: "g" }, art, mark, ring, spark, bar, text);
+  const el = h("span", { class: "g" }, art, ico, mark, ring, spark, bar, text);
   let shownSource: string | undefined;
 
   return {
@@ -34,6 +36,9 @@ export function glanceSlot(): GlanceSlot {
       mark.dataset.kind = g?.mark ?? "";
       art.hidden = !g?.art;
       if (g?.art && art.getAttribute("src") !== g.art) art.src = g.art;
+      ico.hidden = !g?.icon;
+      if (g?.icon && g.icon !== shownIcon) ico.replaceChildren(icon(g.icon));
+      shownIcon = g?.icon;
       ring.style.display = g?.progress === undefined ? "none" : "";
       ring.style.setProperty("--p", String(g?.progress ?? 0));
       spark.style.display = g?.spark ? "" : "none";
