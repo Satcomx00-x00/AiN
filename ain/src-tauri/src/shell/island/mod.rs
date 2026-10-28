@@ -15,7 +15,10 @@ use tauri_specta::Event;
 
 use crate::Res;
 use hit::{AutoHide, HitArea};
-pub use window::{Island, is_wayland_surface};
+pub use window::Island;
+/// Only the toasts' Linux placement asks.
+#[cfg(target_os = "linux")]
+pub use window::is_wayland_surface;
 
 const LABEL: &str = "widget";
 

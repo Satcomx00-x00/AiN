@@ -1054,4 +1054,3 @@ describe("notifications and events", () => {
     expect(el.dataset.notice).toBe("true");
   });
 });
-

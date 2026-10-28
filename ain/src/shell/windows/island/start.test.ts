@@ -203,4 +203,3 @@ describe("plugin files' notifiers and shortcuts", () => {
     delete (window as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__;
   });
 });
-

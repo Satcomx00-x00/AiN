@@ -288,4 +288,3 @@ describe("the corner toasts", () => {
     expect(unlisten).toHaveBeenCalledTimes(2);
   });
 });
-
