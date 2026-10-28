@@ -55,6 +55,18 @@ describe("the built-in pill styles", () => {
     for (const s of styles) expect(s.size?.(pill, {}) ?? pill).toMatchObject({ width: pill.width, height: pill.height });
   });
 
+  it("draw every glance a spot shows side by side on the Pill, and one when only that is given", () => {
+    const { root, view } = mounted("pill");
+    const said = (text: string) => ({ glance: { text }, from: text });
+    view.draw({ ...quiet, left: { text: "9:41" }, leftAll: [said("9:41"), said("24%")], rightAll: [said("Teams")] });
+    expect(texts(root)).toEqual(["9:41", "24%", "Teams"]);
+    view.draw({ ...quiet, left: { text: "9:42" }, leftFrom: "clock" });
+    const shown = [...root.querySelectorAll<HTMLElement>(".g")].filter((g) => !g.hidden).map((g) => g.querySelector(".g-text")?.textContent);
+    expect(shown).toEqual(["9:42", ""]);
+    view.draw({ ...quiet, right: { text: "Teams" } });
+    expect(texts(root)).toEqual(["", "", "Teams"]);
+  });
+
   it("widen for a live activity only when they show text", () => {
     expect(styles.filter((s) => s.widens === false).map((s) => s.id)).toEqual(["stub", "sliver"]);
   });

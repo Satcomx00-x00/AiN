@@ -135,6 +135,15 @@ export function system() {
       download: async () => {},
       remove: async () => {},
     },
+    spelling: {
+      watch: async (onChange) => (onChange({ phase: "idle" }), () => {}),
+      watchModel: async (onChange) => (onChange({ ...VOICE, model: "qwen2.5-1.5b", installed: ["qwen2.5-1.5b"] } as never), () => {}),
+      fix: async () => {},
+      check: async (text) => ({ text, fixes: 0, by: "model" }),
+      openFolder: async () => {},
+      download: async () => {},
+      remove: async () => {},
+    },
     persona: {
       watch: talk.watch,
       control: async (c) => void talked.push(c),

@@ -9,6 +9,7 @@ import { media } from "./media";
 import { persona } from "./persona";
 import { privacy } from "./privacy";
 import { screenshot } from "./screenshot";
+import { spelling } from "./spelling";
 import { stats } from "./stats";
 import { styles } from "./styles";
 import { timer } from "./timer";
@@ -17,13 +18,13 @@ import { tts } from "./tts";
 import { volume } from "./volume";
 
 /** Every plugin the app knows about. Where each shows up is chosen in Settings (defaults in `layout.ts`). */
-export const catalogue: readonly Plugin<Services, Fields>[] = [clock, timer, clipboard, stats, media, volume, privacy, screenshot, dictation, transcript, tts, persona];
+export const catalogue: readonly Plugin<Services, Fields>[] = [clock, timer, clipboard, stats, media, volume, privacy, screenshot, dictation, transcript, tts, spelling, persona];
 
 /**
  * What plugins from the plugins folder may use: their ids can't clash with a built-in feature's,
  * startup animation's or pill style's, and
  * they may only ask for these services (`oauth` bound to each plugin's id). Clipboard history, screen captures, dictation,
- * transcript, read aloud and conversation stay with the built-in features: they read what the user copies, sees, says, hears and selects.
+ * transcript, read aloud, spelling and conversation stay with the built-in features: they read what the user copies, sees, says, hears and selects.
  */
 export const extensionRules = {
   taken: new Set([...catalogue.map((p) => p.id), ...greetings.map((g) => g.id), ...styles.map((s) => s.id)]),

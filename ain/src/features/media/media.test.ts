@@ -20,7 +20,7 @@ afterEach(() => {
 });
 
 /** The tab on a fake player whose track a test can change. */
-async function player(first: Track | null = SONG, opts = { wide: true, tint: true }) {
+async function player(first: Track | null = SONG, opts = { title: true, wide: true, tint: true }) {
   let push: (t: Track | null) => void = () => {};
   const port = {
     watch: vi.fn(async (onChange: (t: Track | null) => void) => ((push = onChange), onChange(first), () => {})),
@@ -106,9 +106,11 @@ describe("the artwork", () => {
     expect(p.widget.ambient?.()).toBe("#1db954");
     expect(p.host.refresh).toHaveBeenCalled();
     expect(p.widget.glance?.(NOW)).toEqual({ text: "Hurry Up, We're Dreamin…", mark: "eq", wide: true, art: "data:image/png;base64,ART" });
-    p.setOptions({ wide: false, tint: false });
+    p.setOptions({ title: true, wide: false, tint: false });
     expect(p.widget.ambient?.()).toBeNull();
     expect(p.widget.glance?.(NOW)?.wide).toBe(false);
+    p.setOptions({ title: false, wide: true, tint: true });
+    expect(p.widget.glance?.(NOW)?.text).toBe("");
   });
 
   it("drops the cover and tint for a track without artwork", async () => {

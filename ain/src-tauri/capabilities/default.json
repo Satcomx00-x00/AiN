@@ -17,6 +17,7 @@
     "tts:default",
     "transcript:default",
     "persona:default",
+    "spelling:default",
     "settings:allow-get",
     "settings:allow-open",
     "settings:allow-set",

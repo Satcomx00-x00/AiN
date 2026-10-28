@@ -3,6 +3,11 @@
 All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.16.0](https://github.com/Satcomx00-x00/AiN/compare/v0.15.1..v0.16.0) - 2026-10-28
+
+### Features
+
+- **spelling:** Correct the selection in French or English ([#39](https://github.com/Satcomx00-x00/AiN/pull/39)) ([007c5c2](https://github.com/Satcomx00-x00/AiN/commit/007c5c2d13a0d7fbb3fd72075c2f5d9ddc23f323))
 ## [0.15.1](https://github.com/Satcomx00-x00/AiN/compare/v0.15.0..v0.15.1) - 2026-10-28
 
 ### Bug fixes

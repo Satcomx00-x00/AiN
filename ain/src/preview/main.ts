@@ -18,7 +18,7 @@ import { start } from "../shell/windows/island/app";
 import { idlePopup } from "../shell/commands";
 import { noExtensions } from "../shell/extensions";
 import { memorySecrets } from "../shell/secrets";
-import { type General, PILL_SIZE_IDS, defaults, memorySettings, parseSettings } from "../shell/settings";
+import { type General, PILL_SIZE_IDS, type PillLook, defaults, memorySettings, parseSettings } from "../shell/settings";
 import { themeById } from "../shell/themes";
 import { layout } from "../features/layout";
 import type { Services } from "../features/services";
@@ -179,6 +179,19 @@ const fake: Services = {
     download: async () => {},
     remove: async () => {},
   },
+  spelling: {
+    watch: async (onChange) =>
+      (onChange(params.has("spell") ? { phase: "done", original: "Je vais a l'ecole demain.", corrected: "Je vais à l'école demain.", fixes: 2, by: "model", delivery: "typed" } : { phase: "idle" }), () => {}),
+    watchModel: async (onChange) => {
+      onChange({ model: "qwen2.5-1.5b", dir: "C:\\Users\\you\\AppData\\Roaming\\dev.satcom.ain\\models\\qwen2.5-1.5b-instruct-q4_k_m", installed: ["qwen2.5-1.5b"], state: "ready" });
+      return () => {};
+    },
+    fix: async () => {},
+    check: async (text) => ({ text, fixes: 0, by: "model" }),
+    openFolder: async () => {},
+    download: async () => {},
+    remove: async () => {},
+  },
   persona: {
     watch: async (onChange) =>
       (onChange(params.has("talk") ? { phase: "live", level: 0.4, speaking: true, said: "Sure! What would you like to talk about today?" } : { phase: "idle" }), () => {}),
@@ -244,6 +257,11 @@ Object.assign(window, {
     update: async (patch: Partial<General>) => {
       const current = parseSettings(stored, defaults(layout));
       await store.save({ ...current, general: { ...current.general, ...patch } });
+    },
+    /** How the pill dresses its glances, as Settings → Pill would. */
+    dress: async (patch: Partial<PillLook>) => {
+      const current = parseSettings(stored, defaults(layout));
+      await store.save({ ...current, pill: { ...current.pill, ...patch } });
     },
   },
 });

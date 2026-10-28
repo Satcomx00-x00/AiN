@@ -5,7 +5,7 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 const { invoke } = await import("@tauri-apps/api/core");
 const { checkIsland, tauriWindow } = await import("./window");
 const { EAR, EXPANDED, GLANCE, PILL_SIZES, SLACK, TALLEST, WIDE, earFor, frame, panelHeight, pillOf, sizeFor } = await import("./geometry");
-const { pick, pickFrom, place, placedIds } = await import("./placement");
+const { dressed, pick, pickAll, pickFrom, place, placedIds } = await import("./placement");
 const { pickColor, toHsl, vivid } = await import("../sdk/color");
 const { load } = await import("./host");
 const { definePlugin } = await import("../sdk/plugin");
@@ -136,6 +136,18 @@ describe("placement", () => {
   it("says which plugin is speaking", () => {
     const { placement } = place(load(catalogue, layout, {}).mounted, layout);
     expect(pickFrom(placement.right, 0)?.from.plugin.id).toBe("stats");
+  });
+
+  it("shows several glances side by side, dressed with an icon or kept while idle", () => {
+    const quiet = { plugin: { id: "mic", label: "Mic", description: "", icon: "<i/>", slots: ["glance"] as const, setup: () => ({}) }, widget: { glance: () => null } };
+    const busy = { plugin: { ...quiet.plugin, id: "cpu" }, widget: { glance: () => ({ text: "24%" }) } };
+    const spot = [quiet, busy, { ...busy, plugin: { ...busy.plugin, id: "ram" } }] as never[];
+    expect(pickAll(spot, 0, 4).map((s) => s.glance.text)).toEqual(["24%", "24%"]);
+    expect(pickAll(spot, 0, 1).map((s) => (s.from as { plugin: { id: string } }).plugin.id)).toEqual(["cpu"]);
+    const dress = { icons: new Set(["cpu"]), idle: new Set(["mic"]) };
+    expect(dressed(quiet as never, 0, dress)).toEqual({ text: "", icon: "<i/>", tone: "muted" });
+    expect(dressed(busy as never, 0, dress)).toEqual({ text: "24%", icon: "<i/>" });
+    expect(pickAll(spot, 0, 2, dress).map((s) => s.glance.text)).toEqual(["", "24%"]);
   });
 });
 
