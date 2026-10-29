@@ -17,7 +17,7 @@ test("the island starts, shows the time and the CPU load, and sizes its window",
   await expect(island).toHaveAttribute("data-style", "pill");
   await expect(island.locator(".glance .g-text")).toHaveText([/^\d{1,2}:\d{2}/, "42%"], { timeout: 8000 });
   const layout = (await calls(page)).commands.filter((c) => c.cmd === "plugin:island|layout");
-  expect(layout.at(-1)?.args).toMatchObject({ region: { width: 220, height: 32 } });
+  expect(layout.at(-1)?.args).toMatchObject({ region: { width: 420, height: 32 } });
 });
 
 test("the island starts with stored settings: a large Stub", async ({ page }) => {

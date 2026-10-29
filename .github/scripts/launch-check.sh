@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Starts the built app on a virtual X display and checks that it comes up for real:
 #   - the process starts and stays alive, and nothing panics;
-#   - the island's window takes the size the frontend asks for once it is running (472 px wide and at
+#   - the island's window takes the size the frontend asks for once it is running (548 px wide and at
 #     least 204 tall: the open island, its ears and room for the spring; taller when a tab's content
 #     needs a taller panel in the runner's fonts), which proves the web view loaded the page,
 #     the frontend started, and its calls reached the backend.
@@ -14,7 +14,7 @@ set -euo pipefail
 APP=$1
 OUT=${2:-launch-check}
 # Window width and least height once the island has laid itself out, at the default settings.
-WIDTH=${WIDTH:-472}
+WIDTH=${WIDTH:-548}
 MIN_HEIGHT=${MIN_HEIGHT:-204}
 EXPECTED="${WIDTH}x${MIN_HEIGHT}+"
 # Seconds to wait for it, then to keep it running.

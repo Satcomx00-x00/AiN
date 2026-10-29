@@ -106,6 +106,7 @@ function install(backend: Backend): void {
     "plugin:persona|open_local_dir": () => null,
     "plugin:secrets|saved_keys": (a) => (a.keys as string[]).map(() => false),
     "plugin:capture|latest": () => new ArrayBuffer(0),
+    "plugin:capture|problem": () => new ArrayBuffer(0),
     "plugin:capture|save_png": () => "/Pictures/AiN/capture.png",
     "plugin:extensions|list": () => ({ dir: "/plugins", plugins: [] }),
     "plugin:extensions|open_dir": () => null,
