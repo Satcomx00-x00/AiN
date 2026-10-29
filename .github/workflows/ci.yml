@@ -263,14 +263,8 @@ jobs:
           workspaces: ain/src-tauri -> target
       - name: Install cargo-llvm-cov
         run: cargo install cargo-llvm-cov --locked --version "$LLVM_COV_VERSION"
-      # rust-cache keeps sherpa-onnx-sys's build output but prunes the native libraries it extracted
-      # under target/, which it then never fetches again: make it start over.
-      - name: Refetch sherpa-onnx's native libraries
-        shell: bash
-        working-directory: ain/src-tauri
-        run: |
-          rm -rf target/sherpa-onnx-prebuilt
-          cargo clean --locked -p sherpa-onnx-sys --target ${{ matrix.target }}
+      # sherpa-onnx's shared libraries, from PyPI: the build reads package registries only.
+      - run: bun run native
       # tauri::generate_context! embeds ../dist, so the frontend must exist before compiling.
       - run: bun install --frozen-lockfile
       - run: bun run build
@@ -323,13 +317,8 @@ jobs:
         with:
           workspaces: ain/src-tauri -> target
           key: fedora-${{ matrix.release }}
-      # rust-cache keeps sherpa-onnx-sys's build output but prunes the native libraries it extracted
-      # under target/, which it then never fetches again: make it start over.
-      - name: Refetch sherpa-onnx's native libraries
-        working-directory: ain/src-tauri
-        run: |
-          rm -rf target/sherpa-onnx-prebuilt
-          cargo clean --locked -p sherpa-onnx-sys
+      # sherpa-onnx's shared libraries, from PyPI: the build reads package registries only.
+      - run: bun run native
       - run: bun install --frozen-lockfile
       - run: bun run test
       - run: bun run build
@@ -383,13 +372,8 @@ jobs:
         with:
           workspaces: ain/src-tauri -> target
           key: launch
-      # rust-cache keeps sherpa-onnx-sys's build output but prunes the native libraries it extracted
-      # under target/, which it then never fetches again: make it start over.
-      - name: Refetch sherpa-onnx's native libraries
-        working-directory: ain/src-tauri
-        run: |
-          rm -rf target/sherpa-onnx-prebuilt
-          cargo clean --locked -p sherpa-onnx-sys
+      # sherpa-onnx's shared libraries, from PyPI: the build reads package registries only.
+      - run: bun run native
       - run: bun install --frozen-lockfile
       - run: bun run tauri build --ci --bundles ${{ matrix.bundles }}
       # The per-user NSIS installer, silent, as an update would run it; then the installed app.
@@ -432,14 +416,8 @@ jobs:
         with:
           workspaces: ain/src-tauri -> target
           key: appimage
-      # rust-cache keeps sherpa-onnx-sys's build output but prunes the native libraries it extracted
-      # under target/, which it then never fetches again: make it start over.
-      - name: Refetch sherpa-onnx's native libraries
-        shell: bash
-        working-directory: ain/src-tauri
-        run: |
-          rm -rf target/sherpa-onnx-prebuilt
-          cargo clean --locked -p sherpa-onnx-sys
+      # sherpa-onnx's shared libraries, from PyPI: the build reads package registries only.
+      - run: bun run native
       - run: bun install --frozen-lockfile
       - run: bun run tauri build --ci --bundles appimage
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7

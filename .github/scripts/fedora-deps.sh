@@ -23,6 +23,7 @@ $SUDO dnf install -y --setopt=install_weak_deps=False \
   xz \
   file \
   patchelf \
+  python3-pip \
   rpm-build \
   webkit2gtk4.1-devel \
   gtk3-devel \

@@ -1,5 +1,8 @@
 use tauri_build::{Attributes, DefaultPermissionRule, InlinedPlugin, WindowsAttributes};
 
+#[path = "build/sherpa_onnx.rs"]
+mod sherpa_onnx;
+
 include!("src/manifest.rs");
 
 /// Each plugin in the manifest gets an `allow-<command>` permission per command, and a `default`
@@ -35,8 +38,15 @@ fn common_controls(windows: WindowsAttributes) -> WindowsAttributes {
     WindowsAttributes::new_without_app_manifest()
 }
 
+/// The bundle's name (`productName`), which names its resource folder on Linux.
+fn product() -> String {
+    let config: serde_json::Value = serde_json::from_str(include_str!("tauri.conf.json")).expect("tauri.conf.json is JSON");
+    config["productName"].as_str().expect("tauri.conf.json has a productName").to_owned()
+}
+
 fn main() {
     println!("cargo:rerun-if-changed=src/manifest.rs");
+    sherpa_onnx::link(&product()).unwrap_or_else(|e| panic!("sherpa-onnx: {e}"));
     let attributes = plugins(Attributes::new()).windows_attributes(common_controls(WindowsAttributes::new()));
     tauri_build::try_build(attributes).expect("failed to run tauri-build");
 }

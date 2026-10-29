@@ -198,14 +198,10 @@ jobs:
         with:
           workspaces: ain/src-tauri -> target
           key: release
-      # rust-cache keeps sherpa-onnx-sys's build output but prunes the native libraries it extracted
-      # under target/, which it then never fetches again: make it start over.
-      - name: Refetch sherpa-onnx's native libraries
-        shell: bash
-        working-directory: ain/src-tauri
-        run: |
-          rm -rf target/sherpa-onnx-prebuilt
-          cargo clean --locked -p sherpa-onnx-sys --target ${{ matrix.target }}
+      # sherpa-onnx's shared libraries, from PyPI: the build reads package registries only.
+      - name: Install sherpa-onnx's libraries
+        working-directory: ain
+        run: bun run native
       - name: Install frontend dependencies
         working-directory: ain
         run: bun install --frozen-lockfile
@@ -236,8 +232,8 @@ jobs:
           # latest.json's plain `windows-x86_64` entry: the per-user NSIS installer (no admin
           # prompt), not the MSI. (The updater looks for `windows-x86_64-<nsis|msi>` first.)
           updaterJsonPreferNsis: true
-      # The app itself for its npm package (see npm/build.ts), in a tarball: artifacts drop the
-      # executable bit.
+      # The app itself for its npm package (see npm/build.ts), with sherpa-onnx's libraries beside
+      # it, in a tarball: artifacts drop the executable bit.
       - name: Stage the npm binary
         if: vars.NPM_PUBLISH == 'true'
         shell: bash
@@ -247,7 +243,7 @@ jobs:
         run: |
           rm -rf npm && mkdir npm
           case "$PLATFORM" in
-            win32-*) cp ain.exe npm/ ;;
+            win32-*) cp ain.exe sherpa-onnx-c-api.dll onnxruntime.dll npm/ ;;
             linux-*) cp bundle/appimage/*.AppImage npm/AiN.AppImage ;;
           esac
           tar -czf "npm-$PLATFORM.tgz" -C npm .
@@ -282,13 +278,16 @@ jobs:
         with:
           bun-version: ${{ env.BUN_VERSION }}
       - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
-      # The bare executable (the frontend is built into it), tarred as for the other platforms.
+      # The bare executable (the frontend is built into it) and sherpa-onnx's libraries, which it finds
+      # beside it, tarred as for the other platforms.
       - name: Build the app
         working-directory: ain
         run: |
+          bun run native
           bun install --frozen-lockfile
           bun run tauri build --ci --no-bundle
-          mkdir -p npm && cp src-tauri/target/release/ain npm/
+          mkdir -p npm
+          cp src-tauri/target/release/{ain,libsherpa-onnx-c-api.so,libonnxruntime.so} npm/
           tar -czf npm-fedora.tgz -C npm .
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:

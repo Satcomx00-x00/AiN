@@ -1,16 +1,22 @@
-# Build settings for the native code built from source (llama.cpp, via llama-cpp-sys-2), so it links
-# cleanly with sherpa-onnx's prebuilt static libraries.
+# sherpa-onnx's shared libraries come from PyPI (`sherpa-onnx-core`, installed by `bun run native`),
+# so the build reads only package registries: sherpa-onnx-sys's build script, which downloads them
+# from GitHub, is overridden below, and build.rs links them from SHERPA_ONNX_LIB_DIR.
 [env]
-# sherpa-onnx's Linux libraries use the pre-C++11 std::string ABI (manylinux2014): llama.cpp must
-# too, or classes holding a string (std::regex's scanner…) are laid out two ways under one name.
-CXXFLAGS_x86_64_unknown_linux_gnu = "-D_GLIBCXX_USE_CXX11_ABI=0"
-# sherpa-onnx's Windows libraries use the static CRT (/MT): llama.cpp must too, or both C++
-# runtimes end up linked (LNK2005). This for its CMake build; `crt-static` below for the rest.
+SHERPA_ONNX_LIB_DIR = { value = "native/sherpa-onnx/sherpa_onnx/lib", relative = true }
+# The static CRT (/MT) on Windows for llama.cpp, as for the rest (`crt-static` below), or both C++
+# runtimes end up linked (LNK2005). This for its CMake build…
 LLAMA_STATIC_CRT = "1"
-# llama.cpp's CMake policies pick the runtime from CMAKE_MSVC_RUNTIME_LIBRARY, not the /MT flag.
+# …whose CMake policies pick the runtime from CMAKE_MSVC_RUNTIME_LIBRARY, not the /MT flag.
 CMAKE_TOOLCHAIN_FILE_x86_64_pc_windows_msvc = { value = "cmake/msvc-static-crt.cmake", relative = true }
 
+# sherpa-onnx-sys's build script (`links = "sherpa-onnx"`) doesn't run on these targets: build.rs
+# says what to link instead.
+[target.x86_64-unknown-linux-gnu.sherpa-onnx]
+[target.aarch64-unknown-linux-gnu.sherpa-onnx]
+[target.x86_64-pc-windows-msvc.sherpa-onnx]
+[target.aarch64-pc-windows-msvc.sherpa-onnx]
+
 # The static CRT on Windows for everything else built from source (llama-cpp-sys-2's C++ wrapper,
-# compiled by cc), as sherpa-onnx's libraries; the app then needs no Visual C++ runtime installed.
+# compiled by cc): the app then needs no Visual C++ runtime installed.
 [target.x86_64-pc-windows-msvc]
 rustflags = ["-C", "target-feature=+crt-static"]

@@ -1,11 +1,11 @@
 /**
  * What the guests need from this machine, since they have no internet: the source of the revision
- * under test with its frontend already built, the crates it depends on, and the tools and archives
+ * under test with its frontend and sherpa-onnx's libraries, the crates it depends on, and the tools
  * its build would otherwise download. Each is made once and cached in vmtest/.cache.
  */
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { basename, join } from "node:path";
+import { join } from "node:path";
 import { CMAKE_VERSION } from "../targets.ts";
 import { check, run } from "./proc.ts";
 
@@ -55,8 +55,9 @@ export class Host {
   }
 
   /**
-   * A detached worktree at the revision, with its dependencies installed and `dist` built: the
-   * guests build only the Rust side, so they need neither Node nor the network.
+   * A detached worktree at the revision, with its dependencies installed (sherpa-onnx's libraries
+   * too) and `dist` built: the guests build only the Rust side, so they need neither Node nor the
+   * network.
    */
   async stage(rev: Rev, log: (s: string) => void): Promise<Stage> {
     const root = join(this.cache, "stage", rev.sha.slice(0, 12));
@@ -64,10 +65,11 @@ export class Host {
     const app = join(root, prefix);
     if (existsSync(join(app, "dist", "index.html"))) return { rev, app };
 
-    log(`staging ${rev.label}: worktree, bun install, vite build`);
+    log(`staging ${rev.label}: worktree, bun install, sherpa-onnx's libraries, vite build`);
     if (existsSync(root)) await this.git(["worktree", "remove", "--force", root]);
     await this.git(["worktree", "add", "--force", "--detach", root, rev.sha]);
     await check("bun", ["install", "--frozen-lockfile"], { cwd: app });
+    await check("bun", ["run", "native"], { cwd: app });
     await check("bun", ["run", "build"], { cwd: app });
     await this.prune("stage", 3, (dir) => this.git(["worktree", "remove", "--force", dir]).then(() => {}));
     return { rev, app };
@@ -103,11 +105,6 @@ export class Host {
       if (!want || sha256(data) !== want) throw new Error(`${name}: checksum mismatch`);
       return data;
     });
-  }
-
-  /** A file a guest's build asked for, downloaded here on its behalf. */
-  fetch(url: string): Promise<string> {
-    return this.#once(basename(new URL(url).pathname), () => download(url));
   }
 
   readonly #fetching = new Map<string, Promise<string>>();

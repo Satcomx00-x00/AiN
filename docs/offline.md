@@ -1,7 +1,9 @@
 # Closed networks and offline machines
 
-AiN's package carries everything it runs on (speech recognition and synthesis are linked in, from
-sherpa-onnx's static libraries); only the AI models are downloaded, once, when you ask.
+AiN's package carries everything it runs on (speech recognition and synthesis: sherpa-onnx's
+libraries, installed with the app); only the AI models are downloaded, once, when you ask. Building
+it needs only package registries (npm, PyPI, crates.io) or their proxies: see the README's
+Development section.
 
 ## Certificates
 

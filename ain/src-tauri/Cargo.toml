@@ -9,6 +9,8 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
+# Reads tauri.conf.json's productName (where the bundle puts sherpa-onnx's libraries on Linux).
+serde_json = "1.0.154"
 
 [dependencies]
 tauri = { version = "2", features = ["tray-icon", "specta"] }
@@ -35,9 +37,9 @@ ureq = { version = "3.4.2", features = ["platform-verifier"] }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 rustls-platform-verifier = "0.7"
 base64 = "0.23"
-# Speech recognition for dictation and speech synthesis for read aloud, from prebuilt static
-# libraries (Windows and Linux x64).
-sherpa-onnx = "1.13.8"
+# Speech recognition for dictation and speech synthesis for read aloud, from prebuilt shared libraries
+# installed from PyPI (native/requirements.txt, same version): see .cargo/config.toml and build.rs.
+sherpa-onnx = { version = "1.13.8", default-features = false, features = ["shared"] }
 sha2 = "0.11.1"
 # Read aloud's voices come as .tar.bz2 archives (bzip2 in pure Rust: no C toolchain needed).
 tar = "0.4.46"
