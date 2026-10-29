@@ -3,6 +3,15 @@
 All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.19.0](https://github.com/Satcomx00-x00/AiN/compare/v0.18.0..v0.19.0) - 2026-10-29
+
+### Features
+
+- A command palette and window zones, on Windows and Linux ([#25](https://github.com/Satcomx00-x00/AiN/pull/25)) ([47f358c](https://github.com/Satcomx00-x00/AiN/commit/47f358c9a8867897eafb75d1ecd39314f35377b3))
+
+### CI
+
+- **prek:** Cap the mise hooks at a published mise release ([05baaa2](https://github.com/Satcomx00-x00/AiN/commit/05baaa23376da507dd332d582231e8be7e7f4148))
 ## [0.18.0](https://github.com/Satcomx00-x00/AiN/compare/v0.17.0..v0.18.0) - 2026-10-29
 
 ### Features
