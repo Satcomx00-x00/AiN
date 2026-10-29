@@ -170,10 +170,12 @@ repo = "local"
 
 [[repos.hooks]]
 # Workflow syntax, expressions, and shellcheck on `run:` scripts. A prebuilt binary through mise,
-# so no Go toolchain is needed.
+# so no Go toolchain is needed. mise is capped at a published release: uncapped, prek downloads the
+# newest tag, which can come before its release has binaries (prek needs 2026.5.18 or later).
 id = "actionlint"
 name = "actionlint"
 language = "mise"
+language_version = ">=2026.5.18, <=2026.10.22"
 additional_dependencies = ["aqua:rhysd/actionlint@1.7.12"]
 entry = "actionlint"
 files = '^\.github/workflows/[^/]+\.ya?ml$'
@@ -185,6 +187,7 @@ groups = ["ci"]
 id = "gitleaks"
 name = "gitleaks"
 language = "mise"
+language_version = ">=2026.5.18, <=2026.10.22"
 additional_dependencies = ["aqua:gitleaks/gitleaks@8.30.1"]
 entry = "gitleaks git --pre-commit --staged --redact --no-banner"
 pass_filenames = false
