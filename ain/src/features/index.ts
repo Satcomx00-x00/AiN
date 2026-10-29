@@ -6,6 +6,7 @@ import { clock } from "./clock";
 import { dictation } from "./dictation";
 import { greetings } from "./greetings";
 import { media } from "./media";
+import { notifications } from "./notifications";
 import { palette } from "./palette";
 import { persona } from "./persona";
 import { privacy } from "./privacy";
@@ -20,16 +21,17 @@ import { volume } from "./volume";
 import { zones } from "./zones";
 
 /** Every plugin the app knows about. Where each shows up is chosen in Settings (defaults in `layout.ts`). */
-export const catalogue: readonly Plugin<Services, Fields>[] = [clock, timer, clipboard, stats, media, volume, privacy, screenshot, dictation, transcript, tts, spelling, persona, palette, zones];
+export const catalogue: readonly Plugin<Services, Fields>[] = [clock, timer, clipboard, stats, media, volume, privacy, screenshot, dictation, transcript, tts, spelling, persona, notifications, palette, zones];
 
 /**
  * What plugins from the plugins folder may use: their ids can't clash with a built-in feature's,
  * startup animation's or pill style's, and
- * they may only ask for these services (`oauth` bound to each plugin's id). Clipboard history, screen captures, dictation,
+ * they may only ask for these services (`oauth` and `ai` bound to each plugin's id; `notifications` also lets their
+ * widget's `onNotification` see every notification). Clipboard history, screen captures, dictation,
  * transcript, read aloud, spelling, conversation and the palette's apps and files stay with the built-in features: they
  * read what the user copies, sees, says, hears and selects, and start programs.
  */
 export const extensionRules = {
   taken: new Set([...catalogue.map((p) => p.id), ...greetings.map((g) => g.id), ...styles.map((s) => s.id)]),
-  services: ["stats", "media", "volume", "privacy", "oauth"] satisfies (keyof Services)[],
+  services: ["stats", "media", "volume", "privacy", "oauth", "notifications", "ai"] satisfies (keyof Services)[],
 } as const;

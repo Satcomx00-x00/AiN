@@ -16,22 +16,22 @@ describe("the pill's size", () => {
     await advance(1000);
     await sys.save((s) => ({ ...s, general: { ...s.general, pillSize: "large" } }));
     await advance(0);
-    expect(island.size()).toEqual({ width: "260px", height: "44px" });
+    expect(island.size()).toEqual({ width: "520px", height: "44px" });
     expect(island.el.style.getPropertyValue("--scale")).toBe("1.375");
-    expect(sys.recorded.regions.at(-1)).toEqual({ width: 260 + 2 * 14, height: 44 });
+    expect(sys.recorded.regions.at(-1)).toEqual({ width: 520 + 2 * 14, height: 44 });
     await sys.save((s) => ({ ...s, general: { ...s.general, pillSize: "low" } }));
     await advance(0);
-    expect(island.size()).toEqual({ width: "160px", height: "20px" });
-    expect(sys.recorded.regions.at(-1)).toEqual({ width: 160 + 2 * 7, height: 20 });
+    expect(island.size()).toEqual({ width: "320px", height: "20px" });
+    expect(sys.recorded.regions.at(-1)).toEqual({ width: 320 + 2 * 7, height: 20 });
   });
 
-  it("opens to the same panel at every size", async () => {
+  it("opens below the pill at every size, never narrower than the pill", async () => {
     environment();
     const sys = system();
     await sys.save((s) => ({ ...s, general: { ...s.general, pillSize: "large" } }));
     const island = await startIsland(sys);
     await island.hover();
-    expect(island.size()).toEqual({ width: "420px", height: `${44 + 156}px` });
+    expect(island.size()).toEqual({ width: "520px", height: `${44 + 156}px` });
   });
 
   it("keeps a hardware notch's size, with room for glances beside it", async () => {
@@ -56,12 +56,12 @@ describe("the pill's style", () => {
       await advance(1000);
       return { style: island.el.dataset.style, size: island.size(), glances: island.glances(), marks: island.marks() };
     };
-    expect(await pick("solo")).toEqual({ style: "solo", size: { width: "236px", height: "32px" }, glances: ["Midnight City"], marks: ["eq"] });
+    expect(await pick("solo")).toEqual({ style: "solo", size: { width: "376px", height: "32px" }, glances: ["Midnight City"], marks: ["eq"] });
     expect(await pick("stub")).toEqual({ style: "stub", size: { width: "56px", height: "14px" }, glances: [""], marks: ["eq"] });
     const sliver = await pick("sliver");
-    expect([sliver.style, sliver.size, sliver.glances]).toEqual(["sliver", { width: "140px", height: "6px" }, []]);
+    expect([sliver.style, sliver.size, sliver.glances]).toEqual(["sliver", { width: "280px", height: "6px" }, []]);
     expect(island.el.querySelector<HTMLElement>(".glance.sliver")?.dataset.playing).toBe("true");
-    expect(await pick("pill")).toEqual({ style: "pill", size: { width: "296px", height: "32px" }, glances: ["09:41", "Midnight City"], marks: ["", "eq"] });
+    expect(await pick("pill")).toEqual({ style: "pill", size: { width: "496px", height: "32px" }, glances: ["09:41", "Midnight City"], marks: ["", "eq"] });
   });
 
   it("each style comes in every size", async () => {
@@ -69,11 +69,11 @@ describe("the pill's style", () => {
     const sys = system();
     const island = await startIsland(sys);
     const sizes: Record<string, [string, string][]> = {
-      pill: [["160px", "20px"], ["200px", "32px"], ["260px", "44px"]],
-      solo: [["112px", "20px"], ["140px", "32px"], ["182px", "44px"]],
+      pill: [["320px", "20px"], ["400px", "32px"], ["520px", "44px"]],
+      solo: [["224px", "20px"], ["280px", "32px"], ["364px", "44px"]],
       stub: [["35px", "9px"], ["56px", "14px"], ["77px", "19px"]],
-      sliver: [["112px", "4px"], ["140px", "6px"], ["182px", "8px"]],
-      hidden: [["160px", "20px"], ["200px", "32px"], ["260px", "44px"]],
+      sliver: [["224px", "4px"], ["280px", "6px"], ["364px", "8px"]],
+      hidden: [["320px", "20px"], ["400px", "32px"], ["520px", "44px"]],
     };
     for (const [style, expected] of Object.entries(sizes))
       for (const [n, pillSize] of (["low", "normal", "large"] as const).entries()) {
@@ -180,7 +180,7 @@ describe("plugin files", () => {
     await sys.save((s) => ({ ...s, extensions: ["neon.js"], general: { ...s.general, style: "neon", pillSize: "large" } }));
     await advance(1000);
     expect(island.el.dataset.style).toBe("neon");
-    expect(island.size()).toEqual({ width: "260px", height: "6px" });
+    expect(island.size()).toEqual({ width: "520px", height: "6px" });
     expect(island.el.querySelector<HTMLElement>(".glance .neon")?.dataset.alert).toBe("false");
   });
 
@@ -220,7 +220,7 @@ describe("plugin files", () => {
     await sys.save((s) => ({ ...s, general: { ...s.general, greeting: "wave" } }));
     await advance(1000);
     expect(play).toHaveBeenCalledTimes(1);
-    expect(play.mock.calls[0]![0]).toMatchObject({ size: { width: 160, height: 20 }, scale: 0.625 });
+    expect(play.mock.calls[0]![0]).toMatchObject({ size: { width: 320, height: 20 }, scale: 0.625 });
     await sys.store.playGreeting("wave");
     await advance(1000);
     expect(play).toHaveBeenCalledTimes(2);

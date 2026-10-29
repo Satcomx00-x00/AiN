@@ -29,7 +29,7 @@ function sampleCapture(): ImageData {
 
 const sample: Services = {
   ...tauriServices,
-  capture: { latest: async () => sampleCapture(), save: async (_, name) => `C:\\Users\\you\\Pictures\\AiN\\${name}` },
+  capture: { latest: async () => sampleCapture(), problem: async () => null, save: async (_, name) => `C:\\Users\\you\\Pictures\\AiN\\${name}` },
   clipboard: { ...tauriServices.clipboard, copyImage: async () => {} },
 };
 

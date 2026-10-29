@@ -1,5 +1,5 @@
 import { follow } from "../sdk/follow";
-import type { AnyPlugin, Command, Surface } from "../sdk/plugin";
+import type { AnyPlugin, Command, CommandKind, Surface } from "../sdk/plugin";
 import { commands, events } from "./bindings/popup";
 
 export { keycaps } from "../sdk/platform";
@@ -59,6 +59,8 @@ export interface PopupPort {
   paste(): Promise<void>;
   /** Calls `onShow` with the command id each time the popup is shown. */
   onShow(onShow: (command: string) => void): Promise<() => void>;
+  /** Calls `onAction` each time an `action` command's shortcut is pressed or released, or it is tried. */
+  onAction(onAction: (command: string, kind: CommandKind) => void): Promise<() => void>;
 }
 
 export const tauriPopup: PopupPort = {
@@ -68,6 +70,7 @@ export const tauriPopup: PopupPort = {
   hide: async () => void (await commands.hide()),
   paste: async () => void (await commands.paste()),
   onShow: (onShow) => events.shown.listen((e) => onShow(e.payload.command)),
+  onAction: (onAction) => events.action.listen((e) => onAction(e.payload.command, e.payload.kind)),
 };
 
 /** No shortcuts and no popup, for the browser previews. */
@@ -78,4 +81,5 @@ export const idlePopup: PopupPort = {
   hide: async () => {},
   paste: async () => {},
   onShow: async () => () => {},
+  onAction: async () => () => {},
 };

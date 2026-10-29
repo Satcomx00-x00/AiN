@@ -283,6 +283,19 @@ describe("Settings → Appearance", () => {
     expect((await sys.settings()).general.greeting).toBe("none");
   });
 
+  it("says when the island can't show a test notification, and how one goes while do not disturb is on", async () => {
+    environment();
+    const sys = system();
+    vi.spyOn(sys.store, "testNotification").mockRejectedValue(new Error("island closed"));
+    await sys.save((s) => ({ ...s, notifications: { ...s.notifications, quiet: true } }));
+    const page = await load(sys, "notifications");
+    const test = buttonIn(page.page.querySelector(".page-head")!, "Send a test")!;
+    expect(test.title).toBe("Do not disturb is on: it goes to the history without showing.");
+    test.click();
+    await advance(0);
+    expect(page.toasts()).toEqual(["[NOTIFICATION_TEST] Couldn't send a test notification: island closed"]);
+  });
+
   it("says when the island can't play it", async () => {
     environment();
     const sys = system();
@@ -328,14 +341,14 @@ describe("Settings → Pill", () => {
   };
   const flip = (page: Awaited<ReturnType<typeof load>>, label: string) => page.field(label).querySelector<HTMLButtonElement>(".switch")!.click();
 
-  it("previews each end of the pill and the tabs", async () => {
+  it("previews each end of the pill, lists each side, and the tabs", async () => {
     environment();
     const page = await load(system(), "layout");
     expect(page.heading()).toBe("Pill");
     const ids = (sel: string) => [...page.page.querySelectorAll<HTMLElement>(`${sel} [data-drag]`)].map((el) => el.dataset.drag);
     expect(ids('.pp-end[data-zone="left"]')).toEqual(["clock"]);
     expect(ids('.pp-end[data-zone="right"]')).toEqual(["dictation"]);
-    expect(ids('.pp-queue[data-zone="right"]')).toContain("stats");
+    expect(ids('.side-list[data-zone="right"]')).toContain("stats");
     expect(ids(".pp-tabs")[0]).toBe("media");
   });
 
@@ -994,6 +1007,20 @@ describe("Settings → AI providers", () => {
     expect(page.card("Groq")).toBeDefined();
   });
 
+  it("lets plugins ask a provider's model once the user picks one for them", async () => {
+    environment();
+    const sys = system();
+    const page = await load(sys, "providers");
+    expect(page.card("Plugins")).toBeUndefined();
+    press(page.page, "Add");
+    await page.saved();
+    const card = page.page.querySelector<HTMLElement>("#card-provider-plugins")!;
+    expect(card.textContent).toContain("Off");
+    pick(card, "OpenAI");
+    await page.saved();
+    expect((await sys.settings()).options["plugin-ai"]).toMatchObject({ engine: "openai", remoteModel: expect.any(String) });
+  });
+
   it("starts new providers at the presets' addresses the environment overrides", async () => {
     environment();
     const sys = system();
@@ -1098,6 +1125,99 @@ describe("Settings → AI providers", () => {
   });
 });
 
+describe("Settings → Notifications", () => {
+  const switchIn = (row: HTMLElement) => row.querySelector<HTMLElement>("[role=switch]")!;
+  const time = (row: HTMLElement, label: string, value: string) => {
+    const input = row.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`)!;
+    input.value = value;
+    input.dispatchEvent(new Event("change"));
+  };
+
+  it("picks how they show, and where", async () => {
+    environment();
+    const sys = system();
+    const page = await load(sys, "notifications");
+    expect(page.heading()).toBe("Notifications");
+    expect(page.field("Bubble position")).toBeDefined();
+    press(page.field("Bubble position"), "Left");
+    pick(page.field("Show as"), "Corner toast");
+    await page.saved();
+    expect(page.field("Bubble position")).toBeUndefined();
+    press(page.field("Corner"), "Bottom left");
+    slide(page.field("On screen at once"), 4);
+    await page.saved();
+    expect((await sys.settings()).notifications).toMatchObject({ format: "toast", side: "left", corner: "bottom-left", max: 4 });
+    pick(page.field("Show as"), "In the pill");
+    await page.saved();
+    expect([page.field("Corner"), page.field("Bubble position")]).toEqual([undefined, undefined]);
+  });
+
+  it("sets how long they show and how they move, with or without the time left", async () => {
+    environment();
+    const sys = system();
+    const page = await load(sys, "notifications");
+    slide(page.field("Duration"), 9);
+    switchIn(page.field("Time remaining bar")).click();
+    press(page.field("Animation"), "Fade");
+    press(page.field("Speed"), "Slow");
+    switchIn(page.field("Larger text")).click();
+    switchIn(page.field("Action buttons")).click();
+    await page.saved();
+    expect((await sys.settings()).notifications).toMatchObject({ seconds: 9, bar: false, animation: "fade", speed: "slow", largeText: true, actions: false });
+    switchIn(page.field("Keep until closed")).click();
+    await page.saved();
+    expect([page.field("Duration"), page.field("Time remaining bar")]).toEqual([undefined, undefined]);
+    expect((await sys.settings()).notifications.sticky).toBe(true);
+  });
+
+  it("keeps quiet now, every day between two times, letting urgent ones through or not", async () => {
+    environment();
+    const sys = system();
+    const page = await load(sys, "notifications");
+    expect(page.field("From")).toBeUndefined();
+    switchIn(page.field("Do not disturb")).click();
+    switchIn(page.field("Every day")).click();
+    await page.saved();
+    time(page.field("From"), "From", "21:30");
+    time(page.field("From"), "To", "");
+    time(page.field("From"), "To", "06:45");
+    switchIn(page.field("Let urgent ones through")).click();
+    await page.saved();
+    expect((await sys.settings()).notifications).toMatchObject({ quiet: true, schedule: true, from: "21:30", to: "06:45", urgent: false });
+  });
+
+  it("turns each plugin's notifications off and on", async () => {
+    environment();
+    const sys = system();
+    const page = await load(sys, "notifications");
+    switchIn(page.field("Clock")).click();
+    switchIn(page.field("Now playing")).click();
+    await page.saved();
+    expect((await sys.settings()).notifications.muted).toEqual(["clock", "media"]);
+    switchIn(page.field("Clock")).click();
+    await page.saved();
+    expect((await sys.settings()).notifications.muted).toEqual(["media"]);
+  });
+
+  it("offers the notifiers of plugin files turned on, and shows a gone one as a bubble", async () => {
+    environment();
+    const sys = system();
+    sys.addFile("ticker.js", (island: Sdk) => island.defineNotifier({ id: "ticker", label: "Ticker", show: () => {} }));
+    await sys.store.save({ ...(await sys.settings()), extensions: ["ticker.js"], notifications: { ...(await sys.settings()).notifications, format: "gone" } });
+    const page = await load(sys, "plugins");
+    await advance(0);
+    await page.open("Notifications");
+    expect(page.field("Show as").querySelector(".ui-select-trigger")?.textContent).toContain("Bubble");
+    pick(page.field("Show as"), "Ticker");
+    await page.saved();
+    expect((await sys.settings()).notifications.format).toBe("ticker");
+    await page.open("Plugins");
+    await turnOn(page, "ticker.js");
+    await page.open("Notifications");
+    expect(page.field("Show as").querySelector(".ui-select-trigger")?.textContent).toContain("Bubble");
+  });
+});
+
 describe("Finding your way", () => {
   const typeSearch = (value: string) => {
     const box = document.querySelector<HTMLInputElement>(".search-input")!;
@@ -1107,6 +1227,29 @@ describe("Finding your way", () => {
   };
   const results = () => [...document.querySelectorAll<HTMLElement>(".results .list-row")].map((r) => `${r.querySelector(".list-title")?.textContent} — ${r.querySelector(".list-where")?.textContent}`);
 
+  it("leads back from the notification history to Notifications, under which it is listed", async () => {
+    environment();
+    const page = await load(system(), "widgets:notifications");
+    expect(page.heading()).toBe("Notification history");
+    press(page.page.querySelector(".crumbs")!, "Notifications");
+    await advance(0);
+    expect(page.heading()).toBe("Notifications");
+  });
+
+  it("shows a widget's shortcut in its page's head, and says when the system wouldn't take it", async () => {
+    environment();
+    const sys = system();
+    let report: (failures: Record<string, string>) => void = () => {};
+    const popup = { ...sys.popup, watchFailures: async (onChange: typeof report) => ((report = onChange), onChange({}), () => {}) };
+    const page = await load(sys, "widgets:dictation", { popup });
+    const head = () => page.page.querySelector<HTMLElement>(".page-head .page-shortcut")!;
+    expect([head().dataset.failed, head().querySelector(".page-shortcut-label")?.textContent]).toEqual([undefined, "Shortcut"]);
+    report({ "dictation.toggle": "already used by another app" });
+    await advance(0);
+    expect([head().dataset.failed, head().querySelector(".page-shortcut-label")?.textContent]).toEqual(["true", "Shortcut — not set"]);
+    expect(head().querySelector(".page-shortcut-label")?.getAttribute("title")).toBe("already used by another app: pick another shortcut.");
+  });
+
   it("lists every widget in the menu, each with its own page, and a way back to them all", async () => {
     environment();
     const page = await load(system());
@@ -1114,7 +1257,11 @@ describe("Finding your way", () => {
     expect(page.heading()).toBe("Dictation");
     expect(location.hash).toBe("#widgets:dictation");
     expect(page.page.querySelector(".crumbs")?.textContent).toBe("Widgets›");
-    expect(page.field("Shows in").querySelector(".field-hint")?.textContent).toBe("Right of the pill · Tabs");
+    // The widget's shortcut sits in the page's head, with Change and Try it; no "On the island" card.
+    const head = page.page.querySelector(".page-head .page-shortcut")!;
+    expect(head.querySelector(".page-shortcut-label")?.textContent).toBe("Shortcut");
+    expect([...head.querySelectorAll("button")].map((b) => b.textContent)).toEqual(expect.arrayContaining(["Change", "Try it"]));
+    expect(page.page.querySelector(".group-title")?.textContent).toBe("Options");
     expect(page.page.querySelector("nav [aria-current=page]")?.textContent?.trim()).toBe("Dictation");
 
     press(page.page.querySelector(".crumbs")!, "Widgets");
@@ -1124,10 +1271,7 @@ describe("Finding your way", () => {
     page.page.querySelector<HTMLButtonElement>(".list-row[data-widget=screenshot]")!.click();
     await advance(0);
     expect(page.heading()).toBe("Screenshot");
-    expect(page.field("Shows in").querySelector(".field-hint")?.textContent).toBe("Not on the island yet: add it in Pill.");
-    press(page.field("Shows in"), "Edit in Pill");
-    await advance(0);
-    expect(page.heading()).toBe("Pill");
+    expect(page.page.querySelectorAll(".page-head .page-shortcut")).toHaveLength(1);
   });
 
   it("finds a setting by its words, and leads to it", async () => {

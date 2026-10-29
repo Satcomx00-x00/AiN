@@ -3,7 +3,7 @@ import { type Entry, commandsOf, fromKey, keycaps, shortcutOf, surfaceOf } from 
 import { button, h, icon } from "../../../sdk/dom";
 import { resolve, unset } from "../../../sdk/options";
 import type { Layout } from "../../placement";
-import type { AnyPlugin, PageHost, PageParams } from "../../../sdk/plugin";
+import type { AnyPlugin, PageHost, PageParams, SettingsHost } from "../../../sdk/plugin";
 import {
   CURVE_RANGE,
   DELAY_RANGE,
@@ -39,6 +39,10 @@ import { memorySecrets } from "../../secrets";
 import { settingsPorts } from "./ports";
 import { pillEditor } from "./pill-editor";
 import { PROVIDERS_ICON, PROVIDERS_LEAD, providersSection } from "./providers";
+import { type EngineValues, enginePanel } from "../../../features/engine";
+import { PLUGIN_AI } from "../../ai";
+import { NOTIFICATIONS_ICON, NOTIFICATIONS_LEAD, notificationsBody } from "./notifications";
+import type { NotificationSettings } from "../../notifications";
 import { PRESETS, type Preset, builtInPresets } from "../../providers";
 import { type Report, type Tone, demoUpdater, describe, noteLines } from "../../updater";
 import { messageOf, onProblem, reportProblem } from "../../../sdk/report";
@@ -56,8 +60,8 @@ const { store, popup, folder, importer, community = noCommunity, updater = demoU
 let update: Report | null = null;
 /** The AI provider presets, at their addresses once the backend has said (environment overrides). */
 let presets: readonly Preset[] = PRESETS;
-// Only built-in features offer shortcuts.
-const entries = commandsOf(catalogue);
+/** Every command with a shortcut: built-in features', then those of enabled plugin files. */
+const entries = (): Entry[] => commandsOf(plugins);
 /** Shortcuts the island couldn't register, and why. */
 let failures: Record<string, string> = {};
 
@@ -73,6 +77,7 @@ const SECTIONS = {
     icon: `<path d="M8 1.75a6.25 6.25 0 1 0 0 12.5c.9 0 1.4-.6 1.4-1.3 0-.9-.8-1.2-.8-2 0-.7.6-1.2 1.3-1.2h1.5a2.85 2.85 0 0 0 2.85-2.85C14.25 4.1 11.45 1.75 8 1.75z"/><circle cx="4.9" cy="7.4" r=".9"/><circle cx="7.2" cy="4.7" r=".9"/><circle cx="10.4" cy="5.2" r=".9"/>`,
   },
   layout: { label: "Pill", icon: `<path d="M2.5 4.5h11v1.5a3 3 0 0 1-3 3h-5a3 3 0 0 1-3-3z"/><path d="M4.5 12h7"/>` },
+  notifications: { label: "Notifications", icon: NOTIFICATIONS_ICON },
   shortcuts: { label: "Shortcuts", icon: `<rect x="1.75" y="4" width="12.5" height="8" rx="1.75"/><path d="M4.5 6.75h.01M7 6.75h.01M9.5 6.75h.01M12 6.75h-.5M5 9.5h6"/>` },
   widgets: { label: "Widgets", icon: GRID },
   providers: { label: "AI providers", icon: PROVIDERS_ICON },
@@ -190,6 +195,8 @@ const setGeneral = (patch: Partial<General>, redraw = false) => {
 };
 /** The settings window takes the island's accent too. */
 const paintAccent = () => document.documentElement.style.setProperty("--accent", settings.general.accentColor);
+const setNotifications = (patch: Partial<NotificationSettings>, redraw = false) =>
+  commit({ ...settings, notifications: { ...settings.notifications, ...patch } }, redraw);
 const setShortcut = (id: string, value: string | null) => commit({ ...settings, shortcuts: { ...settings.shortcuts, [id]: value } }, true);
 const resetShortcut = (id: string) => {
   const { [id]: _, ...rest } = settings.shortcuts;
@@ -415,7 +422,7 @@ let pillSelected: string | null = null;
 function layout(): Page {
   return {
     title: "Pill",
-    lead: "Drag widgets onto the pill, or select one to set it up.",
+    lead: "Drag widgets into a side of the pill or the tabs, or select one to set it up.",
     actions: [button("Restore default layout", () => commit({ ...settings, layout: defaultLayout, pill: fallback.pill }, true), { class: "secondary" })],
     body: pillEditor({
       plugins,
@@ -480,15 +487,29 @@ function recorder(entry: Entry): HTMLElement {
   );
 }
 
+function notifications(): Page {
+  const notifiers = [...loaded.values()].flatMap((e) => (e.notifier && settings.extensions.includes(e.file) ? [{ id: e.notifier.id, label: e.notifier.label }] : []));
+  const test = button("Send a test", () => store.testNotification().catch((e: unknown) => reportProblem("Couldn't send a test notification", e, "NOTIFICATION_TEST")), {
+    class: "secondary",
+    title: settings.notifications.quiet ? "Do not disturb is on: it goes to the history without showing." : "Shows one on the island, as set below.",
+  });
+  return {
+    title: "Notifications",
+    actions: [test],
+    lead: NOTIFICATIONS_LEAD,
+    body: notificationsBody(settings.notifications, { sources: plugins.map((p) => ({ id: p.id, label: p.label })), notifiers }, setNotifications, group),
+  };
+}
+
 function shortcuts(): Page {
   return {
     title: "Shortcuts",
     lead: "Keys that work anywhere, even while another app has the focus. Click Change, then press the new keys.",
     body: [
-      entries.length
+      entries().length
         ? group(
             null,
-            ...entries.map((e) => {
+            ...entries().map((e) => {
               const failed = failures[e.id];
               const hint = failed ? `${e.command.description} — ${failed}: pick another shortcut.` : e.command.description;
               const row = field(`${e.command.label} · ${e.plugin.label}`, hint, recorder(e));
@@ -605,13 +626,6 @@ function optionRows(p: AnyPlugin | AnyStyle | { readonly id: string; readonly op
   return [...before.map(control), ...(panel ? [panel] : []), ...after.map(control), ...resetRow(p.id, p.options ?? {})];
 }
 
-/** Where the island shows a widget, in words. */
-function placedText(id: string): string {
-  const names: Record<string, string> = { Left: "Left of the pill", Right: "Right of the pill", Tabs: "Tabs" };
-  const places = placesOf(id);
-  return places.length ? places.map((p) => names[p]).join(" · ") : "Not on the island yet: add it in Pill.";
-}
-
 /** Every widget, one per row: what it is, where it shows, whether it needs setting up. */
 function widgetList(): Page {
   return {
@@ -643,17 +657,33 @@ function widgetList(): Page {
   };
 }
 
-/** One widget's page: where it shows, then its options. */
+/**
+ * A widget's shortcut at the top of its page, as on the Shortcuts page: the keys, Change, and Try it.
+ * Named only when the widget has several, and saying why when the island couldn't take it.
+ */
+function shortcutAction(entry: Entry, named: boolean): HTMLElement {
+  const failed = failures[entry.id];
+  return h(
+    "div",
+    { class: "page-shortcut", "data-command": entry.id, ...(failed ? { "data-failed": "true" } : {}) },
+    h("span", { class: "page-shortcut-label", title: failed ? `${failed}: pick another shortcut.` : entry.command.description }, named ? entry.command.label : "Shortcut", ...(failed ? [" — not set"] : [])),
+    recorder(entry),
+  );
+}
+
+/** One widget's page: its shortcuts at the top, then its options. */
 function widgetPage(p: AnyPlugin): Page {
   const rows = optionRows(p);
+  const own = entries().filter((e) => e.plugin.id === p.id);
   return {
-    crumbs: [["Widgets", () => openWidget(null)]],
+    // The history sits under Notifications in the menu, so that's where it leads back to.
+    crumbs: [p.id === HISTORY ? ["Notifications", () => showSection("notifications")] : ["Widgets", () => openWidget(null)]],
     title: p.label,
     lead: p.description,
     icon: p.icon,
     badges: [setupBadge(p.id, p.options ?? {})],
+    actions: own.map((e) => shortcutAction(e, own.length > 1)),
     body: [
-      group("On the island", field("Shows in", placedText(p.id), button("Edit in Pill", () => ((pillSelected = p.id), goTo("layout")), { class: "secondary" }))),
       titled(
         "Options",
         h("section", { class: "card", id: `card-${p.id}`, "data-title": p.label }, ...(rows.length ? rows : [h("p", { class: "no-options" }, "No options.")])),
@@ -1015,19 +1045,43 @@ function about(): Page {
   };
 }
 
+/** Which provider and model plugins from the plugins folder may ask (their `ai` service); off by default. */
+function pluginAiCard(): HTMLElement {
+  const host: Pick<SettingsHost<EngineValues>, "options" | "setOptions"> = {
+    options: () => ({ engine: "", remoteModel: "", ...(settings.options[PLUGIN_AI] as Partial<EngineValues> | undefined) }),
+    setOptions: (patch) => commit({ ...settings, options: { ...settings.options, [PLUGIN_AI]: { ...settings.options[PLUGIN_AI], ...patch } } }),
+  };
+  const engine = enginePanel(services.providers, host, "text", () => {}, { label: "Off", detail: "Plugins can't use AI" });
+  panelStops.push(engine.stop);
+  return h(
+    "section",
+    { class: "card", id: "card-provider-plugins" },
+    h(
+      "div",
+      { class: "card-head" },
+      h("span", { class: "ico", "aria-hidden": "true" }, icon(PROVIDERS_ICON)),
+      h("div", { class: "grow" }, h("h2", {}, "Plugins"), h("p", {}, "The model plugins from the plugins folder may ask, when they list “ai” in needs. What they send goes to it.")),
+    ),
+    engine.el,
+  );
+}
+
 const providers = (): Page => ({
   title: "AI providers",
   lead: PROVIDERS_LEAD,
-  body: providersSection({
-    providers: () => settings.providers,
-    save: (next, redraw) => commit({ ...settings, providers: next }, redraw),
-    port: services.providers,
-    presets,
-    pickFile: (current) => pickFolder(current, false),
-  }),
+  body: [
+    ...providersSection({
+      providers: () => settings.providers,
+      save: (next, redraw) => commit({ ...settings, providers: next }, redraw),
+      port: services.providers,
+      presets,
+      pickFile: (current) => pickFolder(current, false),
+    }),
+    ...(settings.providers.length ? [pluginAiCard()] : []),
+  ],
 });
 
-const RENDER: Record<Section, () => Page> = { appearance, general, layout, shortcuts, widgets, providers, plugins: pluginsSection, about };
+const RENDER: Record<Section, () => Page> = { appearance, general, layout, notifications, shortcuts, widgets, providers, plugins: pluginsSection, about };
 
 // ---------- search ----------
 
@@ -1057,7 +1111,18 @@ const SEARCHABLE: Partial<Record<Section, readonly (readonly [label: string, hin
     ["Width", "The pill's width at the Normal size", "layout size"],
     ["Per side", "How many widgets each end of the pill shows side by side", "layout left right priority order glance"],
   ],
-  providers: [["Add a provider", "An online service or your own OpenAI-compatible server", "openai groq api key token server"]],
+  notifications: [
+    ["Show as", "In the pill, as a bubble, as a corner toast or a plugin's notifier", "popup toast bubble corner format"],
+    ["Duration", "How long one shows", "time seconds sticky"],
+    ["Time remaining bar", "A thin line that empties until the notification leaves", "progress countdown timer lifetime"],
+    ["Animation", "How they come and go", "motion slide fade"],
+    ["Do not disturb", "Notifications go to the history without showing", "dnd quiet silence focus"],
+    ["Larger text", "Easier to read at a glance", "accessibility size"],
+  ],
+  providers: [
+    ["Add a provider", "An online service or your own OpenAI-compatible server", "openai groq api key token server"],
+    ["Plugins", "The model plugins from the plugins folder may ask", "ai ask llm community"],
+  ],
   plugins: [
     ["Plugins folder", "Where plugin files live", "extensions js"],
     ["Community store", "Plugins made by others", "install download extensions"],
@@ -1073,7 +1138,7 @@ function searchEntries(): SearchEntry[] {
   const sections = (Object.entries(SEARCHABLE) as [Section, (typeof SEARCHABLE)[Section] & {}][]).flatMap(([s, rows]) =>
     rows.map(([label, hint, keywords]) => ({ label, hint, keywords, where: SECTIONS[s].label, target: s, field: label })),
   );
-  const keys = entries.map((e) => ({
+  const keys = entries().map((e) => ({
     label: e.command.label,
     hint: e.command.description,
     keywords: `shortcut keys ${e.plugin.label}`,
@@ -1269,19 +1334,27 @@ function fillNav() {
   const at = (key: Section) => !page && !query && section === key && (key !== "widgets" || !plugins.some((p) => p.id === widget));
   const item = (key: Section) => navItem(SECTIONS[key].label, SECTIONS[key].icon, at(key), () => showSection(key), { "data-section": key });
   navList.replaceChildren(
-    ...(["general", "appearance", "layout", "shortcuts"] as const).map(item),
+    ...(["general", "appearance", "layout", "notifications"] as const).map(item),
+    // The history is a widget, but it's looked for under the notifications' settings: their child in the menu.
+    ...plugins.filter((p) => p.id === HISTORY).map((p) => widgetItem(p, "nav-child")),
+    item("shortcuts"),
     h("div", { class: "nav-group" }, "Widgets"),
     navItem("All widgets", GRID, at("widgets"), () => openWidget(null), { "data-section": "widgets" }),
-    ...plugins.map((p) =>
-      navItem(p.label, p.icon || GRID, !page && !query && section === "widgets" && widget === p.id, () => openWidget(p.id), { "data-widget": p.id, class: "nav-sub" }, [
-        setupDot(p.id, p.options ?? {}),
-      ]),
-    ),
+    ...plugins.filter((p) => p.id !== HISTORY).map((p) => widgetItem(p)),
     h("div", { class: "nav-group" }, "Integrations"),
     item("providers"),
     item("plugins"),
   );
   navFoot.replaceChildren(item("about"), status);
+}
+
+/** The notification history's widget id: listed under Notifications rather than with the other widgets. */
+const HISTORY = "notifications";
+
+function widgetItem(p: AnyPlugin, kind = "nav-sub") {
+  return navItem(p.label, p.icon || GRID, !page && !query && section === "widgets" && widget === p.id, () => openWidget(p.id), { "data-widget": p.id, class: kind }, [
+    setupDot(p.id, p.options ?? {}),
+  ]);
 }
 
 // ---------- drawing ----------
@@ -1357,11 +1430,12 @@ void popup.watchFailures((next) => {
   // Newly failing shortcuts are said once; the row stays marked until fixed.
   for (const [id, why] of Object.entries(next)) {
     if (failures[id] === why) continue;
-    const e = entries.find((x) => x.id === id);
+    const e = entries().find((x) => x.id === id);
     reportProblem(`The shortcut for ${e ? e.command.label : id} doesn't work`, `${why}: pick another one in Shortcuts.`, "SHORTCUT_REGISTER");
   }
   failures = next;
-  if (section === "shortcuts") render();
+  // The Shortcuts page and a widget's page (its shortcut in the head) show them.
+  if (section === "shortcuts" || (section === "widgets" && widget)) render();
 });
 
 void store.watch((raw) => {

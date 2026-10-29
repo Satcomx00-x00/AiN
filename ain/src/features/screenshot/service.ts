@@ -6,6 +6,8 @@ const HEADER = 8;
 export interface CapturePort {
   /** The capture taken when the shortcut fired, or null if there is none. */
   latest(): Promise<ImageData | null>;
+  /** Why the capture failed, in the user's terms, or null if it didn't. */
+  problem(): Promise<string | null>;
   /** Saves a PNG to Pictures/AiN under `name`; resolves with the file's path. */
   save(png: Uint8Array, name: string): Promise<string>;
 }
@@ -30,5 +32,6 @@ export const tauriCapture: CapturePort = {
     const pixels = decode(await invoke<ArrayBuffer>("plugin:capture|latest"));
     return pixels && new ImageData(pixels.rgba, pixels.width, pixels.height);
   },
+  problem: async () => new TextDecoder().decode(await invoke<ArrayBuffer>("plugin:capture|problem")) || null,
   save: (png, name) => invoke<string>("plugin:capture|save_png", png, { headers: { "x-name": name } }),
 };

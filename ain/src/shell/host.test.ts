@@ -4,29 +4,32 @@ import type { Greeting, Stage } from "../sdk/greeting";
 import type { Host } from "../sdk/plugin";
 import { secret, text } from "../sdk/options";
 import type { AnyStyle, Folded } from "../sdk/style";
-import { load, mount } from "./host";
+import { hooksOf, load, mount } from "./host";
+import { center } from "./notifications";
 import { type Settings, defaults } from "./settings";
 import { BARE } from "./styles";
 import type { WindowPort } from "./window";
 
 const EMPTY = { glance: { left: [], right: [] }, tabs: [] };
+/** Notifications as toasts, in their own window: the island's window only holds the pill. */
 const settings = (greeting: string): Settings => {
   const base = defaults(EMPTY as never);
-  return { ...base, general: { ...base.general, greeting } };
+  return { ...base, general: { ...base.general, greeting }, notifications: { ...base.notifications, format: "toast" } };
 };
 /** A window that records the auto-hide rules and input regions it is sent, and can show or hide the pill on cue. */
 function fakeWindow() {
   const rules: [number | null, number][] = [];
   const regions: { width: number; height: number }[] = [];
   const canvases: { width: number; height: number }[] = [];
+  const extras: (readonly unknown[])[] = [];
   let reveal: (shown: boolean) => void = () => {};
   const port: WindowPort = {
     island: async () => ({ width: 200, height: 32, hasNotch: false }),
-    layout: async (canvas, region) => void (canvases.push(canvas), regions.push(region)),
+    layout: async (canvas, region, extra = []) => void (canvases.push(canvas), regions.push(region), extras.push(extra)),
     autoHide: async (dwell, grace) => void rules.push([dwell, grace]),
     onReveal: async (onReveal) => ((reveal = onReveal), () => {}),
   };
-  return { port, rules, regions, canvases, reveal: (shown: boolean) => reveal(shown) };
+  return { port, rules, regions, canvases, extras, reveal: (shown: boolean) => reveal(shown) };
 }
 let win = fakeWindow();
 
@@ -306,7 +309,7 @@ describe("pill styles", () => {
   it("sizes the pill from the style, within limits", async () => {
     const thin = recording("thin", { size: (p) => ({ width: p.width * 0.7, height: 6 }) });
     const { el } = await startWith(withGeneral({ style: "thin" }), [], [thin.style]);
-    expect([el.style.getPropertyValue("--w"), el.style.getPropertyValue("--h")]).toEqual(["140px", "6px"]);
+    expect([el.style.getPropertyValue("--w"), el.style.getPropertyValue("--h")]).toEqual(["280px", "6px"]);
     const huge = recording("huge", { size: () => ({ width: 5000, height: 5000 }) });
     const { el: big } = await startWith(withGeneral({ style: "huge" }), [], [huge.style]);
     expect([big.style.getPropertyValue("--w"), big.style.getPropertyValue("--h")]).toEqual(["960px", "120px"]);
@@ -344,9 +347,9 @@ describe("pill styles", () => {
 describe("pill sizes", () => {
   it("scales the pill, its content and its ears", async () => {
     const sizes = [
-      ["low", "160px", "20px", "0.625"],
-      ["normal", "200px", "32px", "1"],
-      ["large", "260px", "44px", "1.375"],
+      ["low", "320px", "20px", "0.625"],
+      ["normal", "400px", "32px", "1"],
+      ["large", "520px", "44px", "1.375"],
     ] as const;
     for (const [size, w, h, scale] of sizes) {
       const { el } = await start(withGeneral({ pillSize: size }));
@@ -373,7 +376,7 @@ describe("pill sizes", () => {
     const stages: Stage[] = [];
     const greeting: Greeting = { id: "one", label: "one", play: (s) => void stages.push(s) };
     await start(withGeneral({ pillSize: "large", greeting: "one" }), greeting);
-    expect(stages[0]).toMatchObject({ size: { width: 260, height: 44 }, scale: 1.375 });
+    expect(stages[0]).toMatchObject({ size: { width: 520, height: 44 }, scale: 1.375 });
   });
 
   it("opens below the folded pill, whatever its size", async () => {
@@ -407,7 +410,7 @@ describe("short and textless styles", () => {
     await mount(el, [media as never], {}, win.port, { ...base, layout: { glance: { left: [], right: ["media"] }, tabs: [] } }, { styles: [s.style] });
     await settleAll();
     expect(el.dataset.wide).toBe("true");
-    expect(el.style.getPropertyValue("--w")).toBe("200px");
+    expect(el.style.getPropertyValue("--w")).toBe("400px");
   });
 
   it("open to the same panel as the pill, below a row as tall as the pill", async () => {
@@ -747,6 +750,9 @@ describe("plugins set up outside the island", () => {
     expect(host.options()).toEqual({});
     expect(await host.secret("token" as never)).toBe("");
     expect(host.appearance()).toEqual({ style: "pill", size: "normal", theme: "island", tone: "dark", notch: false });
+    expect(host.notify({ title: "Hi" }).id).toBe("");
+    const handle = host.notify({ title: "Hi" });
+    expect([handle.update({ body: "x" }), handle.dismiss(), host.on("open", () => {})()]).toEqual([undefined, undefined, undefined]);
   });
 });
 
@@ -778,6 +784,14 @@ describe("what plugins can ask of the island", () => {
   it("gives an empty secret when there is no store to read it from", async () => {
     const { got } = await startSpy({}, {}, { options: { token: secret("Token") } });
     expect(await (got.host as unknown as Host<Record<string, string>>).secret("token")).toBe("");
+  });
+
+  it("tells a plugin without options that it has none, when they change", async () => {
+    const { handle, placed, got } = await startSpy();
+    const heard = vi.fn();
+    got.host!.on("options", heard);
+    handle.configure({ ...placed, options: { spy: { stray: 1 } } });
+    expect(heard).toHaveBeenCalledWith({});
   });
 
   it("drops option changes when nothing saves them", async () => {
@@ -896,5 +910,147 @@ describe("when the window can't do what the island asks", () => {
     el.dispatchEvent(new MouseEvent("click"));
     await settleAll();
     expect(el.dataset.open).toBe("true");
+  });
+});
+
+describe("notifications and events", () => {
+  /** A plugin that posts, listens, hooks and hears its commands. */
+  function poster(widget: Record<string, unknown> = {}) {
+    const got: { host?: Host<never> } = {};
+    const plugin = {
+      id: "poster",
+      label: "Poster",
+      description: "",
+      icon: "<path/>",
+      slots: ["glance"] as const,
+      options: { city: text("City") },
+      setup: (_: unknown, h: Host<never>) => ((got.host = h), widget),
+    };
+    return { plugin, got };
+  }
+
+  async function start(widget: Record<string, unknown> = {}, notifications: Partial<Settings["notifications"]> = {}) {
+    const { plugin, got } = poster(widget);
+    vi.spyOn(window, "matchMedia").mockReturnValue({ matches: false } as MediaQueryList);
+    vi.stubGlobal("requestAnimationFrame", (f: FrameRequestCallback) => (f(0), 0));
+    const el = document.createElement("div");
+    document.body.replaceChildren(el);
+    win = fakeWindow();
+    const notices = center();
+    const base = withGeneral({ greeting: "none" });
+    const placed = { ...base, notifications: { ...base.notifications, animation: "none" as const, ...notifications }, layout: { glance: { left: [], right: ["poster"] }, tabs: [] } };
+    const handle = await mount(el, [plugin as never], {}, win.port, placed, { styles: [PILL.style], notices });
+    await settleAll();
+    return { el, handle, placed, notices, host: got.host!, plugin };
+  }
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("posts in AiN's format or a standard one, from the plugin, and changes or takes it back", async () => {
+    const { host, notices } = await start();
+    const n = host.notify({ title: "Hi" });
+    host.notify({ summary: "From D-Bus", hints: { urgency: 2 } });
+    expect(notices.list().map((x) => [x.source.id, x.title, x.urgency])).toEqual([
+      ["poster", "From D-Bus", "urgent"],
+      ["poster", "Hi", "normal"],
+    ]);
+    n.update({ body: "there" });
+    expect(notices.list()[1]?.body).toBe("there");
+    n.dismiss();
+    expect(notices.list()).toHaveLength(1);
+  });
+
+  it("tells a plugin's listeners when the island opens, looks different, its options or the unseen count change", async () => {
+    const { el, handle, placed, host, notices } = await start();
+    const heard: unknown[] = [];
+    const stop = host.on("open", (o) => heard.push(["open", o]));
+    host.on("appearance", (a) => heard.push(["appearance", a.size]));
+    host.on("options", (o) => heard.push(["options", o]));
+    host.on("unseen", (u) => heard.push(["unseen", u]));
+    host.on("open", () => {
+      throw new Error("bad listener");
+    });
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    el.dispatchEvent(new MouseEvent("click"));
+    await settleAll();
+    stop();
+    handle.configure({ ...placed, general: { ...placed.general, pillSize: "large" }, options: { poster: { city: "Lyon" }, other: { x: 1 } } });
+    notices.post({ id: "mail", label: "Mail", icon: "" }, { title: "Mail" });
+    expect(heard).toEqual([["open", true], ["appearance", "large"], ["options", { city: "Lyon" }], ["unseen", 1]]);
+    expect(error).toHaveBeenCalledWith(expect.stringContaining(`"open" listener failed`));
+  });
+
+  it("lets a plugin's hook see others' notifications, and hands it its actions", async () => {
+    const onNotificationAction = vi.fn();
+    const { host, notices } = await start({ onNotification: (n: { title: string }) => ({ ...n, title: `${n.title}!` }), onNotificationAction });
+    notices.setHooks(hooksOf(new Map([["poster", { plugin: { id: "poster" }, widget: { onNotification: (n: never) => n } } as never], ["quiet", { plugin: { id: "quiet" }, widget: {} } as never]])));
+    const id = host.notify({ title: "Mine", actions: [{ id: "open", label: "Open" }] }).id;
+    notices.act(id, "open");
+    expect(onNotificationAction).toHaveBeenCalledWith(id, "open");
+    onNotificationAction.mockImplementation(() => {
+      throw new Error("x");
+    });
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const again = host.notify({ title: "Again", actions: [{ id: "open", label: "Open" }] }).id;
+    notices.act(again, "open");
+    notices.act(notices.post({ id: "gone", label: "Gone", icon: "" }, { title: "X", actions: [{ id: "a", label: "A" }] }), "a");
+    expect(error).toHaveBeenCalledWith(expect.stringContaining("onNotificationAction failed"));
+  });
+
+  it("passes a plugin's shortcut on to it, and logs when it fails", async () => {
+    const onCommand = vi.fn();
+    const { handle } = await start({ onCommand });
+    handle.command("poster.start", "press");
+    handle.command("nobody.start", "press");
+    expect(onCommand).toHaveBeenCalledWith("start", "press");
+    onCommand.mockImplementation(() => {
+      throw new Error("x");
+    });
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    handle.command("poster.start", "release");
+    expect(error).toHaveBeenCalledWith(`[island] command "poster.start" failed: Error: x`);
+  });
+
+  it("makes room for bubbles, and lets them take input", async () => {
+    const { el, handle, placed, notices } = await start({}, { format: "toast" });
+    const canvas = win.canvases.at(-1)!;
+    handle.configure({ ...placed, notifications: { ...placed.notifications, format: "bubble", side: "left" } });
+    expect(win.canvases.at(-1)!.width).toBeGreaterThan(canvas.width);
+    vi.spyOn(el.querySelector(".bubbles")!, "getBoundingClientRect").mockReturnValue({ left: 1, top: 2, width: 300, height: 60 } as DOMRect);
+    notices.post({ id: "mail", label: "Mail", icon: "" }, { title: "Mail" });
+    expect(win.extras.at(-1)).toEqual([{ x: 1, y: 2, width: 300, height: 60 }]);
+  });
+
+  it("tells only the listeners of each event, and each plugin of its own options", async () => {
+    const { el, handle, placed, host } = await start();
+    const unseen = vi.fn();
+    const options = vi.fn();
+    host.on("unseen", unseen);
+    host.on("options", options);
+    el.dispatchEvent(new MouseEvent("click"));
+    await settleAll();
+    handle.configure({ ...placed, options: { other: { x: 1 } } });
+    expect([unseen.mock.calls.length, options.mock.calls.length]).toEqual([0, 0]);
+  });
+
+  it("gives bubbles shown before the island's first layout their input with it", async () => {
+    const { plugin } = poster();
+    vi.spyOn(window, "matchMedia").mockReturnValue({ matches: false } as MediaQueryList);
+    vi.stubGlobal("requestAnimationFrame", (f: FrameRequestCallback) => (f(0), 0));
+    const el = document.createElement("div");
+    document.body.replaceChildren(el);
+    win = fakeWindow();
+    const notices = center();
+    const port = { ...win.port, onReveal: async () => (notices.post({ id: "mail", label: "Mail", icon: "" }, { title: "Early" }), () => {}) };
+    const base = withGeneral({ greeting: "none" });
+    await mount(el, [plugin as never], {}, port, { ...base, notifications: { ...base.notifications, format: "bubble" } }, { styles: [PILL.style], notices });
+    expect(win.canvases).toHaveLength(1);
+  });
+
+  it("widens the pill for a notification shown in it", async () => {
+    const { el, notices } = await start({}, { format: "pill" });
+    notices.post({ id: "mail", label: "Mail", icon: "" }, { title: "Mail" });
+    await settleAll();
+    expect(el.dataset.notice).toBe("true");
   });
 });

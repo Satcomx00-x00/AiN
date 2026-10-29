@@ -7,6 +7,7 @@ import { layout } from "../../../features/layout";
 import { catalogue } from "../../../features";
 import { idlePalette } from "../../../features/palette/service";
 import { type Services, tauriServices } from "../../../features/services";
+import { memoryClipboard } from "../../../features/clipboard/service";
 
 // Outside Tauri (the browser preview) there is no backend: nothing to paste into.
 const inTauri = "__TAURI_INTERNALS__" in window;
@@ -15,22 +16,16 @@ const popup: PopupPort = inTauri ? tauriPopup : idlePopup;
 /** In the browser preview, sample clips stand in for the real (private) history. */
 const sample: Services = {
   ...tauriServices,
-  clipboard: {
-    history: async () => {
-      const now = Date.now();
-      return [
-        { text: "https://v2.tauri.app/start/", copiedAt: now - 4_000 },
-        { text: "#0A84FF", copiedAt: now - 95_000 },
-        { text: "const island = await mount(root, modules);\nexport default island;", copiedAt: now - 12 * 60_000 },
-        { text: "hello@example.com", copiedAt: now - 3 * 3_600_000 },
-        { text: "Ship the island widget before Friday, then polish the timer ring and the settings page.", copiedAt: now - 26 * 3_600_000 },
-        { text: "42 500,00", copiedAt: now - 50 * 3_600_000 },
-      ];
-    },
-    copy: async () => {},
-    copyImage: async () => {},
-    clear: async () => {},
-  },
+  clipboard: memoryClipboard(
+    [
+      "https://v2.tauri.app/start/",
+      "#0A84FF",
+      "const island = await mount(root, modules);\nexport default island;",
+      "hello@example.com",
+      "Ship the island widget before Friday, then polish the timer ring and the settings page.",
+      "42 500,00",
+    ].map((text, i) => ({ id: i + 1, text, image: null, copiedAt: Date.now() - [4, 95, 720, 10_800, 93_600, 180_000][i]! * 1000 })),
+  ),
   // Sample apps and files for the command palette.
   palette: {
     ...idlePalette,

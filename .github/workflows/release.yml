@@ -377,7 +377,9 @@ jobs:
           pattern: npm-*
           path: ${{ runner.temp }}/downloads
       # Trusted publishing needs npm 11.5.1 or later. Pinned, as the action and tool versions above.
-      - run: npm install --global npm@11.21.1 # zizmor: ignore[adhoc-packages]
+      # Into a prefix of its own, which Publish calls by path: the runner's global prefix,
+      # /usr/local, belongs to root.
+      - run: npm install --global --prefix "$RUNNER_TEMP/npm" npm@11.21.1 # zizmor: ignore[adhoc-packages]
       - name: Build the packages
         env:
           VERSION: ${{ needs.plan.outputs.version }}
@@ -395,14 +397,15 @@ jobs:
           VERSION: ${{ needs.plan.outputs.version }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
+          npm="$RUNNER_TEMP/npm/bin/npm"
           [[ -z "$NODE_AUTH_TOKEN" ]] || echo "//registry.npmjs.org/:_authToken=\${NODE_AUTH_TOKEN}" > "$HOME/.npmrc"
           # Platforms first, the main package last: it never points at a version that isn't out.
           while read -r dir; do
             name="$(jq -r .name "$dir/package.json")"
             # A rerun skips what the previous attempt published.
-            if npm view "$name@$VERSION" version >/dev/null 2>&1; then
+            if "$npm" view "$name@$VERSION" version >/dev/null 2>&1; then
               echo "$name@$VERSION is already out"
               continue
             fi
-            npm publish "$dir" --access public --provenance
+            "$npm" publish "$dir" --access public --provenance
           done < "$RUNNER_TEMP/packages.txt"

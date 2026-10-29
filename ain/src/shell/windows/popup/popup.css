@@ -118,6 +118,20 @@ kbd {
   background: color-mix(in srgb, var(--accent) 22%, transparent);
 }
 
+/* An image clip: the picture in place of the badge, wide enough to recognize. */
+.pk-list li[data-kind="image"] {
+  grid-template-columns: 64px 1fr auto;
+}
+
+.pk-list .thumb {
+  display: block;
+  width: 64px;
+  height: 40px;
+  border-radius: 6px;
+  object-fit: cover;
+  background: rgba(127, 127, 127, 0.18);
+}
+
 .pk-text {
   min-width: 0;
   overflow: hidden;

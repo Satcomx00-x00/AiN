@@ -16,8 +16,8 @@ describe("starting up", () => {
     expect(animations.some((a) => a.el === island.el)).toBe(true);
     await advance(1000);
     expect(island.glances()).toEqual(["09:41", "42%"]);
-    expect(island.size()).toEqual({ width: "200px", height: "32px" });
-    expect(sys.recorded.regions[0]).toEqual({ width: 220, height: 32 });
+    expect(island.size()).toEqual({ width: "400px", height: "32px" });
+    expect(sys.recorded.regions[0]).toEqual({ width: 420, height: 32 });
     expect(sys.recorded.rules).toEqual([[null, 760]]);
   });
 
@@ -44,11 +44,11 @@ describe("what the pill shows", () => {
     await advance(1000);
     expect(island.glances()[1]).toBe("Midnight City");
     expect(island.el.dataset.wide).toBe("true");
-    expect(island.size().width).toBe("296px");
+    expect(island.size().width).toBe("496px");
     sys.push.track(null);
     await advance(1000);
     expect(island.glances()[1]).toBe("42%");
-    expect(island.size().width).toBe("200px");
+    expect(island.size().width).toBe("400px");
   });
 
   it("shows a volume change for a moment, then goes back", async () => {
@@ -96,13 +96,27 @@ describe("opening and closing", () => {
       "tab-dictation",
       "tab-transcript",
       "tab-tts",
-      "tab-spelling",
-      "tab-persona",
+      "tab-more",
     ]);
     await island.leave();
     expect(island.el.dataset.open).toBe("false");
-    expect(island.size()).toEqual({ width: "200px", height: "32px" });
-    expect(sys.recorded.regions.at(-1)).toEqual({ width: 220, height: 32 });
+    expect(island.size()).toEqual({ width: "400px", height: "32px" });
+    expect(sys.recorded.regions.at(-1)).toEqual({ width: 420, height: 32 });
+  });
+
+  it("keeps the tabs past the bar's limit behind More, which wears the icon of the one it opens", async () => {
+    environment();
+    const island = await startIsland(system());
+    await island.hover();
+    const $ = <E extends HTMLElement>(sel: string) => island.el.querySelector<E>(sel)!;
+    $("#tab-more").click();
+    expect([$("#panel-more").hidden, $("#tab-more").getAttribute("aria-selected")]).toEqual([false, "true"]);
+    expect([...island.el.querySelectorAll<HTMLElement>(".more-item")].map((b) => b.dataset.id)).toEqual(["spelling", "persona", "notifications"]);
+    $(".more-item[data-id=notifications]").click();
+    expect([$("#panel-more").hidden, $("#panel-notifications").hidden, $("#tab-more").getAttribute("aria-selected")]).toEqual([true, false, "true"]);
+    expect($(".tabs").style.getPropertyValue("--i")).toBe("10");
+    $("#tab-media").click();
+    expect([$("#panel-notifications").hidden, $("#tab-more").getAttribute("aria-selected")]).toEqual([true, "false"]);
   });
 
   it("doesn't open when the pointer only passes by", async () => {

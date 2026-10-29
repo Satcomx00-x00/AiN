@@ -47,6 +47,19 @@ describe("the latest capture", () => {
   });
 });
 
+describe("a failed capture", () => {
+  it("says why, as the backend put it", async () => {
+    vi.mocked(invoke).mockResolvedValueOnce(new TextEncoder().encode("Choose Allow when it asks.").buffer);
+    expect(await tauriCapture.problem()).toBe("Choose Allow when it asks.");
+    expect(invoke).toHaveBeenLastCalledWith("plugin:capture|problem");
+  });
+
+  it("is null when the capture didn't fail", async () => {
+    vi.mocked(invoke).mockResolvedValueOnce(new ArrayBuffer(0));
+    expect(await tauriCapture.problem()).toBeNull();
+  });
+});
+
 describe("saving", () => {
   it("sends the PNG's bytes with its name, and returns where it landed", async () => {
     vi.mocked(invoke).mockResolvedValueOnce("C:/Pictures/AiN/shot.png");

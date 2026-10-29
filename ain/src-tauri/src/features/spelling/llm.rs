@@ -34,9 +34,12 @@ pub struct Model {
     /// Its own folder, inside the models folder.
     pub folder: &'static str,
     repo: &'static str,
+    /// The repository's commit: `main` can move to other weights.
+    revision: &'static str,
     file: &'static str,
-    /// The file's size, roughly, until the download says.
     size: u64,
+    /// Checked once downloaded, before the file is used.
+    sha256: &'static str,
 }
 
 /// Every model on offer; the first is the default. The ids match `src/features/spelling/models.ts`.
@@ -45,21 +48,25 @@ pub const MODELS: &[Model] = &[
         id: "qwen2.5-1.5b",
         folder: "qwen2.5-1.5b-instruct-q4_k_m",
         repo: "Qwen/Qwen2.5-1.5B-Instruct-GGUF",
+        revision: "91cad51170dc346986eccefdc2dd33a9da36ead9",
         file: "qwen2.5-1.5b-instruct-q4_k_m.gguf",
-        size: 1_120_000_000,
+        size: 1_117_320_736,
+        sha256: "6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e434e9407e",
     },
     Model {
         id: "qwen2.5-0.5b",
         folder: "qwen2.5-0.5b-instruct-q4_k_m",
         repo: "Qwen/Qwen2.5-0.5B-Instruct-GGUF",
+        revision: "9217f5db79a29953eb74d5343926648285ec7e67",
         file: "qwen2.5-0.5b-instruct-q4_k_m.gguf",
-        size: 490_000_000,
+        size: 491_400_032,
+        sha256: "74a4da8c9fdbcd15bd1f6d01d621410d31c6fc00986f5eb687824e7b93d7a9db",
     },
 ];
 
 impl Model {
     fn url(&self) -> String {
-        format!("{}/{}/resolve/main/{}?download=true", crate::config::base(crate::config::HF_URL), self.repo, self.file)
+        format!("{}/{}/resolve/{}/{}?download=true", crate::config::base(crate::config::HF_URL), self.repo, self.revision, self.file)
     }
 }
 
@@ -82,11 +89,11 @@ impl Downloadable for Model {
     }
 
     fn download(&self, base: &Path, cancel: &AtomicBool, progress: &mut dyn FnMut(u64, u64)) -> Result<(), DownloadError> {
-        // Served over HTTPS by Hugging Face (or from the models source, as `<folder>/<file>`); a GGUF
-        // that doesn't load says so when first used.
-        let whole = |fetched: &download::Fetched| fetched.size > 0;
+        // From Hugging Face at a pinned commit (or from the models source, as `<folder>/<file>`):
+        // llama.cpp parses the file, so it must be exactly the one checked here.
+        let pinned = |fetched: &download::Fetched| fetched.size == self.size && fetched.sha256 == self.sha256;
         let url = download::source(self.url(), &format!("{}/{}", self.folder, self.file));
-        download::fetch_file(&base.join(self.folder), self.file, &url, whole, cancel, |received| {
+        download::fetch_file(&base.join(self.folder), self.file, &url, pinned, cancel, |received| {
             progress(received, self.size.max(received));
         })
     }
@@ -193,21 +200,23 @@ mod tests {
     use super::*;
 
     #[test]
-    fn offers_the_larger_model_first() {
+    fn offers_the_larger_model_first_each_pinned() {
         assert_eq!(MODELS[0].id, "qwen2.5-1.5b");
         assert_eq!(
             MODELS[1].url(),
-            "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf?download=true"
+            "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/9217f5db79a29953eb74d5343926648285ec7e67/qwen2.5-0.5b-instruct-q4_k_m.gguf?download=true"
         );
         let folders: std::collections::HashSet<_> = MODELS.iter().map(|m| m.folder).collect();
         assert_eq!(folders.len(), MODELS.len());
+        let hex = |s: &str, len| s.len() == len && s.bytes().all(|b| b.is_ascii_hexdigit());
+        assert!(MODELS.iter().all(|m| hex(m.revision, 40) && hex(m.sha256, 64) && m.size > 0));
     }
 
     #[test]
     fn missing_until_its_file_is_there() {
         let dir = std::env::temp_dir().join(format!("island-llm-test-{}", std::process::id()));
         let _ = download::remove(&dir);
-        assert_eq!(MODELS[1].status(&dir), Status::Missing { size: 490_000_000 });
+        assert_eq!(MODELS[1].status(&dir), Status::Missing { size: 491_400_032 });
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(dir.join(MODELS[1].file), "not a model").unwrap();
         assert_eq!(MODELS[1].status(&dir), Status::Ready);

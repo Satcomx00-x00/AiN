@@ -74,11 +74,12 @@ describe("the popup window", () => {
     const ages = clips.map((c) => now - c.copiedAt);
     expect(ages).toEqual([...ages].sort((a, b) => a - b));
     expect(ages[0]).toBe(4_000);
-    // Nothing reaches a backend: each action just resolves.
-    await expect(clipboard.copy("x")).resolves.toBeUndefined();
+    // Nothing reaches a backend: the history lives in memory, and copying an image goes nowhere.
+    await expect(clipboard.restore(clips[1]!.id)).resolves.toBeUndefined();
+    expect((await clipboard.history())[0]?.text).toBe("#0A84FF");
     await expect(clipboard.copyImage(new ImageData(1, 1))).resolves.toBeUndefined();
     await expect(clipboard.clear()).resolves.toBeUndefined();
-    expect(await clipboard.history()).toHaveLength(6);
+    expect(await clipboard.history()).toHaveLength(0);
   });
 
   it("lists sample apps and files for the command palette in the preview", async () => {

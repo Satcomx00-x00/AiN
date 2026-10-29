@@ -101,6 +101,29 @@ which also step in when a provider fails. Apart from the AI models, downloaded o
 ships inside the app: the dictionaries are compiled in from `src-tauri/dictionaries/`. A new AI feature adds `engineOptions()` to its options, draws
 `enginePanel` in its settings panel and matches on `providers::Engine` in its backend.
 
+## Notifications
+
+`shell/notifications.ts` is the notification center: plugins post with `host.notify`, the hooks of
+plugins that need `notifications` run (`runHooks`), then the user's rules (`fate`: do not disturb,
+its daily hours, muted sources) decide whether one shows or only goes to the history (50 kept).
+`shell/notice-view.ts` draws what the center says to show, in the format picked in
+Settings → Notifications:
+
+- **in the pill**: it widens to show one at a time; a white dot left of the glances pulses slowly
+  while some are unseen, and the Notifications tab lists the history;
+- **bubbles**, under or beside the pill: the island's window has room for them
+  (`geometry.ts`'s `bubbleCanvas`), and their rectangles join the pill's input region
+  (`layout(canvas, region, extra)`; the backend's `HitArea` and Wayland input shape take a list);
+- **toasts**, in a corner of the screen: their own window (`shell::toasts`, `toasts.html`), which
+  never takes the focus. The island sends it what to show (`toasts:sync`), it sizes and places
+  itself in the work area (above the taskbar or GNOME's top bar; a layer on Wayland desktops that
+  have layer-shell, placed through XWayland on GNOME) and sends back what the user did;
+- a **notifier** from a plugin file, drawn where bubbles go.
+
+Bubbles and toasts share `notice-card.ts`: the pill's colors and curve, a Close column a sixth of
+the card wide, actions beside it, announced to screen readers, closed with Escape, its timer paused
+under the pointer or the keyboard, and reduced motion respected.
+
 ## Adding a feature
 
 1. **Backend** (if it needs one): add `src-tauri/src/features/<id>.rs` (or a folder), register it in
@@ -127,7 +150,11 @@ see [writing a plugin](plugins.md). The shell's `extensions` module finds them; 
 - a plugin receives only the services it lists in `needs`, among those the app offers
   (`extensionRules` in `features/index.ts`; not clipboard history, screen captures, dictation or read aloud);
 - each part of its widget is switched off the first time it throws, instead of breaking the island;
-- it can't take a built-in feature's id, nor define shortcut commands.
+- it can't take a built-in feature's id; its shortcut commands open no window (surface `action`):
+  they reach its widget's `onCommand`;
+- `ai` asks the provider and model chosen under Settings → AI providers → Plugins (the options of
+  `plugin-ai`, read by `providers::for_plugins`); none is chosen by default, so plugins can't send
+  anything anywhere until the user says so.
 
 It still runs in the island's page, with its permissions: the Settings page says so.
 

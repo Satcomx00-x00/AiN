@@ -1,11 +1,15 @@
 import { isLight } from "../sdk/color";
 import { palette, themeById } from "./themes";
 import { EASE_OUT, animates, button, h, icon, reducedMotion } from "../sdk/dom";
-import { frame, panelHeight, pillOf, sizeFor } from "./geometry";
+import { toNotice } from "./notice-formats";
+import { bubbleCanvas, frame, panelHeight, pillOf, sizeFor } from "./geometry";
 import { intent } from "./intent";
 import { type Fields, resolve } from "../sdk/options";
 import { type Dress, type Layout, type Placement, type Shown, pickAll, place, placedIds } from "./placement";
-import type { AnyPlugin, Appearance, Host, Mounted, Plugin } from "../sdk/plugin";
+import type { AnyPlugin, Appearance, CommandKind, Host, HostEvents, Mounted, Plugin } from "../sdk/plugin";
+import type { NoticeSource, Notifier } from "../sdk/notify";
+import { type Center, type Hook, center as newCenter } from "./notifications";
+import { type NoticeView, type ToastPort, noToasts, noticeView } from "./notice-view";
 import { POWER, armedButton } from "./quit";
 import type { Greeting } from "../sdk/greeting";
 import { greet } from "./greet";
@@ -14,10 +18,13 @@ import { type Settings, pageTarget } from "./settings";
 import type { AnyStyle, Folded, Pill, StyleView } from "../sdk/style";
 import { BARE, foldedSize, styleById, styleOptions } from "./styles";
 import { type Tabs, tabs } from "./tabs";
-import type { Island, Size, WindowPort } from "./window";
+import type { Area, Island, Size, WindowPort } from "./window";
 
 /** The island as the settings shape it: the chosen width, unless a hardware notch dictates it. */
 export const shaped = (i: Island, general: Settings["general"]): Island => (i.hasNotch ? i : { ...i, width: general.pillWidth });
+
+/** The pill's text and accent colors, which notification cards take. */
+const colorsOf = (s: Settings): { fg: string; accent: string } => ({ fg: palette(themeById(s.general.theme), s.general.pillColor, s.general.accentColor)["--fg"]!, accent: s.general.accentColor });
 
 /** How long the open island takes to fold back (its 0.5 s size transition), in ms. */
 const CLOSING = 500;
@@ -33,7 +40,16 @@ const IDLE_HOST: Host<never> = {
   openSettings() {},
   openPage() {},
   appearance: (): Appearance => ({ style: "pill", size: "normal", theme: "island", tone: "dark", notch: false }),
+  notify: () => ({ id: "", update() {}, dismiss() {} }),
+  on: () => () => {},
 };
+
+/** Who a plugin's notifications come from. */
+export const sourceOf = (plugin: AnyPlugin): NoticeSource => ({ id: plugin.id, label: plugin.label, icon: plugin.icon });
+
+/** The `notifications` hooks of the plugins set up, in catalogue order. */
+export const hooksOf = (mounted: ReadonlyMap<string, Mounted>): Hook[] =>
+  [...mounted.values()].flatMap(({ plugin, widget }) => (widget.onNotification ? [{ pluginId: plugin.id, run: widget.onNotification }] : []));
 
 /**
  * Sets up the plugins the layout places that aren't in `into` yet, once each, in catalogue order.
@@ -77,6 +93,12 @@ export interface Extras {
   readonly greetings?: readonly Greeting[];
   /** Pill styles to choose from (settings.general.style), the default first. */
   readonly styles?: readonly AnyStyle[];
+  /** The notification center plugins post to; one of its own when not given. */
+  readonly notices?: Center;
+  /** The corner window toasts show in. */
+  readonly toasts?: ToastPort;
+  /** Ways to show notifications from plugin files (settings.notifications.format). */
+  readonly notifiers?: readonly Notifier[];
 }
 
 export interface IslandHandle<S = never> {
@@ -85,9 +107,11 @@ export interface IslandHandle<S = never> {
    * Plugins keep their state. `catalogue`, when given, replaces the plugins available (e.g. once
    * more are loaded), `greetings` the startup animations and `styles` the pill styles.
    */
-  configure(settings: Settings, catalogue?: readonly Plugin<S, Fields>[], greetings?: readonly Greeting[], styles?: readonly AnyStyle[]): void;
+  configure(settings: Settings, catalogue?: readonly Plugin<S, Fields>[], greetings?: readonly Greeting[], styles?: readonly AnyStyle[], notifiers?: readonly Notifier[]): void;
   /** Plays the startup animation `id` (the chosen one when not given), once the island is idle. */
   play(id?: string): void;
+  /** Hands the shortcut of command `<plugin>.<command>` to that plugin's widget. */
+  command(id: string, kind: CommandKind): void;
 }
 
 /** The island shell: places plugins per the settings, runs the 1 s beat and the open/close choreography. */
@@ -102,6 +126,23 @@ export async function mount<S>(
   const { openSettings, saveOptions, readSecret, quit } = extras;
   let greetings = extras.greetings ?? [];
   let styles = extras.styles ?? [];
+  let notifiers = extras.notifiers ?? [];
+  const notices = extras.notices ?? newCenter();
+  /** What each plugin listens to with `host.on`. */
+  const listeners = new Map<string, Map<keyof HostEvents, Set<(payload: never) => void>>>();
+  /** Tells one plugin's `event` listeners. */
+  const tell = <E extends keyof HostEvents>(id: string, event: E, payload: HostEvents[E]) => {
+    for (const listener of listeners.get(id)?.get(event) ?? []) {
+      try {
+        (listener as (p: HostEvents[E]) => void)(payload);
+      } catch (e) {
+        console.error(`[island] plugin "${id}": its "${event}" listener failed: ${String(e)}`);
+      }
+    }
+  };
+  const emit = <E extends keyof HostEvents>(event: E, payload: () => HostEvents[E]) => {
+    for (const id of listeners.keys()) tell(id, event, payload());
+  };
   const hardware = await win.island();
   let plugins = catalogue;
   let settings = initial;
@@ -119,13 +160,26 @@ export async function mount<S>(
     openSettings: () => openSettings?.(`widgets:${plugin.id}`),
     openPage: (params) => openSettings?.(pageTarget(plugin.id, params)),
     // The style actually drawing, which differs from the chosen one while that one is broken.
-    appearance: () => ({
-      style: style.id,
-      size: settings.general.pillSize,
-      theme: settings.general.theme,
-      tone: isLight(settings.general.pillColor) ? "light" : "dark",
-      notch: i.hasNotch,
-    }),
+    appearance: () => appearance(),
+    notify: (notice) => {
+      const id = notices.post(sourceOf(plugin), toNotice(notice));
+      return { id, update: (patch) => notices.update(id, patch), dismiss: () => notices.remove(id) };
+    },
+    on: (event, listener) => {
+      const byEvent = listeners.get(plugin.id) ?? new Map<keyof HostEvents, Set<(payload: never) => void>>();
+      listeners.set(plugin.id, byEvent);
+      const set = byEvent.get(event) ?? new Set();
+      byEvent.set(event, set);
+      set.add(listener as (payload: never) => void);
+      return () => void set.delete(listener as (payload: never) => void);
+    },
+  });
+  const appearance = (): Appearance => ({
+    style: style.id,
+    size: settings.general.pillSize,
+    theme: settings.general.theme,
+    tone: isLight(settings.general.pillColor) ? "light" : "dark",
+    notch: i.hasNotch,
   });
   const mounted = new Map<string, Mounted>();
   let placement: Placement = { left: [], right: [], tabs: [] };
@@ -152,8 +206,19 @@ export async function mount<S>(
   };
   const sized = (open: boolean, wide = false, panel = panelNow()) =>
     open ? sizeFor(true, { width: folded.width, height: openRow() }, false, 1, panel) : sizeFor(false, folded, wide && style?.widens !== false, pill.scale);
-  /** The window holds the open pill with its tallest tab, so switching tabs only moves the input region. */
-  const canvasNow = () => frame(sized(true, false, Math.max(panelNow(), ...placement.tabs.map((m) => panelHeight(askedBy(m))))), true, pill.scale);
+  /**
+   * The window holds the open pill with its tallest tab, so switching tabs only moves the input
+   * region; and room for bubbles when notifications show as bubbles (or a plugin's notifier).
+   */
+  const canvasNow = (): Size => {
+    const opened = frame(sized(true, false, Math.max(panelNow(), ...placement.tabs.map((m) => panelHeight(askedBy(m))))), true, pill.scale);
+    const { format, side } = settings.notifications;
+    if (format === "pill" || format === "toast") return opened;
+    const room = bubbleCanvas(side, sizeFor(false, folded, style?.widens !== false, pill.scale), pill.scale);
+    return { width: Math.max(opened.width, room.width), height: Math.max(opened.height, room.height) };
+  };
+  /** Bubbles on screen, which take input too. */
+  let extra: readonly Area[] = [];
 
   el.dataset.notch = String(i.hasNotch);
   el.dataset.open = "false";
@@ -202,8 +267,9 @@ export async function mount<S>(
   let started = false;
   /** False while a startup animation plays: the pill doesn't open meanwhile. */
   let ready = false;
-  // A glance may widen the collapsed pill into a live activity (music, a volume change…).
+  // A glance may widen the collapsed pill into a live activity (music, a volume change…), as does a notification shown in it.
   let wide = false;
+  let noticeWide = false;
   /** Set once the pill has its first size on screen; size changes before that need no resizing. */
   let laidOut = false;
 
@@ -228,9 +294,9 @@ export async function mount<S>(
   const resize = async () => {
     const s = sized(open, wide);
     const grows = s.width > shown.width || s.height > shown.height;
-    if (grows) await win.layout(canvas, frame(s, open, pill.scale));
+    if (grows) await win.layout(canvas, frame(s, open, pill.scale), extra);
     apply(s);
-    if (!grows) void win.layout(canvas, frame(s, open, pill.scale));
+    if (!grows) void win.layout(canvas, frame(s, open, pill.scale), extra);
   };
 
   /** Shows `next`'s look in place of the current one; it pops in once the island has started. */
@@ -317,7 +383,7 @@ export async function mount<S>(
     if (ambient) el.style.setProperty("--ambient", ambient);
     else el.style.removeProperty("--ambient");
 
-    const nextWide = [...lefts, ...rights].some((s) => s.glance.wide);
+    const nextWide = [...lefts, ...rights].some((s) => s.glance.wide) || noticeWide;
     drawLook({
       left: l?.glance ?? null,
       right: r?.glance ?? null,
@@ -375,13 +441,21 @@ export async function mount<S>(
     beat.now();
   };
 
-  const configure = (next: Settings, nextCatalogue?: readonly Plugin<S, Fields>[], nextGreetings?: readonly Greeting[], nextStyles?: readonly AnyStyle[]) => {
+  const configure = (
+    next: Settings,
+    nextCatalogue?: readonly Plugin<S, Fields>[],
+    nextGreetings?: readonly Greeting[],
+    nextStyles?: readonly AnyStyle[],
+    nextNotifiers?: readonly Notifier[],
+  ) => {
     // Picking another startup animation in Settings plays it, as a preview.
     const replay = started && next.general.greeting !== settings.general.greeting;
+    const before = { settings, appearance: style && JSON.stringify(appearance()), canvas: JSON.stringify(canvas) };
     settings = next;
     if (nextCatalogue) plugins = nextCatalogue;
     if (nextGreetings) greetings = nextGreetings;
     if (nextStyles) styles = nextStyles;
+    if (nextNotifiers) notifiers = nextNotifiers;
     if (replay && !open) preview();
     i = shaped(hardware, next.general);
     restyle();
@@ -393,11 +467,45 @@ export async function mount<S>(
     view = tabs(placement.tabs, switched, view?.active());
     panel.replaceChildren(h("div", { class: "panel-head" }, view.bar, ...(gear ? [gear] : []), ...(power ? [power] : [])), view.panels);
     fitPanel();
+    notices.configure(next.notifications);
+    notices.setHooks(hooksOf(mounted));
+    const { bg, fg, accent } = { bg: next.general.pillColor, ...colorsOf(next) };
+    noted.configure(next.notifications, notifiers, { bg, fg, accent });
     if (el.dataset.open === "true") void resize();
+    // Room for bubbles came or went: the window follows (it never does mid-animation otherwise).
+    // The region covers the pill as shown and as it is becoming, should a resize still be under way.
+    else if (laidOut && JSON.stringify(canvas) !== before.canvas) {
+      const next = sized(false, wide);
+      void win.layout(canvas, frame({ width: Math.max(shown.width, next.width), height: Math.max(shown.height, next.height) }, false, pill.scale), extra);
+    }
+    if (before.appearance !== undefined && JSON.stringify(appearance()) !== before.appearance) emit("appearance", appearance);
+    for (const [id, m] of mounted)
+      if (JSON.stringify(next.options[id]) !== JSON.stringify(before.settings.options[id])) tell(id, "options", resolve(m.plugin.options ?? {}, next.options[id]));
     beat.now();
   };
 
-  el.append(h("div", { class: "surface" }, glance, panel));
+  const surface = h("div", { class: "surface" }, glance, panel);
+  el.append(surface);
+  const noted: NoticeView = noticeView(el, surface, notices, extras.toasts ?? noToasts, {
+    widen: (on) => {
+      noticeWide = on;
+      beat.now();
+    },
+    regions: (rects) => {
+      extra = rects.map(({ x, y, width, height }) => ({ x, y, width, height }));
+      if (laidOut) void win.layout(canvas, frame(shown, open, pill.scale), extra);
+    },
+    unseen: (count) => emit("unseen", () => count),
+  });
+  notices.listen({
+    action: (n, actionId) => {
+      try {
+        mounted.get(n.source.id)?.widget.onNotificationAction?.(n.id, actionId);
+      } catch (e) {
+        console.error(`[island] plugin "${n.source.id}": onNotificationAction failed: ${String(e)}`);
+      }
+    },
+  });
   configure(initial);
 
   // Grow the input region before the pill animates out; shrink it only after the pill has animated in.
@@ -405,6 +513,8 @@ export async function mount<S>(
     // Not while a startup animation plays: it drives the pill's size.
     if (next === open || (next && !ready)) return;
     open = next;
+    noted.setOpen(open);
+    emit("open", () => open);
     if (open) {
       // Opening on an alerting tab: the island opens to that tab's panel.
       const alert = alerting(Date.now());
@@ -412,7 +522,7 @@ export async function mount<S>(
       // What the tab shows may have changed while the island was folded.
       fitPanel();
       const s = sized(true, wide);
-      await win.layout(canvas, frame(s, true, pill.scale));
+      await win.layout(canvas, frame(s, true, pill.scale), extra);
       if (!open) return;
       el.dataset.open = "true";
       apply(s);
@@ -422,12 +532,12 @@ export async function mount<S>(
     const s = sized(false, wide);
     el.dataset.open = "false";
     apply(s);
-    if (!animates(getComputedStyle(el).transitionDuration)) return win.layout(canvas, frame(s, false, pill.scale));
+    if (!animates(getComputedStyle(el).transitionDuration)) return win.layout(canvas, frame(s, false, pill.scale), extra);
     const onEnd = (e: TransitionEvent) => {
       if (e.target !== el || e.propertyName !== "height") return;
       el.removeEventListener("transitionend", onEnd);
       // The size may have changed while it folded (a new style or pill size): use the current one.
-      if (!open) void win.layout(canvas, frame(sized(false, wide), false, pill.scale));
+      if (!open) void win.layout(canvas, frame(sized(false, wide), false, pill.scale), extra);
     };
     el.addEventListener("transitionend", onEnd);
   };
@@ -444,7 +554,7 @@ export async function mount<S>(
   });
 
   apply(sized(false));
-  await win.layout(canvas, frame(sized(false), false, pill.scale));
+  await win.layout(canvas, frame(sized(false), false, pill.scale), extra);
   laidOut = true;
 
   beat.start();
@@ -458,5 +568,14 @@ export async function mount<S>(
     document.documentElement.addEventListener("mouseleave", hover.leave);
     window.addEventListener("blur", () => hover.set(false));
   });
-  return { configure, play: (id) => preview(id) };
+  const command = (id: string, kind: CommandKind) => {
+    const dot = id.indexOf(".");
+    const widget = mounted.get(id.slice(0, dot))?.widget;
+    try {
+      widget?.onCommand?.(id.slice(dot + 1), kind);
+    } catch (e) {
+      console.error(`[island] command "${id}" failed: ${String(e)}`);
+    }
+  };
+  return { configure, play: (id) => preview(id), command };
 }

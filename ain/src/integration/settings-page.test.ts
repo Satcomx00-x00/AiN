@@ -25,7 +25,7 @@ describe("Settings → Appearance", () => {
     press(page.field("Size")!, "Large");
     await page.saved();
     expect((await sys.settings()).general.pillSize).toBe("large");
-    expect(island.size()).toEqual({ width: "260px", height: "44px" });
+    expect(island.size()).toEqual({ width: "520px", height: "44px" });
   });
 
   it("lists every built-in style with a line about it, and picking one restyles the island", async () => {
@@ -83,6 +83,27 @@ describe("Settings → Appearance", () => {
   });
 });
 
+describe("Settings → Notifications", () => {
+  it("sends a test notification that the island shows, and keeps the history beside it in the menu", async () => {
+    environment();
+    const sys = system();
+    await startIsland(sys);
+    const page = await startSettings(sys, "notifications");
+    press(page.page.querySelector(".page-head")!, "Send a test");
+    await advance(0);
+    expect(sys.notices.list().map((n) => [n.source.label, n.title])).toEqual([["AiN", "This is a test notification"]]);
+    const menu = [...page.page.querySelectorAll<HTMLElement>("nav button")].map((b) => b.textContent?.trim());
+    expect(menu.slice(menu.indexOf("Notifications"), menu.indexOf("Notifications") + 3)).toEqual(["Notifications", "Notification history", "Shortcuts"]);
+    expect(menu.filter((m) => m === "Notification history")).toHaveLength(1);
+    // A child of Notifications: drawn as one, and its page leads back there.
+    const child = page.page.querySelector<HTMLButtonElement>("nav button[data-widget=notifications]")!;
+    expect(child.classList.contains("nav-child")).toBe(true);
+    child.click();
+    await advance(0);
+    expect(page.page.querySelector(".crumbs")?.textContent).toBe("Notifications›");
+  });
+});
+
 describe("Settings → General", () => {
   it("points to the Hidden style from where the old switch was", async () => {
     environment();
@@ -127,6 +148,31 @@ describe("Settings → Plugins", () => {
       },
       setup: () => ({ glance: () => null }),
     });
+
+  it("names each shortcut in the head of a plugin's page when it has several", async () => {
+    environment();
+    const sys = system();
+    sys.addFile("orbit.js", (island) =>
+      island.definePlugin({
+        id: "orbit",
+        label: "Orbit",
+        description: "A clock.",
+        icon: "",
+        slots: ["glance"],
+        commands: [
+          { id: "start", label: "Start", description: "Starts it.", shortcut: "Super+Alt+KeyS", surface: "action" },
+          { id: "stop", label: "Stop", description: "Stops it.", shortcut: null, surface: "action" },
+        ],
+        setup: () => ({ glance: () => null }),
+      }),
+    );
+    await startIsland(sys);
+    const page = await startSettings(sys, "plugins");
+    [...page.page.querySelectorAll<HTMLElement>(".card")].find((c) => c.textContent?.includes("orbit.js"))!.querySelector<HTMLElement>("[role=switch]")!.click();
+    await page.saved();
+    await page.open("Orbit");
+    expect([...page.page.querySelectorAll(".page-head .page-shortcut-label")].map((l) => l.textContent)).toEqual(["Start", "Stop"]);
+  });
 
   it("sets a plugin's options right under its switch once it's on", async () => {
     environment();

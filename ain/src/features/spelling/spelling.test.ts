@@ -80,7 +80,7 @@ describe("on the pill", () => {
 describe("in the island", () => {
   const mount = (options: object = { engine: "", remoteModel: "" }, providers = memoryProviders()) => {
     const fake = fakePort();
-    const host = { refresh: vi.fn(), options: () => options as never, setOptions: vi.fn(), secret: async () => "", openSettings: vi.fn(), openPage: vi.fn(), appearance: () => ({ style: "pill", size: "normal", theme: "island", tone: "dark", notch: false }) as const };
+    const host = { refresh: vi.fn(), options: () => options as never, setOptions: vi.fn(), secret: async () => "", openSettings: vi.fn(), openPage: vi.fn(), appearance: () => ({ style: "pill", size: "normal", theme: "island", tone: "dark", notch: false }) as const, notify: () => ({ id: "", update() {}, dismiss() {} }), on: () => () => {} };
     const widget = spelling.setup({ spelling: fake.port, providers } as never, host);
     const root = document.createElement("section");
     widget.panel?.(root);

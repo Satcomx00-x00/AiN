@@ -5,7 +5,7 @@ export default defineConfig({
   server: { port: 5173, strictPort: true, watch: { ignored: ["**/src-tauri/**"] } },
   build: {
     target: "es2022",
-    // The island, its settings window, the shortcut popup, the capture overlay and the zones overlay; preview.html is dev-only.
-    rollupOptions: { input: { island: "index.html", settings: "settings.html", popup: "popup.html", overlay: "overlay.html", zones: "zones.html" } },
+    // The island, its settings window, the shortcut popup, the capture overlay, the corner toasts and the zones overlay; preview.html is dev-only.
+    rollupOptions: { input: { island: "index.html", settings: "settings.html", popup: "popup.html", overlay: "overlay.html", toasts: "toasts.html", zones: "zones.html" } },
   },
 });

@@ -27,7 +27,7 @@ function mount(options: { times?: boolean } = {}) {
     control: vi.fn(async () => {}),
   } satisfies TranscriptPort;
   const clipboard = { copy: vi.fn(async () => {}) };
-  const host = { refresh: vi.fn(), options: () => ({ engine: "", remoteModel: "", times: true, ...options }) as never, setOptions: vi.fn(), secret: async () => "", openSettings: vi.fn(), openPage: vi.fn(), appearance: () => ({ style: "pill", size: "normal", theme: "island", tone: "dark", notch: false }) as const };
+  const host = { refresh: vi.fn(), options: () => ({ engine: "", remoteModel: "", times: true, ...options }) as never, setOptions: vi.fn(), secret: async () => "", openSettings: vi.fn(), openPage: vi.fn(), appearance: () => ({ style: "pill", size: "normal", theme: "island", tone: "dark", notch: false }) as const, notify: () => ({ id: "", update() {}, dismiss() {} }), on: () => () => {} };
   const widget = transcript.setup({ transcript: port, clipboard, providers: memoryProviders() } as never, host);
   const root = document.createElement("section");
   widget.panel?.(root);

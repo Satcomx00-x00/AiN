@@ -27,7 +27,11 @@ pub struct Capture {
 }
 
 #[derive(Default)]
-struct Screen(Mutex<Option<Arc<Capture>>>);
+struct Screen {
+    capture: Mutex<Option<Arc<Capture>>>,
+    /// Why the latest capture failed, in the user's terms: the overlay says it in place of a capture.
+    problem: Mutex<Option<String>>,
+}
 
 /// Captures the monitor containing the desktop point (`x`, `y`).
 pub fn capture_at(x: i32, y: i32) -> Res<Capture> {
@@ -41,11 +45,37 @@ pub fn capture_at(x: i32, y: i32) -> Res<Capture> {
     })
 }
 
+/// What to tell the user when a capture failed, or got no answer in time (`error` is None). On
+/// Wayland the desktop asks the user before an app may capture the screen, and xcap reports only
+/// its last fallback's error ("Cannot find required wayland protocol") once that was refused.
+pub fn explain(error: Option<&str>, wayland: bool) -> String {
+    match error {
+        None => "The desktop didn't answer in time. Allow AiN to take screenshots when it asks, then try again.".into(),
+        Some(e) if wayland && e.contains("wayland protocol") => {
+            "The desktop didn't let AiN capture the screen. Try again, and choose Allow when it asks.".into()
+        }
+        Some(e) => format!("Couldn't capture the screen: {e}"),
+    }
+}
+
+fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    m.lock().unwrap_or_else(|e| e.into_inner())
+}
+
 /// Keeps `capture` as the one the overlay will show.
 pub fn store(app: &AppHandle, capture: Capture) -> Arc<Capture> {
     let capture = Arc::new(capture);
-    *app.state::<Screen>().0.lock().unwrap_or_else(|e| e.into_inner()) = Some(Arc::clone(&capture));
+    let screen = app.state::<Screen>();
+    *lock(&screen.capture) = Some(Arc::clone(&capture));
+    *lock(&screen.problem) = None;
     capture
+}
+
+/// Keeps why the capture failed, for the overlay to say instead of showing an older capture.
+pub fn store_problem(app: &AppHandle, message: String) {
+    let screen = app.state::<Screen>();
+    *lock(&screen.capture) = None;
+    *lock(&screen.problem) = Some(message);
 }
 
 /// Header plus pixels, ready to send as raw bytes.
@@ -60,8 +90,14 @@ pub fn encode(capture: &Capture) -> Vec<u8> {
 /// The latest capture as `[width u32 LE][height u32 LE][RGBA…]`, or an empty body if there is none.
 #[tauri::command]
 fn latest(screen: State<'_, Screen>) -> Response {
-    let capture = screen.0.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    let capture = lock(&screen.capture).clone();
     Response::new(capture.map(|c| encode(&c)).unwrap_or_default())
+}
+
+/// Why the latest capture failed, as UTF-8 text, or an empty body when it didn't.
+#[tauri::command]
+fn problem(screen: State<'_, Screen>) -> Response {
+    Response::new(lock(&screen.problem).clone().map(String::into_bytes).unwrap_or_default())
 }
 
 /// Fallback name in UTC, "Screenshot 2026-10-14 at 23.05.07.png"; the page normally sends one in local time.
@@ -120,6 +156,15 @@ pub fn init() -> TauriPlugin<Wry> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn explains_a_failed_capture_in_user_terms() {
+        let refused = "screen capture: Cannot find required wayland protocol";
+        assert!(explain(Some(refused), true).contains("choose Allow"));
+        assert!(explain(None, true).contains("didn't answer in time"));
+        assert_eq!(explain(Some(refused), false), format!("Couldn't capture the screen: {refused}"));
+        assert_eq!(explain(Some("Not found monitor"), true), "Couldn't capture the screen: Not found monitor");
+    }
 
     #[test]
     fn encodes_size_ahead_of_pixels() {

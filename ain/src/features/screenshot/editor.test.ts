@@ -6,7 +6,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ClipboardPort } from "../clipboard/service";
-import { CRAYONS, editor } from "./editor";
+import { CRAYONS, editor, NOTHING } from "./editor";
 import type { CapturePort } from "./service";
 
 type Call = [string, ...unknown[]];
@@ -88,10 +88,16 @@ const frames = () => {
 };
 const mod = "Ctrl";
 
-async function open(opts: { image?: ImageData | null; closeAfterCopy?: boolean; latest?: () => Promise<ImageData | null> } = {}) {
+async function open(
+  opts: { image?: ImageData | null; closeAfterCopy?: boolean; latest?: () => Promise<ImageData | null>; problem?: () => Promise<string | null> } = {},
+) {
   const image = opts.image === undefined ? new ImageData(200, 100) : opts.image;
-  const capture = { latest: vi.fn(opts.latest ?? (async () => image)), save: vi.fn(async (_png: Uint8Array, _name: string) => "C:/Pictures/AiN/shot.png") } satisfies CapturePort;
-  const clipboard = { history: vi.fn(async () => []), copy: vi.fn(async () => {}), copyImage: vi.fn(async (_image: ImageData) => {}), clear: vi.fn(async () => {}) } satisfies ClipboardPort;
+  const capture = {
+    latest: vi.fn(opts.latest ?? (async () => image)),
+    problem: vi.fn(opts.problem ?? (async () => null)),
+    save: vi.fn(async (_png: Uint8Array, _name: string) => "C:/Pictures/AiN/shot.png"),
+  } satisfies CapturePort;
+  const clipboard = { history: vi.fn(async () => []), copy: vi.fn(async () => {}), restore: vi.fn(async () => {}), copyImage: vi.fn(async (_image: ImageData) => {}), clear: vi.fn(async () => {}) } satisfies ClipboardPort;
   const close = vi.fn();
   const root = document.createElement("div");
   document.body.append(root);
@@ -180,6 +186,26 @@ describe("showing a capture", () => {
   it("says there is nothing to edit when no capture was taken", async () => {
     const ed = await open({ image: null });
     expect([ed.empty.hidden, ed.stage.hidden]).toEqual([false, true]);
+  });
+
+  it("says why the capture failed, when the backend knows", async () => {
+    const why = "The desktop didn't let AiN capture the screen. Try again, and choose Allow when it asks.";
+    const ed = await open({ image: null, problem: async () => why });
+    expect([ed.empty.hidden, ed.empty.textContent]).toEqual([false, why]);
+  });
+
+  it("keeps the plain message when the reason can't be read", async () => {
+    const ed = await open({ image: null, problem: async () => Promise.reject(new Error("gone")) });
+    expect([ed.empty.hidden, ed.empty.textContent]).toEqual([false, NOTHING]);
+  });
+
+  it("forgets an earlier failure once a capture arrives", async () => {
+    let image: ImageData | null = null;
+    const ed = await open({ latest: async () => image, problem: async () => "Refused" });
+    expect(ed.empty.textContent).toBe("Refused");
+    image = new ImageData(200, 100);
+    await ed.show();
+    expect([ed.empty.hidden, ed.empty.textContent, ed.stage.hidden]).toEqual([true, NOTHING, false]);
   });
 
   it("says there is nothing to edit when the capture can't be read", async () => {

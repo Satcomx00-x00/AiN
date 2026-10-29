@@ -7,9 +7,9 @@ import { type PillSize, box, expect, greeted, openIsland, test, update } from ".
 test.describe("the pill sizes", () => {
   // Folded size with music playing (a live activity widens the pill by 96 px at Normal).
   const SIZES: [PillSize, number, number][] = [
-    ["low", 160 + 60, 20],
-    ["normal", 200 + 96, 32],
-    ["large", 260 + 132, 44],
+    ["low", 320 + 60, 20],
+    ["normal", 400 + 96, 32],
+    ["large", 520 + 132, 44],
   ];
 
   for (const [size, width, height] of SIZES)
@@ -44,11 +44,11 @@ test.describe("the pill sizes", () => {
 
 test.describe("the pill styles", () => {
   const STYLES: [string, number, number][] = [
-    ["pill", 296, 32],
-    ["solo", 140 + 96, 32],
+    ["pill", 496, 32],
+    ["solo", 280 + 96, 32],
     ["stub", 56, 14],
-    ["sliver", 140, 6],
-    ["hidden", 296, 32],
+    ["sliver", 280, 6],
+    ["hidden", 496, 32],
   ];
 
   for (const [style, width, height] of STYLES)
@@ -72,7 +72,7 @@ test.describe("the pill styles", () => {
     await update(page, { style: "stub" });
     await expect.poll(() => box(island)).toMatchObject({ width: 56, height: 14 });
     await update(page, { style: "pill", pillSize: "large" });
-    await expect.poll(() => box(island)).toMatchObject({ width: 392, height: 44 });
+    await expect.poll(() => box(island)).toMatchObject({ width: 652, height: 44 });
   });
 });
 
@@ -85,10 +85,12 @@ test.describe("hover", () => {
     await expect(island).toHaveAttribute("data-open", "true");
     await expect.poll(() => box(island)).toMatchObject({ width: 420, height: 32 + 166 });
     await expect(island.locator(".panel")).toBeVisible();
-    await expect(island.locator("[role=tab]")).toHaveCount(12);
+    // Ten tabs, then More for the rest.
+    await expect(island.locator("[role=tab]")).toHaveCount(11);
+    await expect(island.locator("[role=tab]").last()).toHaveId("tab-more");
     await page.mouse.move(640, 600);
     await expect(island).toHaveAttribute("data-open", "false");
-    await expect.poll(() => box(island)).toMatchObject({ width: 296, height: 32 });
+    await expect.poll(() => box(island)).toMatchObject({ width: 496, height: 32 });
   });
 
   test("opens below a low pill to the same panel", async ({ page }) => {
@@ -97,6 +99,19 @@ test.describe("hover", () => {
     await page.mouse.move(b.x + b.width / 2, 2);
     await expect(island).toHaveAttribute("data-open", "true");
     await expect.poll(() => box(island)).toMatchObject({ width: 420, height: 20 + 166 });
+  });
+
+  test("the highlight stays on the selected tab in a row too narrow for every icon", async ({ page }) => {
+    const island = await openIsland(page, { still: true });
+    const b = await box(island);
+    await page.mouse.move(b.x + b.width / 2, b.height / 2);
+    await expect(island).toHaveAttribute("data-open", "true");
+    await page.addStyleTag({ content: ".panel-head .tabs { flex: none; width: 260px; }" });
+    const last = island.locator("[role=tab]").last();
+    await last.click();
+    const [tab, mark] = [await box(last), await box(island.locator(".tab-indicator"))];
+    await expect.poll(async () => Math.abs((await box(island.locator(".tab-indicator"))).x - tab.x)).toBeLessThan(1);
+    expect(Math.abs(mark.width - tab.width)).toBeLessThan(1);
   });
 
   test("a timer started from its tab counts down on the pill", async ({ page }) => {

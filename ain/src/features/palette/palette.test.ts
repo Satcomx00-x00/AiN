@@ -221,7 +221,7 @@ describe("the palette popup", () => {
       reveal: async (path) => void did.push(`reveal ${path}`),
       ...options.port,
     };
-    const clipboard: ClipboardPort = { history: async () => [], copy: async (t) => void did.push(`copy ${t}`), copyImage: async () => {}, clear: async () => {} };
+    const clipboard: ClipboardPort = { history: async () => [], copy: async (t) => void did.push(`copy ${t}`), copyImage: async () => {}, restore: async () => {}, clear: async () => {} };
     const ctx = {
       services: { palette: port, clipboard },
       options: () => ({ files: options.files ?? false, engine: options.engine ?? "qwant", confirm: options.confirm ?? true }),

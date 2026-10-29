@@ -4,6 +4,7 @@ import { follow } from "../sdk/follow";
 import type { PillSize } from "../sdk/style";
 import { commands, events } from "./bindings/settings";
 import type { Layout } from "./placement";
+import { DEFAULT_NOTIFICATIONS, type NotificationSettings, parseNotifications } from "./notifications";
 import { type AiProvider, parseProviders } from "./providers";
 
 export interface General {
@@ -65,6 +66,8 @@ export interface Settings {
   readonly extensions: readonly string[];
   /** AI providers every AI feature may use instead of its model on this computer (see shell/providers.ts). */
   readonly providers: readonly AiProvider[];
+  /** How notifications show, and which are kept quiet (see shell/notifications.ts). */
+  readonly notifications: NotificationSettings;
 }
 
 /** Every plugin id the layout places. */
@@ -93,7 +96,7 @@ export function adopt(layout: Layout, fallback: Layout, seen: readonly string[])
   };
 }
 
-export const DEFAULT_GENERAL: General = { openDelay: 140, closeDelay: 260, pillWidth: 200, pillSize: "normal", style: "pill", pillCurve: 100, theme: "island", pillColor: "#000000", accentColor: "#0a84ff", greeting: "hello", revealDelay: 500, acceptAnyCertificate: false, modelsSource: "", screen: null };
+export const DEFAULT_GENERAL: General = { openDelay: 140, closeDelay: 260, pillWidth: 400, pillSize: "normal", style: "pill", pillCurve: 100, theme: "island", pillColor: "#000000", accentColor: "#0a84ff", greeting: "hello", revealDelay: 500, acceptAnyCertificate: false, modelsSource: "", screen: null };
 export const PILL_SIZE_IDS = ["low", "normal", "large"] as const satisfies readonly PillSize[];
 /** The style that keeps the pill hidden until the cursor rests on its spot. */
 export const HIDDEN_STYLE = "hidden";
@@ -104,7 +107,7 @@ export const CURVE_RANGE = { min: 0, max: 100, step: 5 } as const;
 export const PER_SIDE_RANGE = { min: 1, max: 4, step: 1 } as const;
 export const DEFAULT_PILL: PillLook = { perSide: 1, icons: [], idle: [] };
 
-export const defaults = (layout: Layout): Settings => ({ version: 1, layout, pill: DEFAULT_PILL, general: DEFAULT_GENERAL, options: {}, shortcuts: {}, seen: placed(layout), extensions: [], providers: [] });
+export const defaults = (layout: Layout): Settings => ({ version: 1, layout, pill: DEFAULT_PILL, general: DEFAULT_GENERAL, options: {}, shortcuts: {}, seen: placed(layout), extensions: [], providers: [], notifications: DEFAULT_NOTIFICATIONS });
 
 const ids = z.array(z.string()).transform((list) => [...new Set(list)]);
 const ID = /^[a-z][a-z0-9-]{1,31}$/;
@@ -157,6 +160,7 @@ export function parseSettings(raw: unknown, fallback: Settings): Settings {
     seen: ids.optional().catch(undefined),
     extensions: ids.catch([]),
     providers: z.array(z.unknown()).catch([]).transform(parseProviders),
+    notifications: z.unknown().optional().transform((n) => parseNotifications(n, fallback.notifications)),
   });
   // Anything unreadable at the top level becomes `{}`, which every field above then defaults.
   const parsed = schema.safeParse(raw);
@@ -181,6 +185,10 @@ export interface SettingsPort {
   playGreeting(id: string): Promise<void>;
   /** Calls `onPlay` with the id of each startup animation the island is asked to play. */
   onPlayGreeting(onPlay: (id: string) => void): Promise<() => void>;
+  /** Asks the island to show a sample notification, as the notification settings have it. */
+  testNotification(): Promise<void>;
+  /** Calls `onTest` each time a sample notification is asked for. */
+  onTestNotification(onTest: () => void): Promise<() => void>;
   autostart(): Promise<boolean>;
   setAutostart(enabled: boolean): Promise<void>;
 }
@@ -193,6 +201,8 @@ export const tauriSettings: SettingsPort = {
   quit: async () => void (await commands.quit()),
   playGreeting: async (id) => void (await commands.playGreeting(id)),
   onPlayGreeting: (onPlay) => events.playGreeting.listen((e) => onPlay(e.payload)),
+  testNotification: async () => void (await commands.testNotification()),
+  onTestNotification: (onTest) => events.testNotification.listen(() => onTest()),
   autostart: () => commands.autostart(),
   setAutostart: async (enabled) => void (await commands.setAutostart(enabled)),
 };
@@ -203,6 +213,7 @@ export function memorySettings(): SettingsPort {
   let autostart = false;
   const listeners = new Set<(raw: unknown) => void>();
   const players = new Set<(id: string) => void>();
+  const testers = new Set<() => void>();
   return {
     watch: async (onChange) => {
       listeners.add(onChange);
@@ -220,6 +231,11 @@ export function memorySettings(): SettingsPort {
     onPlayGreeting: async (onPlay) => {
       players.add(onPlay);
       return () => players.delete(onPlay);
+    },
+    testNotification: async () => testers.forEach((t) => t()),
+    onTestNotification: async (onTest) => {
+      testers.add(onTest);
+      return () => testers.delete(onTest);
     },
     autostart: async () => autostart,
     setAutostart: async (enabled) => {

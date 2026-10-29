@@ -128,18 +128,29 @@ describe("Settings → Pill: the editor", async () => {
     pointer(end, window, 42, 42);
   }
 
-  it("previews each end, what waits its turn, and the tabs, skipping widgets it doesn't know", () => {
-    const { root, $ } = editor();
+  it("previews the pill, lists each side in order and the tabs, skipping widgets it doesn't know", () => {
+    const { root } = editor();
     const ids = (sel: string) => [...root.querySelectorAll<HTMLElement>(`${sel} [data-drag]`)].map((el) => el.dataset.drag);
-    expect([ids(".pp-end[data-zone=left]"), ids(".pp-end[data-zone=right]"), ids(".pp-queue[data-zone=right]"), ids(".pp-tabs")]).toEqual([["clock"], ["media"], ["stats"], ["media", "clock"]]);
-    expect([$(".pp-queue[data-zone=left]").hidden, $(".pp-queue[data-zone=right]").hidden]).toEqual([true, false]);
+    expect([ids(".pp-end[data-zone=left]"), ids(".pp-end[data-zone=right]"), ids(".pp-tabs")]).toEqual([["clock"], ["media"], ["media", "clock"]]);
+    expect([ids(".side-list[data-zone=left]"), ids(".side-list[data-zone=right]")]).toEqual([["clock"], ["media", "stats"]]);
     expect(ids(".pill-shelf")).toEqual(["clock", "media", "stats", "notes"]);
+  });
+
+  it("names each side, numbers its widgets, and marks where waiting their turn begins", () => {
+    const { root, $ } = editor();
+    expect([...root.querySelectorAll(".side-card h2")].map((el) => el.textContent)).toEqual(["Left side", "Right side"]);
+    const right = [...$(".side-list[data-zone=right]").children].map((el) => (el.classList.contains("side-split") ? "—" : `${el.querySelector(".side-n")?.textContent} ${el.querySelector(".side-name")?.textContent}`));
+    expect(right).toEqual(["1 MEDIA", "—", "2 STATS"]);
+    expect($(".side-list[data-zone=right] [data-drag=stats]").dataset.waiting).toBe("true");
+    // Nothing waits on the left: no line.
+    expect($(".side-list[data-zone=left] .side-split")).toBeNull();
   });
 
   it("asks to select a widget until one is, and outlines the one selected", () => {
     expect(editor().$(".pill-inspector").textContent).toBe("Select a widget.");
     const { root } = editor({ selected: "clock" });
-    expect([...root.querySelectorAll(".selected")].map((el) => (el as HTMLElement).dataset.drag)).toEqual(["clock", "clock"]);
+    // On the pill, in its side's list, and in the tabs.
+    expect([...root.querySelectorAll(".selected")].map((el) => (el as HTMLElement).dataset.drag)).toEqual(["clock", "clock", "clock"]);
   });
 
   it("sets the width and how many glances each end shows", () => {
@@ -194,6 +205,11 @@ describe("Settings → Pill: the editor", async () => {
     expect([off.field("Position"), off.field("Icon")]).toEqual([undefined, undefined]);
   });
 
+  it("offers no place for a widget that has none, only its settings", () => {
+    const { field } = editor({ selected: "shot" });
+    expect([field("Side"), field("In the tabs")]).toEqual([undefined, undefined]);
+  });
+
   it("keeps a tab-only widget off the pill", () => {
     const { ed, field, press } = editor({ selected: "notes" });
     expect(field("Side")).toBeUndefined();
@@ -222,14 +238,20 @@ describe("Settings → Pill: the editor", async () => {
     expect(ed.select).toHaveBeenLastCalledWith("stats");
   });
 
-  it("drops into what waits its turn and into the tabs, after the rest", () => {
+  it("drops at the end of a side's list and into the tabs, after the rest", () => {
     const { ed, $ } = editor();
-    drag($(".pp-end[data-zone=left] [data-drag]"), $(".pp-queue[data-zone=right]"));
+    drag($(".pp-end[data-zone=left] [data-drag]"), $(".side-list[data-zone=right]"));
     expect(ed.setLayout.mock.lastCall?.[0].glance).toEqual({ left: ["gone"], right: ["media", "stats", "clock", "gone"] });
     drag($(".pill-widget[data-drag=clock]"), $(".pp-end[data-zone=left]"));
     expect(ed.setLayout.mock.lastCall?.[0].glance.left).toEqual(["clock", "gone"]);
     drag($(".pill-widget[data-drag=notes]"), $(".pp-tabs"));
     expect(ed.setLayout.mock.lastCall?.[0].tabs).toEqual(["media", "clock", "notes", "gone"]);
+  });
+
+  it("drops into a side's list behind what the pill shows, so it waits its turn", () => {
+    const { ed, $ } = editor();
+    drag($(".pill-widget[data-drag=stats]"), $(".side-list[data-zone=left]"));
+    expect(ed.setLayout.mock.lastCall?.[0].glance).toEqual({ left: ["clock", "stats", "gone"], right: ["media", "gone"] });
   });
 
   it("drops onto an end that shows nothing, at its start", () => {

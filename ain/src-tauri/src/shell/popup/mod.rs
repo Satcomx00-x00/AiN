@@ -54,6 +54,8 @@ pub const WINDOW: &str = "popup";
 pub const OVERLAY: &str = "overlay";
 /// Lets the compositor remove a visible overlay before the next capture.
 const OVERLAY_GONE: Duration = Duration::from_millis(150);
+/// How long a capture may wait: on Wayland the desktop can first ask the user, with no time limit.
+const CAPTURE_WAIT: Duration = Duration::from_secs(60);
 const SIZE: LogicalSize<f64> = LogicalSize { width: 460.0, height: 440.0 };
 /// The popup sits this far down its monitor, like a launcher.
 const TOP: f64 = 0.22;
@@ -141,6 +143,16 @@ fn trigger(app: &AppHandle, command: &str, surface: Surface, kind: ActionKind) {
             });
         }
     }
+}
+
+#[cfg(target_os = "linux")]
+fn wayland() -> bool {
+    crate::platform::linux::wayland()
+}
+
+#[cfg(not(target_os = "linux"))]
+fn wayland() -> bool {
+    false
 }
 
 fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
@@ -327,9 +339,23 @@ fn capture(app: &AppHandle, command: &str) -> Res<()> {
         thread::sleep(OVERLAY_GONE);
     }
     *lock(&app.state::<Popup>().previous) = os::foreground();
-    let shot = capture::capture_at(pointer.x as i32, pointer.y as i32)?;
-    let (origin, size) = (shot.origin, shot.size);
-    capture::store(app, shot);
+    let (x, y) = (pointer.x as i32, pointer.y as i32);
+    let (origin, size) = match crate::platform::within(CAPTURE_WAIT, move || capture::capture_at(x, y)) {
+        Some(Ok(shot)) => {
+            let place = (shot.origin, shot.size);
+            capture::store(app, shot);
+            place
+        }
+        failed => {
+            let error = failed.and_then(Result::err).map(|e| e.to_string());
+            eprintln!("island: capture failed: {}", error.as_deref().unwrap_or("no answer in time"));
+            capture::store_problem(app, capture::explain(error.as_deref(), wayland()));
+            // The overlay still opens over the monitor under the pointer, to say why.
+            let monitor = app.monitor_from_point(pointer.x, pointer.y)?.or(app.primary_monitor()?);
+            let monitor = monitor.ok_or_else(|| crate::Error::msg("no monitor to show the overlay on"))?;
+            (*monitor.position(), *monitor.size())
+        }
+    };
     let window = match app.get_webview_window(OVERLAY) {
         Some(w) => w,
         None => WebviewWindowBuilder::new(app, OVERLAY, WebviewUrl::App(format!("overlay.html#{command}").into()))

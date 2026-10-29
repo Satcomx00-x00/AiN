@@ -1,6 +1,6 @@
 [package]
 name = "ain"
-version = "0.16.0"
+version = "0.18.0"
 edition = "2024"
 
 [lib]
@@ -16,6 +16,8 @@ serde = { version = "1", features = ["derive"] }
 thiserror = "2"
 sysinfo = { version = "0.39.6", default-features = false, features = ["system", "network"] }
 arboard = { version = "3.6.1", default-features = false, features = ["image-data"] }
+# Images in the clipboard history: kept as PNG, with a small thumbnail to show (arboard already uses it).
+image = { version = "0.25", default-features = false, features = ["png"] }
 tauri-plugin-autostart = "2"
 # Removes the launch-at-login entry the app had under its old name (see shell/renamed.rs).
 auto-launch = "0.6"

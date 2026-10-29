@@ -3,6 +3,39 @@
 All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.18.0](https://github.com/Satcomx00-x00/AiN/compare/v0.17.0..v0.18.0) - 2026-10-29
+
+### Features
+
+- **island:** Clipboard images, a tab bar with More, and clearer Pill and Notifications settings ([b05e3be](https://github.com/Satcomx00-x00/AiN/commit/b05e3be96c95d8d0ac0cdef1d6c1e8827436a106))
+
+### Bug fixes
+
+- **dictation:** Stop waiting on a Remote Desktop dialog left unanswered ([d8bfabe](https://github.com/Satcomx00-x00/AiN/commit/d8bfabe96d4be1369ed37596433530026b3c120b))
+- **screenshot:** Say why a capture failed instead of showing nothing ([60904ea](https://github.com/Satcomx00-x00/AiN/commit/60904eafd63b5ae86226aef711e4ce78470076f5))
+- **models:** Check the voice archives and Qwen models against pinned hashes ([02df1bc](https://github.com/Satcomx00-x00/AiN/commit/02df1bc5260b4d6805cc378966c80ba6f586a6d7))
+- **island:** Measure the tab highlight, and cover the new code fully ([43e74b4](https://github.com/Satcomx00-x00/AiN/commit/43e74b40c09c11505d210083bd6ce7ad51f9ac09))
+- **ci:** Follow the wider pill in the launch and smoke checks, and let the npm job update npm ([bda6cd1](https://github.com/Satcomx00-x00/AiN/commit/bda6cd1d4c68bb595ccdc3d925d794401ff7344d))
+- **ci:** Call the npm job's own npm by its path rather than through GITHUB_PATH ([b26e05b](https://github.com/Satcomx00-x00/AiN/commit/b26e05bf5bf99c8caf5a56e19a3af73ee394e0d7))
+
+### Documentation
+
+- **readme:** List the Fedora packages needed to build the app ([d3c0fc7](https://github.com/Satcomx00-x00/AiN/commit/d3c0fc7bbfd3b87f1dae6ff20167b3e01d9dcd5a))
+## [0.17.0](https://github.com/Satcomx00-x00/AiN/compare/v0.16.0..v0.17.0) - 2026-10-28
+
+### Features
+
+- **pill:** Drag widgets onto a live pill preview, with icons, idle and several per side ([#49](https://github.com/Satcomx00-x00/AiN/pull/49)) ([2bc9edb](https://github.com/Satcomx00-x00/AiN/commit/2bc9edb5c8cfc646ed1f02d121a114276f1ad321))
+- **island:** Pick the screen the pill sits on ([#46](https://github.com/Satcomx00-x00/AiN/pull/46)) ([d893e8e](https://github.com/Satcomx00-x00/AiN/commit/d893e8e2c409dc37b895ad11b533c12a945d50d0))
+- **notifications:** Notification center for the pill, bubbles and toasts ([#50](https://github.com/Satcomx00-x00/AiN/pull/50)) ([726c5a5](https://github.com/Satcomx00-x00/AiN/commit/726c5a5dd47ecd1695f1a69f5b7dfe0e7e6f00f0))
+
+### Miscellaneous
+
+- [**breaking**] Remove macOS support ([#48](https://github.com/Satcomx00-x00/AiN/pull/48)) ([e7ed81a](https://github.com/Satcomx00-x00/AiN/commit/e7ed81a13e3be632e73934213762c32939ccc2c2))
+
+### CI
+
+- Bump the actions group across 1 directory with 3 updates ([#45](https://github.com/Satcomx00-x00/AiN/pull/45)) ([ed324c9](https://github.com/Satcomx00-x00/AiN/commit/ed324c9c42b0280008e0e01661f9d6d42055d1ac))
 ## [0.16.0](https://github.com/Satcomx00-x00/AiN/compare/v0.15.1..v0.16.0) - 2026-10-28
 
 ### Features

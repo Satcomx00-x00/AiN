@@ -61,9 +61,9 @@ pub struct Model {
     /// The one speaker it reads with, whatever the "voice" setting: a multilingual model's voice
     /// for its language.
     pub speaker: Option<i32>,
-    /// The archive's SHA-256 once pinned (`cargo test -- --ignored prints_the_archives_to_pin`);
-    /// until then the archive is trusted as served over HTTPS by the release.
-    sha256: Option<&'static str>,
+    /// The archive's SHA-256, checked before it is unpacked: a release asset can be replaced.
+    /// `cargo test -- --ignored prints_the_archives_to_pin` prints them for a new model.
+    sha256: &'static str,
 }
 
 /// Every model on offer; the first is the default. The ids match `src/features/tts/models.ts`.
@@ -75,7 +75,7 @@ pub const MODELS: &[Model] = &[
         file: "model.onnx",
         size: 305_000_000,
         speaker: None,
-        sha256: None,
+        sha256: "912804855a04745fa77a30be545b3f9a5d15c4d66db00b88cbcd4921df605ac7",
     },
     Model {
         id: "kitten-nano",
@@ -84,7 +84,7 @@ pub const MODELS: &[Model] = &[
         file: "model.fp16.onnx",
         size: 25_000_000,
         speaker: None,
-        sha256: None,
+        sha256: "f35dac93754fe2ac97c66e1f468311d0d2130f7f0f5a89bfa1197e09a0cbdec5",
     },
     Model {
         id: "piper-en-lessac",
@@ -93,7 +93,7 @@ pub const MODELS: &[Model] = &[
         file: "en_US-lessac-medium.onnx",
         size: 64_000_000,
         speaker: None,
-        sha256: None,
+        sha256: "9e3febfacf0abf4270172d2958bcec246032b7e88efc2720840cc80c93de334e",
     },
     Model {
         id: "piper-fr-siwis",
@@ -102,7 +102,7 @@ pub const MODELS: &[Model] = &[
         file: "fr_FR-siwis-medium.onnx",
         size: 64_000_000,
         speaker: None,
-        sha256: None,
+        sha256: "375909aa30842b3a4efa10b1beb1d761af792960ae6873b4d53889f96c66195b",
     },
     Model {
         id: "kokoro-fr",
@@ -112,7 +112,7 @@ pub const MODELS: &[Model] = &[
         size: 350_000_000,
         // ff_siwis, Kokoro's French voice.
         speaker: Some(30),
-        sha256: None,
+        sha256: "60703707bc05ccd48d60e1eb723f38b07d6e474795a0b6a588d7220400e0f7a4",
     },
     Model {
         id: "piper-fr-upmc",
@@ -121,7 +121,7 @@ pub const MODELS: &[Model] = &[
         file: "fr_FR-upmc-medium.onnx",
         size: 80_000_000,
         speaker: None,
-        sha256: None,
+        sha256: "e9830a331a16f6cc5ef3116a287065e015d3495c3f56b974889a266da7f89a7f",
     },
     Model {
         id: "piper-fr-tom",
@@ -130,7 +130,7 @@ pub const MODELS: &[Model] = &[
         file: "fr_FR-tom-medium.onnx",
         size: 67_000_000,
         speaker: None,
-        sha256: None,
+        sha256: "3d8258ef8466b5d5f2cc46c06e1415d3d01c9cbaeed8b6d5b3d152073672472c",
     },
     Model {
         id: "piper-de-thorsten",
@@ -139,7 +139,7 @@ pub const MODELS: &[Model] = &[
         file: "de_DE-thorsten-medium.onnx",
         size: 64_000_000,
         speaker: None,
-        sha256: None,
+        sha256: "50487d9c95fdf2191f31d2588569381063ba1591dcd4c7d4bdd30f12b2191714",
     },
     Model {
         id: "piper-es-davefx",
@@ -148,7 +148,7 @@ pub const MODELS: &[Model] = &[
         file: "es_ES-davefx-medium.onnx",
         size: 64_000_000,
         speaker: None,
-        sha256: None,
+        sha256: "a3f6beb54a9cb893279f72978a22f807a4d9fc9c7848157b524d5cc7b7f58b22",
     },
 ];
 
@@ -244,7 +244,7 @@ fn download(model: &Model, base: &Path, cancel: &AtomicBool, mut progress: impl 
         let url = download::source(model.url(), &format!("{}.tar.bz2", model.folder));
         let fetched = download::fetch(&url, &mut out, cancel, |received| progress(received, model.size.max(received)))?;
         drop(out);
-        if model.sha256.is_some_and(|sha| sha != fetched.sha256) {
+        if fetched.sha256 != model.sha256 {
             return Err(DownloadError::Corrupt(model.folder));
         }
         progress(fetched.size, fetched.size);
@@ -307,7 +307,7 @@ mod tests {
         for m in MODELS {
             assert!(ids.insert(m.id) && folders.insert(m.folder), "{} is listed twice", m.id);
             assert!(m.file.ends_with(".onnx") && m.size > 0, "{}", m.id);
-            assert!(m.sha256.is_none_or(|sha| sha.len() == 64), "{}", m.id);
+            assert!(m.sha256.len() == 64 && m.sha256.bytes().all(|b| b.is_ascii_hexdigit()), "{}", m.id);
         }
         assert_eq!(find(Some("piper-fr-siwis")).folder, "vits-piper-fr_FR-siwis-medium");
         assert_eq!(find(Some("gone")).id, "kokoro-en");
