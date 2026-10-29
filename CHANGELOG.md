@@ -3,6 +3,24 @@
 All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.18.0](https://github.com/Satcomx00-x00/AiN/compare/v0.17.0..v0.18.0) - 2026-10-29
+
+### Features
+
+- **island:** Clipboard images, a tab bar with More, and clearer Pill and Notifications settings ([b05e3be](https://github.com/Satcomx00-x00/AiN/commit/b05e3be96c95d8d0ac0cdef1d6c1e8827436a106))
+
+### Bug fixes
+
+- **dictation:** Stop waiting on a Remote Desktop dialog left unanswered ([d8bfabe](https://github.com/Satcomx00-x00/AiN/commit/d8bfabe96d4be1369ed37596433530026b3c120b))
+- **screenshot:** Say why a capture failed instead of showing nothing ([60904ea](https://github.com/Satcomx00-x00/AiN/commit/60904eafd63b5ae86226aef711e4ce78470076f5))
+- **models:** Check the voice archives and Qwen models against pinned hashes ([02df1bc](https://github.com/Satcomx00-x00/AiN/commit/02df1bc5260b4d6805cc378966c80ba6f586a6d7))
+- **island:** Measure the tab highlight, and cover the new code fully ([43e74b4](https://github.com/Satcomx00-x00/AiN/commit/43e74b40c09c11505d210083bd6ce7ad51f9ac09))
+- **ci:** Follow the wider pill in the launch and smoke checks, and let the npm job update npm ([bda6cd1](https://github.com/Satcomx00-x00/AiN/commit/bda6cd1d4c68bb595ccdc3d925d794401ff7344d))
+- **ci:** Call the npm job's own npm by its path rather than through GITHUB_PATH ([b26e05b](https://github.com/Satcomx00-x00/AiN/commit/b26e05bf5bf99c8caf5a56e19a3af73ee394e0d7))
+
+### Documentation
+
+- **readme:** List the Fedora packages needed to build the app ([d3c0fc7](https://github.com/Satcomx00-x00/AiN/commit/d3c0fc7bbfd3b87f1dae6ff20167b3e01d9dcd5a))
 ## [0.17.0](https://github.com/Satcomx00-x00/AiN/compare/v0.16.0..v0.17.0) - 2026-10-28
 
 ### Features
