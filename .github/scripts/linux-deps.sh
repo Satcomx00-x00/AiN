@@ -8,6 +8,7 @@ sudo apt-get install -y --no-install-recommends \
   build-essential \
   cmake \
   pkg-config \
+  python3-pip \
   clang \
   libclang-dev \
   libwebkit2gtk-4.1-dev \

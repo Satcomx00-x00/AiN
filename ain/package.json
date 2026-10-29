@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "native": "pip install --no-deps --require-hashes --upgrade --target src-tauri/native/sherpa-onnx -r src-tauri/native/requirements.txt",
     "test": "vitest run",
     "test:integration": "vitest run src/integration",
     "test:coverage": "vitest run --coverage",

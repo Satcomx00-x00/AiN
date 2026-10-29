@@ -1,0 +1,7 @@
+# sherpa-onnx's shared libraries and headers, for the sherpa-onnx crate (same version as in Cargo.lock):
+# installed by `bun run native` into native/sherpa-onnx, from PyPI or its proxy (see .cargo/config.toml).
+sherpa-onnx-core==1.13.8 \
+    --hash=sha256:4da90acf435373d7b2ba9cc0be806e7e274d28f63f5780880b5dea6721626e36 \
+    --hash=sha256:a51a03d55c376c32e15dd63ea852236042ba91a5cd73e253bbf7cf21f6582ba9 \
+    --hash=sha256:5579e80196d516e6dae23c8f629292ce3142ab8869925d32b94612fd86f93733 \
+    --hash=sha256:85e9b12e9e985d73ad9165a1122c396e2c9384256a4023cd7cf9c91bc8d32073

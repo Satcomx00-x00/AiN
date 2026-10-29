@@ -41,7 +41,7 @@ runtime libraries, Rust through mise, `ydotool` usable by the user. Their Proxmo
 
 ## What this machine needs
 
-- `git`, `bun`, `cargo`, `ssh` and `tar` on PATH.
+- `git`, `bun`, `pip`, `cargo`, `ssh` and `tar` on PATH.
 - SSH as root to the Proxmox host (`ssh root@192.168.1.100` without a password): screenshots come
   from QEMU's monitor, and the host's CA (which the API's certificate is checked against) is read
   that way. `PVE_CA` can point at the CA's PEM instead.
@@ -55,12 +55,11 @@ The VMs have no internet, so everything comes from this machine, cached in `vmte
 
 1. **The revision**: a detached worktree at the commit under test (by default `git stash create`'s
    snapshot of the working tree's tracked files: untracked files aren't tested), where
-   `bun install` and `vite build` make `dist`. Guests build only the Rust side, with the frontend
+   `bun install`, `bun run native` (sherpa-onnx's libraries, from PyPI) and `vite build` run.
+   Guests build only the Rust side, with the frontend
    embedded, as `tauri build` does (`cargo build --release --features tauri/custom-protocol`).
 2. **Crates**: `cargo vendor` once per `Cargo.lock`; each guest is sent only the crates it lacks.
-3. **Tools and downloads**: CMake (for libopus) from Kitware, checked against its SHA-256. When a
-   build script wants an archive from the internet (sherpa-onnx's libraries), the build fails
-   saying which; the runner downloads it here, hands it to the guest, and builds again.
+3. **Tools**: CMake (for libopus) from Kitware, checked against its SHA-256.
 
 The guest builds in the template's target folder (`~/dev/AiN/ain/src-tauri/target`), which already
 holds the built dependencies. Rust is the template's: a revision needing a newer toolchain needs

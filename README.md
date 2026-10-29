@@ -249,8 +249,12 @@ See [docs/offline.md](docs/offline.md): servers with a self-signed or internal c
 
 ## Development
 
-Requirements: [Bun](https://bun.sh) 1.3+, Rust stable, and the [Tauri prerequisites](https://tauri.app/start/prerequisites/) for your OS
+Requirements: [Bun](https://bun.sh) 1.3+, Rust stable, Python's `pip`, and the [Tauri prerequisites](https://tauri.app/start/prerequisites/) for your OS
 (on Debian/Ubuntu: `.github/scripts/linux-deps.sh`; on Fedora: `.github/scripts/fedora-deps.sh`).
+
+The build reads package registries only (npm, PyPI, crates.io), so it works offline behind their proxies (`NPM_CONFIG_REGISTRY`,
+`PIP_INDEX_URL`, Cargo's `source.crates-io.replace-with`): sherpa-onnx's shared libraries come from PyPI's `sherpa-onnx-core`
+(`bun run native`, pinned by hash in `src-tauri/native/requirements.txt`), not from its GitHub release.
 
 On Fedora, the system libraries to build the app are:
 
@@ -259,7 +263,7 @@ sudo dnf install gcc-c++ cmake pkgconf-pkg-config clang clang-devel \
     webkit2gtk4.1-devel gtk3-devel gtk-layer-shell-devel \
     libayatana-appindicator-gtk3-devel librsvg2-devel openssl-devel \
     alsa-lib-devel libxdo-devel dbus-devel pipewire-devel wayland-devel \
-    mesa-libgbm-devel mesa-libEGL-devel libxcb-devel libXrandr-devel file patchelf
+    mesa-libgbm-devel mesa-libEGL-devel libxcb-devel libXrandr-devel file patchelf python3-pip
 ```
 
 `fedora-deps.sh` installs these plus what CI needs to package the `.rpm` and launch-check it (`rpm-build`, Xvfb, …);
@@ -268,6 +272,7 @@ keep the two in step.
 ```sh
 cd ain
 bun install
+bun run native         # sherpa-onnx's libraries, from PyPI (again when its version changes)
 bun run tauri dev      # run the app
 bun run typecheck      # tsc
 bun run test           # unit and integration tests (vitest)

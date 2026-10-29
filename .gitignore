@@ -38,3 +38,6 @@ RELEASE_NOTES.md
 # VM tests (ain/vmtest): staged builds, vendored crates, downloads; and each run's results
 ain/vmtest/.cache/
 ain/vmtest/results/
+
+# sherpa-onnx's libraries, installed from PyPI by `bun run native`
+ain/src-tauri/native/sherpa-onnx/

@@ -1,0 +1,9 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "bundle": {
+    "resources": {
+      "native/sherpa-onnx/sherpa_onnx/lib/libsherpa-onnx-c-api.so": "libsherpa-onnx-c-api.so",
+      "native/sherpa-onnx/sherpa_onnx/lib/libonnxruntime.so": "libonnxruntime.so"
+    }
+  }
+}
