@@ -101,7 +101,7 @@ async function open(
   const close = vi.fn();
   const root = document.createElement("div");
   document.body.append(root);
-  const view = editor(root, { services: { capture, clipboard }, options: () => ({ closeAfterCopy: opts.closeAfterCopy ?? true }), close, paste: async () => {} });
+  const view = editor(root, { services: { capture, clipboard }, options: () => ({ closeAfterCopy: opts.closeAfterCopy ?? true }), close, paste: async () => {}, commands: () => [], run: async () => {}, openSettings: async () => {}, quit: async () => {} });
   const el = <T extends Element>(selector: string) => root.querySelector(selector) as T;
   const base = el<HTMLCanvasElement>(".ed-base");
   const ink = el<HTMLCanvasElement>(".ed-ink");

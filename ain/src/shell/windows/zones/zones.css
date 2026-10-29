@@ -1,0 +1,105 @@
+:root {
+  color-scheme: dark;
+  --fg: #f5f5f7;
+  --accent: #0a84ff;
+  font: 13px/1.3 system-ui, "Segoe UI Variable Text", "Segoe UI", -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* The window is transparent: only the zones show, over whatever is below. */
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+  color: var(--fg);
+  user-select: none;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+.zo-root {
+  position: fixed;
+  inset: 0;
+}
+
+/* The picker dims the screen a little, so its zones stand out. */
+.zo-root[data-picking="true"] {
+  background: rgba(0, 0, 0, 0.22);
+}
+
+.zo-layer {
+  position: absolute;
+  inset: 0;
+}
+
+.zo-zone {
+  position: absolute;
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  padding: 0;
+  border: 2px solid color-mix(in srgb, var(--accent) 70%, white 10%);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--fg);
+  font: inherit;
+  cursor: default;
+  transition:
+    background-color 0.12s ease-out,
+    border-color 0.12s ease-out;
+}
+
+.zo-zone[data-lit="true"] {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 42%, transparent);
+}
+
+.zo-num {
+  display: grid;
+  place-items: center;
+  min-width: 44px;
+  height: 44px;
+  padding: 0 12px;
+  border-radius: 22px;
+  background: rgba(0, 0, 0, 0.45);
+  font-size: 22px;
+  font-weight: 600;
+  opacity: 0.7;
+}
+
+.zo-root[data-picking="true"] .zo-zone {
+  cursor: pointer;
+}
+
+.zo-root[data-picking="true"] .zo-num,
+.zo-zone[data-lit="true"] .zo-num {
+  opacity: 1;
+}
+
+.zo-root[data-picking="true"] .zo-zone:hover {
+  background: color-mix(in srgb, var(--accent) 32%, transparent);
+}
+
+.zo-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 28px;
+  translate: -50% 0;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(20, 20, 22, 0.92);
+  box-shadow: 0 8px 24px -8px rgba(0, 0, 0, 0.6);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .zo-zone {
+    transition: none;
+  }
+}

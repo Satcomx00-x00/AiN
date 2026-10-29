@@ -62,7 +62,7 @@ describe("on the pill", () => {
   });
 
   it("binds its shortcut as an action, with no popup", () => {
-    expect(bindings(catalogue, {})["persona.talk"]).toEqual({ shortcut: "Ctrl+Alt+KeyT", surface: "action" });
+    expect(bindings(catalogue, {})["persona.talk"]).toEqual({ shortcut: "Ctrl+Alt+KeyT", surface: "action", label: "Talk" });
   });
 });
 

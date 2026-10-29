@@ -1,0 +1,14 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "zones",
+  "description": "The zones overlay: read what to draw and the accent color, snap the picked window, change screens, cancel.",
+  "windows": ["zones"],
+  "permissions": [
+    "core:event:default",
+    "settings:allow-get",
+    "zones:allow-overlay-state",
+    "zones:allow-snap",
+    "zones:allow-screen",
+    "zones:allow-cancel"
+  ]
+}

@@ -82,3 +82,22 @@ for (const [section, hash, file, width] of [
     const end = await page.evaluate(() => Math.max(...[...document.querySelectorAll("main > *")].map((e) => e.getBoundingClientRect().bottom)));
     await page.screenshot({ path: `${IMG}/${file}`, clip: { x: 0, y: 0, width, height: Math.min(760, Math.max(420, Math.ceil(end) + 32)) } });
   });
+
+test("command palette", async ({ page }) => {
+  await page.setViewportSize({ width: 460, height: 440 });
+  await page.goto("/popup.html#palette.open");
+  await desktop(page);
+  await page.locator(".pk-search").fill("fi");
+  await expect(page.getByRole("option").first()).toContainText("Files");
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: `${IMG}/palette.png` });
+});
+
+test("zones picker", async ({ page }) => {
+  await page.goto("/zones.html?pick");
+  await desktop(page);
+  if (!existsSync(WALLPAPER)) await page.addStyleTag({ content: "body { background: linear-gradient(135deg, #3a5a8c, #11151f) !important; }" });
+  await expect(page.getByRole("button", { name: "Zone 3" })).toBeVisible();
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: `${IMG}/zones-picker.png` });
+});

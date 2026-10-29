@@ -74,6 +74,33 @@ function install(backend: Backend): void {
     "plugin:dictation|download_model": () => null,
     "plugin:dictation|delete_model": () => null,
     "plugin:dictation|open_model_dir": () => null,
+    "plugin:palette|apps": () => [{ id: "firefox.desktop", name: "Firefox", keywords: "Web Browser", detail: "Browse the web" }],
+    "plugin:palette|launch": () => null,
+    "plugin:palette|files": () => [{ path: "/home/you/notes.md", name: "notes.md", folder: "~", dir: false }],
+    "plugin:palette|browse": () => [],
+    "plugin:palette|open": () => null,
+    "plugin:palette|reveal": () => null,
+    "plugin:palette|run": () => null,
+    "plugin:palette|system": () => null,
+    "plugin:palette|open_url": () => null,
+    "plugin:zones|support": () => ({ moves: true, drags: true, note: null }),
+    "plugin:zones|layout": (a) => {
+      const count = a.count as number;
+      return Array.from({ length: count }, (_, i) => ({ x: i / count, y: 0, w: 1 / count, h: 1 }));
+    },
+    "plugin:zones|overlay_state": () => ({
+      zones: [
+        { x: 16, y: 16, w: 600, h: 688 },
+        { x: 632, y: 16, w: 632, h: 688 },
+      ],
+      lit: [],
+      picking: true,
+      screen: 0,
+      screens: 2,
+    }),
+    "plugin:zones|snap": () => null,
+    "plugin:zones|screen": () => null,
+    "plugin:zones|cancel": () => null,
     "plugin:transcript|state": () => ({ phase: "idle" }),
     "plugin:transcript|lines": () => [],
     "plugin:transcript|control": () => null,

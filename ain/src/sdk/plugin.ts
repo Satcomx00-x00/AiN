@@ -141,6 +141,18 @@ export interface PageHost<Options = unknown> extends SettingsHost<Options> {
 
 export type Surface = "popup" | "screen" | "action";
 
+/** A command as a launcher lists it. */
+export interface CommandInfo {
+  /** Its full id, `<plugin id>.<command id>`. */
+  readonly id: string;
+  readonly label: string;
+  readonly description: string;
+  /** Its plugin's icon: inner SVG markup for a 16×16 stroke icon. */
+  readonly icon: string;
+  /** The shortcut in effect, e.g. "Super+Shift+KeyB", or null when it has none. */
+  readonly shortcut: string | null;
+}
+
 /** What a command's popup can do. */
 export interface PopupContext<Services, Options> {
   readonly services: Services;
@@ -150,6 +162,14 @@ export interface PopupContext<Services, Options> {
   close(): void;
   /** Hides the popup and pastes the clipboard into the app the user was in. */
   paste(): Promise<void>;
+  /** Every command of every plugin, for a launcher to list. */
+  commands(): readonly CommandInfo[];
+  /** Hides the popup, then runs a command by its full id, as its shortcut would. */
+  run(id: string): Promise<void>;
+  /** Opens the Settings window, at `target` when given: a section, or "widgets:<plugin id>". */
+  openSettings(target?: string): Promise<void>;
+  /** Quits the whole app. */
+  quit(): Promise<void>;
 }
 
 export interface PopupView {

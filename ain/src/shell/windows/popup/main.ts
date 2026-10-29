@@ -5,6 +5,7 @@ import { memorySettings, tauriSettings } from "../../settings";
 import { hostCommands } from "../../surface";
 import { layout } from "../../../features/layout";
 import { catalogue } from "../../../features";
+import { idlePalette } from "../../../features/palette/service";
 import { type Services, tauriServices } from "../../../features/services";
 import { memoryClipboard } from "../../../features/clipboard/service";
 
@@ -25,6 +26,25 @@ const sample: Services = {
       "42 500,00",
     ].map((text, i) => ({ id: i + 1, text, image: null, copiedAt: Date.now() - [4, 95, 720, 10_800, 93_600, 180_000][i]! * 1000 })),
   ),
+  // Sample apps and files for the command palette.
+  palette: {
+    ...idlePalette,
+    apps: async () =>
+      (
+        [
+          ["Firefox", "Web browser"],
+          ["Files", "File manager"],
+          ["Visual Studio Code", "Code editor"],
+          ["Terminal", "Command line"],
+          ["Spotify", "Music"],
+          ["Calculator", "Accessories"],
+        ] as const
+      ).map(([name, detail]) => ({ id: name, name, keywords: "", detail })),
+    files: async (query) =>
+      ["Quarterly report.pdf", "Holiday photos", "Notes.md", "Report draft.docx"]
+        .filter((name) => name.toLowerCase().includes(query.toLowerCase()))
+        .map((name) => ({ path: `/home/you/Documents/${name}`, name, folder: "~/Documents", dir: !name.includes(".") })),
+  },
 };
 
 const sheet = h("div", { class: "sheet" });

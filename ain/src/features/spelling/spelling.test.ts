@@ -73,7 +73,7 @@ describe("on the pill", () => {
   });
 
   it("binds its shortcut as an action, with no popup", () => {
-    expect(bindings(catalogue, {})["spelling.fix"]).toEqual({ shortcut: "Ctrl+Alt+KeyO", surface: "action" });
+    expect(bindings(catalogue, {})["spelling.fix"]).toEqual({ shortcut: "Ctrl+Alt+KeyO", surface: "action", label: "Correct spelling" });
   });
 });
 

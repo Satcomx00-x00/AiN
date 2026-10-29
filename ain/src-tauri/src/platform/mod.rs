@@ -25,6 +25,14 @@ pub fn open_url(url: &str) -> std::io::Result<()> {
     open(url.as_ref())
 }
 
+/// Opens a file or a folder with its default app, as double-clicking it would.
+pub fn open_path(path: &std::path::Path) -> std::io::Result<()> {
+    if !path.exists() {
+        return Err(std::io::Error::new(std::io::ErrorKind::NotFound, "it is no longer there"));
+    }
+    open(path.as_os_str())
+}
+
 /// Ties a helper program we start to the app: on Linux it ends with the app, even when the app is
 /// killed; on Windows it opens no console window.
 pub fn tie_to_app(command: &mut std::process::Command) {
@@ -77,7 +85,37 @@ fn open(target: &std::ffi::OsStr) -> std::io::Result<()> {
 
 #[cfg(not(windows))]
 fn open(target: &std::ffi::OsStr) -> std::io::Result<()> {
-    std::process::Command::new("xdg-open").arg(target).spawn().map(drop)
+    let mut command = std::process::Command::new("xdg-open");
+    command.arg(target);
+    detached(command)
+}
+
+/// Starts a program that should outlive the app (an app the user launched, a terminal): in its own
+/// process group, without our standard streams, and reaped when it ends. On Linux it also leaves
+/// behind what an AppImage puts in the environment for the app itself, which would break others.
+#[cfg(not(windows))]
+pub fn detached(mut command: std::process::Command) -> std::io::Result<()> {
+    use std::{os::unix::process::CommandExt, process::Stdio};
+    #[cfg(target_os = "linux")]
+    linux::leave_appimage(&mut command);
+    let mut child = command.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).process_group(0).spawn()?;
+    std::thread::Builder::new().name("reap".into()).spawn(move || drop(child.wait()))?;
+    Ok(())
+}
+
+/// Whether `program` is a file on the `PATH` (or, given as a path, exists).
+#[cfg(any(windows, target_os = "linux"))]
+pub fn on_path(program: &str) -> bool {
+    let program = std::path::Path::new(program);
+    if program.components().count() > 1 {
+        return program.is_file();
+    }
+    // Windows finds "pwsh" as pwsh.exe.
+    let names: Vec<std::ffi::OsString> = match cfg!(windows) && program.extension().is_none() {
+        true => ["exe", "cmd", "bat"].iter().map(|ext| program.with_extension(ext).into_os_string()).collect(),
+        false => vec![program.as_os_str().to_owned()],
+    };
+    std::env::var_os("PATH").is_some_and(|path| std::env::split_paths(&path).any(|dir| names.iter().any(|name| dir.join(name).is_file())))
 }
 
 #[cfg(test)]

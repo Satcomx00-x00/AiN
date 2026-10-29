@@ -156,6 +156,6 @@ describe("in Settings", () => {
   });
 
   it("starts and stops from its shortcut", () => {
-    expect(bindings(catalogue, {})["transcript.toggle"]).toEqual({ shortcut: "Ctrl+Alt+KeyH", surface: "action" });
+    expect(bindings(catalogue, {})["transcript.toggle"]).toEqual({ shortcut: "Ctrl+Alt+KeyH", surface: "action", label: "Transcribe the computer's sound" });
   });
 });

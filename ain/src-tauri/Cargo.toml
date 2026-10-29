@@ -70,6 +70,11 @@ libc = "0.2"
 ashpd = { version = "0.13", default-features = false, features = ["tokio", "remote_desktop", "screencast"] }
 # Now playing, from MPRIS players over D-Bus.
 mpris = "2.1"
+# Zones: the pointer and other apps' windows, through the X server…
+x11rb = "0.13"
+# …or, on GNOME's Wayland, through AiN's GNOME Shell extension; and global shortcuts through the
+# desktop portal (the same D-Bus library as mpris).
+dbus = "0.9"
 
 [target."cfg(windows)".dependencies]
 clipboard-win = "5.4.1"
@@ -77,14 +82,17 @@ winreg = "0.56"
 windows = { version = "0.62", features = [
     "Foundation",
     "Foundation_Collections",
+    "Win32_Foundation",
     "Media_Control",
     "Storage_Streams",
     "Win32_Devices_FunctionDiscovery",
+    "Win32_Graphics_Dwm",
     "Win32_Media_Audio",
     "Win32_Media_Audio_Endpoints",
     "Win32_System_Com",
     "Win32_System_Com_StructuredStorage",
     "Win32_System_DataExchange",
+    "Win32_System_Power",
     "Win32_System_Variant",
     "Win32_UI_Shell_PropertiesSystem",
     "Win32_System_Threading",

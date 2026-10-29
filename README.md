@@ -77,6 +77,8 @@ Global shortcuts work even while the island is folded.
 | Clipboard picker (<kbd>Win</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd>) | Screenshot editor (<kbd>Win</kbd>+<kbd>Alt</kbd>+<kbd>S</kbd>) |
 | :---: | :---: |
 | <img src="img/clipboard-picker.png" alt="Searchable clipboard history picker"> | <img src="img/screenshot-editor.png" alt="Screenshot editor with pen, shapes and colour toolbar"> |
+| **Command palette** (<kbd>Win</kbd>+<kbd>Alt</kbd>+<kbd>Space</kbd>) | **Zones** (<kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>Win</kbd>+<kbd>Z</kbd>, or drag with <kbd>Shift</kbd>) |
+| <img src="img/palette.png" alt="Command palette listing apps, a command and a web search for what was typed"> | <img src="img/zones-picker.png" alt="Zone picker: three numbered zones of a priority grid over the screen"> |
 
 ### Settings
 
@@ -141,15 +143,19 @@ Global shortcuts open these even while the island is folded. You can rebind them
 
 | Tool | What it does | Windows | Linux |
 | --- | --- | :---: | :---: |
-| **Clipboard picker** | Search your clipboard history, pick with the arrows or <kbd>Alt</kbd>+<kbd>1</kbd>…<kbd>9</kbd>, and it is pasted into the app you were in | ✅ | ⚠️ shortcut on X11 only; pasting needs `xdotool`, `wtype` or `ydotool` |
-| **Screenshot editor** | Freezes the screen; select an area, draw on it (pen, marker, rectangle, ellipse, colors, sizes, undo), then copy or save it as a PNG | ✅ | ⚠️ shortcut on X11 only |
-| **Dictation** | Starts and stops dictating | ✅ | ⚠️ shortcut on X11 only |
-| **Transcript** | Starts and stops writing down the computer's sound | ✅ | ⚠️ shortcut on X11 only |
-| **Read aloud** | Reads the selected text, or stops reading | ✅ | ⚠️ shortcut on X11 only |
-| **Spelling** | Corrects the selected text | ✅ | ⚠️ shortcut on X11 only |
-| **Conversation** | Starts or ends a conversation with PersonaPlex | ✅ | ⚠️ shortcut on X11 only |
+| **Clipboard picker** | Search your clipboard history, pick with the arrows or <kbd>Alt</kbd>+<kbd>1</kbd>…<kbd>9</kbd>, and it is pasted into the app you were in | ✅ | ⚠️ pasting needs `xdotool`, `wtype` or `ydotool` |
+| **Screenshot editor** | Freezes the screen; select an area, draw on it (pen, marker, rectangle, ellipse, colors, sizes, undo), then copy or save it as a PNG | ✅ | ✅ |
+| **Dictation** | Starts and stops dictating | ✅ | ✅ |
+| **Transcript** | Starts and stops writing down the computer's sound | ✅ | ✅ |
+| **Read aloud** | Reads the selected text, or stops reading | ✅ | ✅ |
+| **Spelling** | Corrects the selected text | ✅ | ✅ |
+| **Conversation** | Starts or ends a conversation with PersonaPlex | ✅ | ✅ |
+| **Command palette** | One search for your apps, files, the app's own commands and system actions (lock, sleep, sign out, restart, shut down, empty the trash), with a calculator; `>` runs a command line in a terminal, `?` searches the web, a typed path browses its folder. What you pick often comes first | ✅ apps from the Start menu (desktop and Store) | ✅ apps from desktop entries (Flatpak and Snap too) |
+| **Zones** | Snap windows into a layout of zones (priority grid, columns, rows, grid, focus) on every screen: drag a window with <kbd>Shift</kbd> held (<kbd>Ctrl</kbd> too to span zones), pick a zone by its number, or send a window to the next or previous zone, on to the next screen | ✅ | ✅ X11<br>⚠️ GNOME on Wayland: with AiN's GNOME Shell helper, installed from **Settings → Zones**, running after you log in again<br>⚠️ other Wayland desktops (KDE, Sway…): not yet, they let no app move another's windows |
 
-On Wayland, Linux gives apps no global shortcuts: the island and its tabs work, the shortcuts don't.
+On Wayland, the shortcuts go through the desktop's shortcuts portal (GNOME 48+, so Fedora 42+; KDE Plasma; Hyprland): the
+desktop asks once to allow them, then keeps them in its own keyboard settings, where you change them. Desktops without it
+(Sway…) run the island and its tabs, not the shortcuts.
 
 ### Plugins
 
@@ -173,12 +179,15 @@ the `store` branch to list it.
 | Annotate a screenshot | <kbd>Win</kbd>+<kbd>Alt</kbd>+<kbd>S</kbd> |
 | Start or stop dictation | <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>D</kbd> |
 | Start or stop transcribing the computer's sound | <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>H</kbd> |
+| Command palette | <kbd>Win</kbd>+<kbd>Alt</kbd>+<kbd>Space</kbd> |
+| Snap to a zone | <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>Win</kbd>+<kbd>Z</kbd> |
+| Move to the next or previous zone | <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>Win</kbd>+<kbd>→</kbd> / <kbd>←</kbd> |
 | Read the selected text aloud, or stop | <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>R</kbd> |
 | Start or end a conversation with PersonaPlex | <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>T</kbd> |
 
 You can rebind them all in **Settings → Shortcuts**. On Windows, <kbd>Win</kbd> + a single letter is reserved by the
 OS, so add <kbd>Shift</kbd> or <kbd>Alt</kbd>. On Linux, <kbd>Win</kbd> is the Super key.
-On Linux, global shortcuts work on X11 only.
+On Wayland, the desktop's shortcuts portal binds them, [as above](#shortcut-tools).
 
 ## Install
 

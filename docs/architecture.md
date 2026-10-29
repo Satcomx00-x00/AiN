@@ -58,7 +58,27 @@ disappears is tested on every platform.
 | tts (read aloud), spelling | copies the selection (Ctrl+C), then puts the clipboard back | reads the primary selection |
 | spelling's correction | types it over the selection | pastes it over the selection, as dictation does |
 | popup paste | `SendInput` | the same tools |
+| palette | the shell's Applications folder (Start menu apps), PowerShell, `shutdown.exe` and the power API | desktop entries, the first terminal found, logind and the session manager |
+| zones | the foreground window, its frame from the DWM, `SetWindowPos` | EWMH through the X server; on GNOME's Wayland, AiN's GNOME Shell extension over D-Bus |
+| shortcuts | the global-shortcut plugin | the same on X11; on Wayland, the desktop's GlobalShortcuts portal |
 | clipboard, stats, capture | all platforms | |
+
+Zones follow the pointer on a paced worker (`worker::spawn_paced`): every 15 ms while a window
+is pressed, every 45 ms otherwise, not at all when dragging is off. The drag itself is a state
+machine (`zones/drag.rs`) fed a `Desktop` trait, tested against a fake one; the geometry
+(`zones/layout.rs`) is plain functions. The `zones` overlay window only draws what it is sent, and
+during a drag it is shown without taking the focus from the window being dragged.
+
+GNOME on Wayland lets no app see the pointer or move another's windows, so zones ship a small GNOME
+Shell extension (`zones/gnome/`, written to the user's extensions folder from **Settings → Zones**):
+it exposes `dev.satcom.AiN.Zones` on the session bus, says when a window is being moved, and moves
+windows where it is asked. `zones/gnome.rs` is the `Desktop` that talks to it, and replaces an
+installed copy that is older than the build.
+
+On Wayland the shortcuts are bound through the XDG GlobalShortcuts portal (`shell/popup/portal.rs`),
+on a thread of its own: AiN registers its app id, then binds every command with its label and
+preferred trigger, and the desktop asks the user once. A press carries an activation token, which
+the window it opens is given (`popup::focus`) so the desktop lets it take the focus.
 
 Helpers several backends share live in `platform/`: `pactl` and the key tools on Linux, COM
 and synthetic keys on Windows.

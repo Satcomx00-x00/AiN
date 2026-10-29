@@ -82,6 +82,18 @@ describe("the popup window", () => {
     expect(await clipboard.history()).toHaveLength(0);
   });
 
+  it("lists sample apps and files for the command palette in the preview", async () => {
+    const { options } = await load({ inApp: false });
+    const { palette } = options.services as Services;
+    expect((await palette.apps()).map((a) => a.name)).toEqual(["Firefox", "Files", "Visual Studio Code", "Terminal", "Spotify", "Calculator"]);
+    expect(await palette.files("REPORT", 10)).toEqual([
+      { path: "/home/you/Documents/Quarterly report.pdf", name: "Quarterly report.pdf", folder: "~/Documents", dir: false },
+      { path: "/home/you/Documents/Report draft.docx", name: "Report draft.docx", folder: "~/Documents", dir: false },
+    ]);
+    expect((await palette.files("photos", 10))[0]?.dir).toBe(true);
+    await expect(palette.launch("Firefox")).resolves.toBeUndefined();
+  });
+
   it("keeps the app's other services in the preview", async () => {
     const { options, tauriServices } = await load({ inApp: false });
     const services = options.services as Services;

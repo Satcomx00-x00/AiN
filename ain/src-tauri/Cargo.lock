@@ -45,6 +45,7 @@ dependencies = [
  "bzip2 0.5.2",
  "clipboard-win",
  "cpal",
+ "dbus",
  "dirs 7.0.0",
  "getrandom 0.4.3",
  "gtk",
@@ -79,6 +80,7 @@ dependencies = [
  "ureq 3.4.2",
  "windows",
  "winreg",
+ "x11rb",
  "xcap",
 ]
 

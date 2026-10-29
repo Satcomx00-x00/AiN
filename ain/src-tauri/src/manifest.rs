@@ -39,6 +39,7 @@ macro_rules! manifest {
                     events: [PhaseChanged, ModelChanged]
                 }
                 media: features::media { typed: [state, artwork, control], raw: [], events: [TrackChanged] }
+                palette: features::palette { typed: [apps, launch, files, browse, open, reveal, run, system, open_url], raw: [], events: [] }
                 persona: features::persona { typed: [state, control, local_status, install_local, download_model, cancel_download, test_local, stop_test, remove_local, open_local_dir], raw: [], events: [PhaseChanged, LocalChanged, TestProgress] }
                 privacy: features::privacy { typed: [state], raw: [], events: [UsageChanged] }
                 spelling: features::spelling {
@@ -58,6 +59,7 @@ macro_rules! manifest {
                     raw: [],
                     events: [OutputChanged, SourcesChanged]
                 }
+                zones: features::zones { typed: [support, install_helper, layout, overlay_state, snap, screen, cancel], raw: [], events: [OverlayChanged] }
             }
         }
     };

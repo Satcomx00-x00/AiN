@@ -2733,130 +2733,118 @@
           "markdownDescription": "Denies the token command without any pre-configured scope."
         },
         {
-          "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-state`\n- `allow-control`\n- `allow-local-status`\n- `allow-install-local`\n- `allow-download-model`\n- `allow-cancel-download`\n- `allow-test-local`\n- `allow-stop-test`\n- `allow-remove-local`\n- `allow-open-local-dir`",
+          "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-apps`\n- `allow-launch`\n- `allow-files`\n- `allow-browse`\n- `allow-open`\n- `allow-reveal`\n- `allow-run`\n- `allow-system`\n- `allow-open-url`",
           "type": "string",
-          "const": "persona:default",
-          "markdownDescription": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-state`\n- `allow-control`\n- `allow-local-status`\n- `allow-install-local`\n- `allow-download-model`\n- `allow-cancel-download`\n- `allow-test-local`\n- `allow-stop-test`\n- `allow-remove-local`\n- `allow-open-local-dir`"
+          "const": "palette:default",
+          "markdownDescription": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-apps`\n- `allow-launch`\n- `allow-files`\n- `allow-browse`\n- `allow-open`\n- `allow-reveal`\n- `allow-run`\n- `allow-system`\n- `allow-open-url`"
         },
         {
-          "description": "Enables the cancel_download command without any pre-configured scope.",
+          "description": "Enables the apps command without any pre-configured scope.",
           "type": "string",
-          "const": "persona:allow-cancel-download",
-          "markdownDescription": "Enables the cancel_download command without any pre-configured scope."
+          "const": "palette:allow-apps",
+          "markdownDescription": "Enables the apps command without any pre-configured scope."
         },
         {
-          "description": "Enables the control command without any pre-configured scope.",
+          "description": "Enables the browse command without any pre-configured scope.",
           "type": "string",
-          "const": "persona:allow-control",
-          "markdownDescription": "Enables the control command without any pre-configured scope."
+          "const": "palette:allow-browse",
+          "markdownDescription": "Enables the browse command without any pre-configured scope."
         },
         {
-          "description": "Enables the download_model command without any pre-configured scope.",
+          "description": "Enables the files command without any pre-configured scope.",
           "type": "string",
-          "const": "persona:allow-download-model",
-          "markdownDescription": "Enables the download_model command without any pre-configured scope."
+          "const": "palette:allow-files",
+          "markdownDescription": "Enables the files command without any pre-configured scope."
         },
         {
-          "description": "Enables the install_local command without any pre-configured scope.",
+          "description": "Enables the launch command without any pre-configured scope.",
           "type": "string",
-          "const": "persona:allow-install-local",
-          "markdownDescription": "Enables the install_local command without any pre-configured scope."
+          "const": "palette:allow-launch",
+          "markdownDescription": "Enables the launch command without any pre-configured scope."
         },
         {
-          "description": "Enables the local_status command without any pre-configured scope.",
+          "description": "Enables the open command without any pre-configured scope.",
           "type": "string",
-          "const": "persona:allow-local-status",
-          "markdownDescription": "Enables the local_status command without any pre-configured scope."
+          "const": "palette:allow-open",
+          "markdownDescription": "Enables the open command without any pre-configured scope."
         },
         {
-          "description": "Enables the open_local_dir command without any pre-configured scope.",
+          "description": "Enables the open_url command without any pre-configured scope.",
           "type": "string",
-          "const": "persona:allow-open-local-dir",
-          "markdownDescription": "Enables the open_local_dir command without any pre-configured scope."
+          "const": "palette:allow-open-url",
+          "markdownDescription": "Enables the open_url command without any pre-configured scope."
         },
         {
-          "description": "Enables the remove_local command without any pre-configured scope.",
+          "description": "Enables the reveal command without any pre-configured scope.",
           "type": "string",
-          "const": "persona:allow-remove-local",
-          "markdownDescription": "Enables the remove_local command without any pre-configured scope."
+          "const": "palette:allow-reveal",
+          "markdownDescription": "Enables the reveal command without any pre-configured scope."
         },
         {
-          "description": "Enables the state command without any pre-configured scope.",
+          "description": "Enables the run command without any pre-configured scope.",
           "type": "string",
-          "const": "persona:allow-state",
-          "markdownDescription": "Enables the state command without any pre-configured scope."
+          "const": "palette:allow-run",
+          "markdownDescription": "Enables the run command without any pre-configured scope."
         },
         {
-          "description": "Enables the stop_test command without any pre-configured scope.",
+          "description": "Enables the system command without any pre-configured scope.",
           "type": "string",
-          "const": "persona:allow-stop-test",
-          "markdownDescription": "Enables the stop_test command without any pre-configured scope."
+          "const": "palette:allow-system",
+          "markdownDescription": "Enables the system command without any pre-configured scope."
         },
         {
-          "description": "Enables the test_local command without any pre-configured scope.",
+          "description": "Denies the apps command without any pre-configured scope.",
           "type": "string",
-          "const": "persona:allow-test-local",
-          "markdownDescription": "Enables the test_local command without any pre-configured scope."
+          "const": "palette:deny-apps",
+          "markdownDescription": "Denies the apps command without any pre-configured scope."
         },
         {
-          "description": "Denies the cancel_download command without any pre-configured scope.",
+          "description": "Denies the browse command without any pre-configured scope.",
           "type": "string",
-          "const": "persona:deny-cancel-download",
-          "markdownDescription": "Denies the cancel_download command without any pre-configured scope."
+          "const": "palette:deny-browse",
+          "markdownDescription": "Denies the browse command without any pre-configured scope."
         },
         {
-          "description": "Denies the control command without any pre-configured scope.",
+          "description": "Denies the files command without any pre-configured scope.",
           "type": "string",
-          "const": "persona:deny-control",
-          "markdownDescription": "Denies the control command without any pre-configured scope."
+          "const": "palette:deny-files",
+          "markdownDescription": "Denies the files command without any pre-configured scope."
         },
         {
-          "description": "Denies the download_model command without any pre-configured scope.",
+          "description": "Denies the launch command without any pre-configured scope.",
           "type": "string",
-          "const": "persona:deny-download-model",
-          "markdownDescription": "Denies the download_model command without any pre-configured scope."
+          "const": "palette:deny-launch",
+          "markdownDescription": "Denies the launch command without any pre-configured scope."
         },
         {
-          "description": "Denies the install_local command without any pre-configured scope.",
+          "description": "Denies the open command without any pre-configured scope.",
           "type": "string",
-          "const": "persona:deny-install-local",
-          "markdownDescription": "Denies the install_local command without any pre-configured scope."
+          "const": "palette:deny-open",
+          "markdownDescription": "Denies the open command without any pre-configured scope."
         },
         {
-          "description": "Denies the local_status command without any pre-configured scope.",
+          "description": "Denies the open_url command without any pre-configured scope.",
           "type": "string",
-          "const": "persona:deny-local-status",
-          "markdownDescription": "Denies the local_status command without any pre-configured scope."
+          "const": "palette:deny-open-url",
+          "markdownDescription": "Denies the open_url command without any pre-configured scope."
         },
         {
-          "description": "Denies the open_local_dir command without any pre-configured scope.",
+          "description": "Denies the reveal command without any pre-configured scope.",
           "type": "string",
-          "const": "persona:deny-open-local-dir",
-          "markdownDescription": "Denies the open_local_dir command without any pre-configured scope."
+          "const": "palette:deny-reveal",
+          "markdownDescription": "Denies the reveal command without any pre-configured scope."
         },
         {
-          "description": "Denies the remove_local command without any pre-configured scope.",
+          "description": "Denies the run command without any pre-configured scope.",
           "type": "string",
-          "const": "persona:deny-remove-local",
-          "markdownDescription": "Denies the remove_local command without any pre-configured scope."
+          "const": "palette:deny-run",
+          "markdownDescription": "Denies the run command without any pre-configured scope."
         },
         {
-          "description": "Denies the state command without any pre-configured scope.",
+          "description": "Denies the system command without any pre-configured scope.",
           "type": "string",
-          "const": "persona:deny-state",
-          "markdownDescription": "Denies the state command without any pre-configured scope."
-        },
-        {
-          "description": "Denies the stop_test command without any pre-configured scope.",
-          "type": "string",
-          "const": "persona:deny-stop-test",
-          "markdownDescription": "Denies the stop_test command without any pre-configured scope."
-        },
-        {
-          "description": "Denies the test_local command without any pre-configured scope.",
-          "type": "string",
-          "const": "persona:deny-test-local",
-          "markdownDescription": "Denies the test_local command without any pre-configured scope."
+          "const": "palette:deny-system",
+          "markdownDescription": "Denies the system command without any pre-configured scope."
         },
         {
           "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-bind`\n- `allow-failures`\n- `allow-open`\n- `allow-hide`\n- `allow-paste`",
@@ -3559,6 +3547,96 @@
           "type": "string",
           "const": "volume:deny-state",
           "markdownDescription": "Denies the state command without any pre-configured scope."
+        },
+        {
+          "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-support`\n- `allow-install-helper`\n- `allow-layout`\n- `allow-overlay-state`\n- `allow-snap`\n- `allow-screen`\n- `allow-cancel`",
+          "type": "string",
+          "const": "zones:default",
+          "markdownDescription": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-support`\n- `allow-install-helper`\n- `allow-layout`\n- `allow-overlay-state`\n- `allow-snap`\n- `allow-screen`\n- `allow-cancel`"
+        },
+        {
+          "description": "Enables the cancel command without any pre-configured scope.",
+          "type": "string",
+          "const": "zones:allow-cancel",
+          "markdownDescription": "Enables the cancel command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the install_helper command without any pre-configured scope.",
+          "type": "string",
+          "const": "zones:allow-install-helper",
+          "markdownDescription": "Enables the install_helper command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the layout command without any pre-configured scope.",
+          "type": "string",
+          "const": "zones:allow-layout",
+          "markdownDescription": "Enables the layout command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the overlay_state command without any pre-configured scope.",
+          "type": "string",
+          "const": "zones:allow-overlay-state",
+          "markdownDescription": "Enables the overlay_state command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the screen command without any pre-configured scope.",
+          "type": "string",
+          "const": "zones:allow-screen",
+          "markdownDescription": "Enables the screen command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the snap command without any pre-configured scope.",
+          "type": "string",
+          "const": "zones:allow-snap",
+          "markdownDescription": "Enables the snap command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the support command without any pre-configured scope.",
+          "type": "string",
+          "const": "zones:allow-support",
+          "markdownDescription": "Enables the support command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the cancel command without any pre-configured scope.",
+          "type": "string",
+          "const": "zones:deny-cancel",
+          "markdownDescription": "Denies the cancel command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the install_helper command without any pre-configured scope.",
+          "type": "string",
+          "const": "zones:deny-install-helper",
+          "markdownDescription": "Denies the install_helper command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the layout command without any pre-configured scope.",
+          "type": "string",
+          "const": "zones:deny-layout",
+          "markdownDescription": "Denies the layout command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the overlay_state command without any pre-configured scope.",
+          "type": "string",
+          "const": "zones:deny-overlay-state",
+          "markdownDescription": "Denies the overlay_state command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the screen command without any pre-configured scope.",
+          "type": "string",
+          "const": "zones:deny-screen",
+          "markdownDescription": "Denies the screen command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the snap command without any pre-configured scope.",
+          "type": "string",
+          "const": "zones:deny-snap",
+          "markdownDescription": "Denies the snap command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the support command without any pre-configured scope.",
+          "type": "string",
+          "const": "zones:deny-support",
+          "markdownDescription": "Denies the support command without any pre-configured scope."
         }
       ]
     },

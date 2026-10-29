@@ -6,6 +6,7 @@
 pub mod clipboard;
 pub mod dictation;
 pub mod media;
+pub mod palette;
 pub mod persona;
 pub mod privacy;
 pub mod spelling;
@@ -13,6 +14,7 @@ pub mod stats;
 pub mod transcript;
 pub mod tts;
 pub mod volume;
+pub mod zones;
 
 mod audio;
 mod delivery;
@@ -35,6 +37,8 @@ pub fn register(app: Builder<Wry>) -> Builder<Wry> {
         .plugin(volume::init())
         .plugin(privacy::init())
         .plugin(dictation::init())
+        .plugin(palette::init())
+        .plugin(zones::init())
         .plugin(tts::init())
         .plugin(transcript::init())
         .plugin(persona::init())

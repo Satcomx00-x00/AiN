@@ -25,6 +25,8 @@ import type { Services } from "../features/services";
 import type { WindowPort } from "../shell/window";
 import { memoryClipboard } from "../features/clipboard/service";
 import type { Track } from "../features/media/service";
+import { idlePalette } from "../features/palette/service";
+import { idleZones } from "../features/zones/service";
 import { noOAuth } from "../shell/oauth";
 import { noAi } from "../shell/ai";
 import { memoryProviders } from "../shell/providers";
@@ -77,6 +79,8 @@ const fake: Services = {
   oauth: noOAuth,
   ai: noAi,
   providers: memoryProviders(),
+  palette: idlePalette,
+  zones: idleZones,
   stats: {
     stats: async () => {
       const now = Date.now();

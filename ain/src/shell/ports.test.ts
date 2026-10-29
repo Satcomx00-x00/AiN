@@ -35,7 +35,7 @@ function events(log: string[], payloads: unknown[] = []) {
 describe("the popup", () => {
   it("binds shortcuts and hands back the ones that failed", async () => {
     vi.mocked(invoke).mockResolvedValueOnce({ "clock.go": "taken" });
-    const map = { "clock.go": { shortcut: "Super+KeyK", surface: "popup" as const } };
+    const map = { "clock.go": { shortcut: "Super+KeyK", surface: "popup" as const, label: "Go" } };
     expect(await tauriPopup.bind(map)).toEqual({ "clock.go": "taken" });
     expect(invoke).toHaveBeenLastCalledWith("plugin:popup|bind", { bindings: map });
   });
@@ -84,7 +84,7 @@ describe("the popup", () => {
   });
 
   it("does nothing in the browser previews, with no failures to report", async () => {
-    expect(await idlePopup.bind({ "a.b": { shortcut: "F9", surface: "popup" } })).toEqual({});
+    expect(await idlePopup.bind({ "a.b": { shortcut: "F9", surface: "popup", label: "B" } })).toEqual({});
     const failures = vi.fn();
     const stop = await idlePopup.watchFailures(failures);
     expect(failures).toHaveBeenCalledExactlyOnceWith({});

@@ -106,6 +106,36 @@ describe("the popup and overlay windows", () => {
     expect(ctx.options()).toEqual({ loud: true });
   });
 
+  it("let a view list every command with its shortcut, and run one after hiding", async () => {
+    const a = withCommand("a", { shortcut: "Ctrl+KeyA" });
+    const b = withCommand("b", { surface: "screen" });
+    const { popup, store } = await host(a.plugin, b.plugin);
+    await store.save({ ...defaults(LAYOUT), shortcuts: { "a.go": "Alt+KeyA" } });
+    const opened: string[] = [];
+    popup.port.open = async (id, surface) => void opened.push(`${id} ${surface} after ${popup.port.hidden} hide`);
+    popup.show("a.go");
+    const ctx = a.built[0] as { commands: () => unknown[]; run: (id: string) => Promise<void> };
+    expect(ctx.commands()).toEqual([
+      { id: "a.go", label: "a go", description: "", icon: "", shortcut: "Alt+KeyA" },
+      { id: "b.go", label: "b go", description: "", icon: "", shortcut: null },
+    ]);
+    await ctx.run("b.go");
+    await ctx.run("nobody.here");
+    expect(opened).toEqual(["b.go screen after 1 hide"]);
+  });
+
+  it("let a view open Settings or quit the app", async () => {
+    const a = withCommand("a");
+    const { popup, store } = await host(a.plugin);
+    const open = vi.spyOn(store, "open");
+    const quit = vi.spyOn(store, "quit");
+    popup.show("a.go");
+    const ctx = a.built[0] as { openSettings: (target?: string) => Promise<void>; quit: () => Promise<void> };
+    await ctx.openSettings("zones");
+    await ctx.quit();
+    expect([open.mock.calls, quit.mock.calls.length]).toEqual([[["zones"]], 1]);
+  });
+
   it("hide for a command they don't know, or one without a view", async () => {
     const quiet = withCommand("q", { popup: undefined });
     const { popup } = await host(quiet.plugin);
