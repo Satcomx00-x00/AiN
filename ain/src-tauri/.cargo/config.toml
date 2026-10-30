@@ -9,6 +9,12 @@ CXXFLAGS_x86_64_unknown_linux_gnu = "-D_GLIBCXX_USE_CXX11_ABI=0"
 LLAMA_STATIC_CRT = "1"
 # llama.cpp's CMake policies pick the runtime from CMAKE_MSVC_RUNTIME_LIBRARY, not the /MT flag.
 CMAKE_TOOLCHAIN_FILE_x86_64_pc_windows_msvc = { value = "cmake/msvc-static-crt.cmake", relative = true }
+# sherpa-onnx-sys's build script takes its prebuilt libraries from this folder instead of downloading
+# them from GitHub, so a build needs no network beyond the crate registry. The folder holds the
+# archive for Linux x64; the Windows one (123 MB) is over GitHub's file limit, so CI fetches it into
+# the folder first (.github/scripts/sherpa-onnx-windows.sh). Bumping sherpa-onnx needs the new
+# version's archives here and in SHA256SUMS: the build fails naming the archive it expected.
+SHERPA_ONNX_ARCHIVE_DIR = { value = "vendor/sherpa-onnx", relative = true }
 
 # The static CRT on Windows for everything else built from source (llama-cpp-sys-2's C++ wrapper,
 # compiled by cc), as sherpa-onnx's libraries; the app then needs no Visual C++ runtime installed.

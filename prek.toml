@@ -32,6 +32,8 @@ exclude = { glob = [
   "ain/src-tauri/tests/fixtures/**",
   # Hunspell dictionaries built into the app, as published upstream (fr.dic is ~1.2 MB).
   "ain/src-tauri/dictionaries/**",
+  # sherpa-onnx's prebuilt libraries, as published upstream (~23 MB), so builds need no GitHub.
+  "ain/src-tauri/vendor/sherpa-onnx/**",
   "**/*.lock",
   "CHANGELOG.md",
 ] }

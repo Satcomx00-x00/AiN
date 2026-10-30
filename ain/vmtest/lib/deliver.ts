@@ -114,17 +114,16 @@ export async function sendSource(guest: Guest, stage: Stage): Promise<void> {
 
 /**
  * A release build, as `tauri build` makes it (the frontend embedded, served by the custom
- * protocol), with the vendored crates and no network. Built in the template's target folder,
- * which holds the dependencies already built and the archives build scripts downloaded.
- * Returns the build's output.
+ * protocol), with the vendored crates and no network: sherpa-onnx's libraries come from the
+ * source's own src-tauri/vendor/sherpa-onnx. Built in the template's target folder, which holds the
+ * dependencies already built. Returns the build's output.
  */
-export async function build(guest: Guest, host: Host, log: (s: string) => void): Promise<string> {
+export async function build(guest: Guest): Promise<string> {
   const script = `${ENV}
 set -o pipefail
 target=$HOME/dev/AiN/ain/src-tauri/target
 [ -d "$target" ] || target=$HOME/vmtest/target
-export CARGO_TARGET_DIR=$target SHERPA_ONNX_ARCHIVE_DIR=$HOME/vmtest/fetch
-mkdir -p "$SHERPA_ONNX_ARCHIVE_DIR"
+export CARGO_TARGET_DIR=$target
 cd ${REMOTE}/src/src-tauri
 cargo build --release --locked --offline --features tauri/custom-protocol \\
   --config 'source.crates-io.replace-with="vendored"' \\
@@ -134,24 +133,8 @@ status=\${PIPESTATUS[0]}
 # The bundle's resources beside the binary, where Tauri looks for them when it isn't installed.
 [ "$status" = 0 ] && [ -d resources ] && cp -r resources/. ${REMOTE}/
 exit "$status"`;
-  for (let attempt = 1; ; attempt++) {
-    const r = await guest.sh(script);
-    const out = r.stdout.toString("utf8") + r.stderr;
-    if (r.code === 0) return out;
-    // A build script wants an archive from the internet: fetch it here and hand it over.
-    const want = /SHERPA_ONNX_ARCHIVE_DIR does not contain expected archive: (\S+)/.exec(out)?.[1];
-    if (attempt === 1 && want) {
-      const name = basename(want);
-      const version = /v?(\d+\.\d+\.\d+)/.exec(name)?.[1] ?? (await sherpaVersion(guest));
-      log(`the build wants ${name}: fetching it here`);
-      const file = await host.fetch(`https://github.com/k2-fsa/sherpa-onnx/releases/download/v${version}/${name}`);
-      await guest.upload(file, `${REMOTE}/fetch/${name}`);
-      continue;
-    }
-    throw new Error(`build failed\n${out.trim().split("\n").slice(-40).join("\n")}`);
-  }
-}
-
-async function sherpaVersion(guest: Guest): Promise<string> {
-  return (await guest.ok(`sed -n 's/^version = "\\(.*\\)"/\\1/p' ${REMOTE}/vendor/sherpa-onnx-sys/Cargo.toml | head -1`)).trim();
+  const r = await guest.sh(script);
+  const out = r.stdout.toString("utf8") + r.stderr;
+  if (r.code !== 0) throw new Error(`build failed\n${out.trim().split("\n").slice(-40).join("\n")}`);
+  return out;
 }

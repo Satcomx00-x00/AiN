@@ -4,3 +4,5 @@
 *.icns binary
 # Signed test fixtures: their bytes must stay exactly as signed.
 ain/src-tauri/tests/fixtures/updater/** binary
+# sherpa-onnx's prebuilt libraries, as published upstream.
+ain/src-tauri/vendor/sherpa-onnx/*.tar.bz2 binary

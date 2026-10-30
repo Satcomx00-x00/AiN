@@ -58,9 +58,8 @@ The VMs have no internet, so everything comes from this machine, cached in `vmte
    `bun install` and `vite build` make `dist`. Guests build only the Rust side, with the frontend
    embedded, as `tauri build` does (`cargo build --release --features tauri/custom-protocol`).
 2. **Crates**: `cargo vendor` once per `Cargo.lock`; each guest is sent only the crates it lacks.
-3. **Tools and downloads**: CMake (for libopus) from Kitware, checked against its SHA-256. When a
-   build script wants an archive from the internet (sherpa-onnx's libraries), the build fails
-   saying which; the runner downloads it here, hands it to the guest, and builds again.
+3. **Tools**: CMake (for libopus) from Kitware, checked against its SHA-256. sherpa-onnx's
+   libraries come with the source (`src-tauri/vendor/sherpa-onnx`): the build downloads nothing.
 
 The guest builds in the template's target folder (`~/dev/AiN/ain/src-tauri/target`), which already
 holds the built dependencies. Rust is the template's: a revision needing a newer toolchain needs

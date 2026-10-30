@@ -125,7 +125,7 @@ async function runTarget(t: Target): Promise<TargetResult> {
       await sendSource(guest, stage);
       log("building");
       const b = Date.now();
-      appendFileSync(logFile, await build(guest, host, log));
+      appendFileSync(logFile, await build(guest));
       log(`built in ${Math.round((Date.now() - b) / 1000)} s`);
     } else {
       await guest.ok(`test -x ${REMOTE}/ain`, "no build on the VM yet (run once without --no-build)");
