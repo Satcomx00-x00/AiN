@@ -263,9 +263,16 @@ jobs:
           workspaces: ain/src-tauri -> target
       - name: Install cargo-llvm-cov
         run: cargo install cargo-llvm-cov --locked --version "$LLVM_COV_VERSION"
+      # Over GitHub's file limit, Windows' archive isn't in the repository: put it where the build reads it.
+      - name: Fetch sherpa-onnx's Windows libraries
+        if: runner.os == 'Windows'
+        shell: bash
+        working-directory: .
+        run: ./.github/scripts/sherpa-onnx-windows.sh
       # rust-cache keeps sherpa-onnx-sys's build output but prunes the native libraries it extracted
-      # under target/, which it then never fetches again: make it start over.
-      - name: Refetch sherpa-onnx's native libraries
+      # under target/, which it then never extracts again: make it start over, from the archive in
+      # src-tauri/vendor/sherpa-onnx.
+      - name: Re-extract sherpa-onnx's native libraries
         shell: bash
         working-directory: ain/src-tauri
         run: |
@@ -324,8 +331,9 @@ jobs:
           workspaces: ain/src-tauri -> target
           key: fedora-${{ matrix.release }}
       # rust-cache keeps sherpa-onnx-sys's build output but prunes the native libraries it extracted
-      # under target/, which it then never fetches again: make it start over.
-      - name: Refetch sherpa-onnx's native libraries
+      # under target/, which it then never extracts again: make it start over, from the archive in
+      # src-tauri/vendor/sherpa-onnx.
+      - name: Re-extract sherpa-onnx's native libraries
         working-directory: ain/src-tauri
         run: |
           rm -rf target/sherpa-onnx-prebuilt
@@ -383,9 +391,16 @@ jobs:
         with:
           workspaces: ain/src-tauri -> target
           key: launch
+      # Over GitHub's file limit, Windows' archive isn't in the repository: put it where the build reads it.
+      - name: Fetch sherpa-onnx's Windows libraries
+        if: runner.os == 'Windows'
+        shell: bash
+        working-directory: .
+        run: ./.github/scripts/sherpa-onnx-windows.sh
       # rust-cache keeps sherpa-onnx-sys's build output but prunes the native libraries it extracted
-      # under target/, which it then never fetches again: make it start over.
-      - name: Refetch sherpa-onnx's native libraries
+      # under target/, which it then never extracts again: make it start over, from the archive in
+      # src-tauri/vendor/sherpa-onnx.
+      - name: Re-extract sherpa-onnx's native libraries
         working-directory: ain/src-tauri
         run: |
           rm -rf target/sherpa-onnx-prebuilt
@@ -433,8 +448,9 @@ jobs:
           workspaces: ain/src-tauri -> target
           key: appimage
       # rust-cache keeps sherpa-onnx-sys's build output but prunes the native libraries it extracted
-      # under target/, which it then never fetches again: make it start over.
-      - name: Refetch sherpa-onnx's native libraries
+      # under target/, which it then never extracts again: make it start over, from the archive in
+      # src-tauri/vendor/sherpa-onnx.
+      - name: Re-extract sherpa-onnx's native libraries
         shell: bash
         working-directory: ain/src-tauri
         run: |

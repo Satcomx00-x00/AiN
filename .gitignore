@@ -38,3 +38,6 @@ RELEASE_NOTES.md
 # VM tests (ain/vmtest): staged builds, vendored crates, downloads; and each run's results
 ain/vmtest/.cache/
 ain/vmtest/results/
+
+# sherpa-onnx's Windows libraries, fetched there by CI: over GitHub's file limit, never committed
+ain/src-tauri/vendor/sherpa-onnx/*-win-*.tar.bz2

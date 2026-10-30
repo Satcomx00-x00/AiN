@@ -265,6 +265,12 @@ sudo dnf install gcc-c++ cmake pkgconf-pkg-config clang clang-devel \
 `fedora-deps.sh` installs these plus what CI needs to package the `.rpm` and launch-check it (`rpm-build`, Xvfb, …);
 keep the two in step.
 
+The build needs no network beyond the package registries (npm, crates.io): sherpa-onnx's prebuilt
+libraries for Linux x64 are in the repository, in `ain/src-tauri/vendor/sherpa-onnx`, where its build
+script reads them (`SHERPA_ONNX_ARCHIVE_DIR` in `ain/src-tauri/.cargo/config.toml`). Windows' archive
+is over GitHub's 100 MB file limit: put it in that folder before building
+(`.github/scripts/sherpa-onnx-windows.sh` fetches it and checks it against `SHA256SUMS`).
+
 ```sh
 cd ain
 bun install
@@ -311,6 +317,7 @@ Every built-in URL and folder can be overridden by an `AIN_*` environment variab
 | `ain/src-tauri/src/manifest.rs` | Every IPC command and event, listed once |
 | `ain/src-tauri/src/shell/` | Native side of the app: island window, popup, capture, settings, tray, plugin folder |
 | `ain/src-tauri/src/features/` | Native side of each feature, with one backend per OS (`windows.rs`, `linux.rs`) |
+| `ain/src-tauri/vendor/sherpa-onnx/` | sherpa-onnx's prebuilt static libraries, as published upstream, with their `SHA256SUMS` |
 | `ain/examples/plugins/` | Example third-party plugins: a widget, a startup animation, a pill style |
 | `cliff.toml` | [git-cliff](https://git-cliff.org) changelog configuration |
 | `.github/workflows/` | CI and release pipelines |

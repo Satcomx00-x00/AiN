@@ -105,11 +105,6 @@ export class Host {
     });
   }
 
-  /** A file a guest's build asked for, downloaded here on its behalf. */
-  fetch(url: string): Promise<string> {
-    return this.#once(basename(new URL(url).pathname), () => download(url));
-  }
-
   readonly #fetching = new Map<string, Promise<string>>();
 
   /** The cached file `name` in .cache/fetch, made by `get` once: targets asking together share it. */
