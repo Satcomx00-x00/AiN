@@ -138,8 +138,8 @@ function install(backend: Backend): void {
     "plugin:extensions|list": () => ({ dir: "/plugins", plugins: [] }),
     "plugin:extensions|open_dir": () => null,
     "plugin:store|catalog": () => ({
-      url: "https://store.test/store.yaml",
-      plugins: [{ id: "orbit-clock", name: "Orbit clock", description: "An analog clock.", repo: "https://github.com/o/r", file: "orbit-clock/index.js", problem: null }],
+      sources: [{ url: "https://store.test/store.yaml", official: true, problem: null }],
+      plugins: [{ id: "orbit-clock", name: "Orbit clock", description: "An analog clock.", repo: "https://github.com/o/r", file: "orbit-clock/index.js", problem: null, source: "https://store.test/store.yaml" }],
     }),
     "plugin:store|install": () => "orbit-clock/index.js",
     "plugin:providers|preset_urls": () => ({ openai: "https://api.openai.com/v1", groq: "https://api.groq.com/openai/v1", mistral: "https://api.mistral.ai/v1", custom: "http://localhost:8000/v1" }),

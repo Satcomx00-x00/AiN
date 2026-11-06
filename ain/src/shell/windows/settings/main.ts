@@ -19,10 +19,11 @@ import {
   parseTarget,
   placeNew,
   setExtension,
+  storeSources,
 } from "../../settings";
 import { type Extension, fileRows, idOf, loadExtensions, storeFields } from "../../extensions";
 import type { Found } from "../../bindings/extensions";
-import { type Offer, noCommunity, offerState } from "../../community";
+import { type Offer, type Source, noCommunity, offerState } from "../../community";
 import { layout as defaultLayout } from "../../../features/layout";
 import { catalogue, extensionRules } from "../../../features";
 import { greetings } from "../../../features/greetings";
@@ -33,7 +34,7 @@ import { NO_GREETING } from "../../greet";
 import { type Select, type SelectOption, select } from "../../../sdk/select";
 import { tauriServices } from "../../../features/services";
 import { THEMES, themeById } from "../../themes";
-import { type SecretAccess, aroundPanel, colorPicker, field, folderControl, optionControl, rangeControl, segmented, standardFields, switchControl, themeGrid } from "./controls";
+import { type SecretAccess, aroundPanel, chips, colorPicker, field, flag, folderControl, optionControl, rangeControl, segmented, standardFields, switchControl, themeGrid } from "./controls";
 import type { Field, Fields } from "../../../sdk/options";
 import { memorySecrets } from "../../secrets";
 import { settingsPorts } from "./ports";
@@ -176,16 +177,20 @@ function commit(next: Settings, redraw = false) {
   if (redraw) render();
   setStatus("saving", "Saving…");
   clearTimeout(pending);
-  pending = setTimeout(() => {
-    pending = undefined;
-    store.save(settings).then(
-      () => setStatus("saved", "Saved"),
-      (e: unknown) => {
-        setStatus("error", "Not saved");
-        reportProblem("Your changes weren't saved", e, "SETTINGS_SAVE");
-      },
-    );
-  }, SAVE_DELAY);
+  pending = setTimeout(() => void flush(), SAVE_DELAY);
+}
+
+/** Saves the settings now rather than after `SAVE_DELAY`, for what the backend reads right after. */
+function flush(): Promise<void> {
+  clearTimeout(pending);
+  pending = undefined;
+  return store.save(settings).then(
+    () => setStatus("saved", "Saved"),
+    (e: unknown) => {
+      setStatus("error", "Not saved");
+      reportProblem("Your changes weren't saved", e, "SETTINGS_SAVE");
+    },
+  );
 }
 
 const setLayout = (layout: Layout) => commit({ ...settings, layout }, true);
@@ -775,7 +780,7 @@ function greetingPicker(choices: ReturnType<typeof greetingChoices>, chosen: str
 // ---------- the community store ----------
 
 /** The store's plugins, read when the Plugins section first opens and again on Refresh; `null` until then. */
-let shelf: { offers: Offer[]; problem: string | null } | null = null;
+let shelf: { offers: Offer[]; sources: Source[]; problem: string | null } | null = null;
 let readingShelf = false;
 /** The store plugin being downloaded. */
 let installing: string | null = null;
@@ -785,13 +790,47 @@ const STORE = `<path d="M2.5 6 3.5 2.5h9l1 3.5"/><path d="M2.5 6a1.85 1.85 0 0 0
 async function readShelf(): Promise<void> {
   readingShelf = true;
   shelf = await community.catalog().then(
-    (s) => ({ offers: s.plugins, problem: null }),
+    (s) => {
+      for (const source of s.sources) if (source.problem) reportProblem(`Couldn't read the store ${source.url}`, source.problem, "STORE_READ");
+      return { offers: s.plugins, sources: s.sources, problem: null };
+    },
     (e: unknown) => {
       reportProblem("Couldn't read the community store", e, "STORE_READ");
-      return { offers: [], problem: messageOf(e) };
+      return { offers: [], sources: [], problem: messageOf(e) };
     },
   );
   readingShelf = false;
+}
+
+/** Changes which stores are read, saves at once (the backend reads them from the file), then reads them again. */
+async function setStores(patch: Partial<Pick<General, "officialStore" | "storeSources">>): Promise<void> {
+  const typed = patch.storeSources;
+  const urls = typed && storeSources(typed);
+  if (typed && urls && urls.length < new Set(typed).size) toasts.note("A store is an http(s) address of a store.yaml file");
+  commit({ ...settings, general: { ...settings.general, ...patch, ...(urls ? { storeSources: urls } : {}) } });
+  await flush();
+  shelf = null;
+  render();
+}
+
+/** Where the store's plugins come from: the official store, then the user's, in order. */
+function sourcesCard(): HTMLElement {
+  const failed = (official: boolean) =>
+    shelf?.sources.filter((s) => s.official === official && s.problem).map((s) => `${s.url}: ${s.problem}`).join("\n") || null;
+  const official = field(
+    "Official store",
+    "AiN's own catalog of community plugins.",
+    switchControl(settings.general.officialStore, (on) => void setStores({ officialStore: on }), "Official store"),
+  );
+  const added = field(
+    "More stores",
+    "Addresses of other store.yaml catalogs, read after the official one: the first store to list a plugin is the one it's installed from. Press Enter to add one.",
+    chips(settings.general.storeSources, "https://example.com/store.yaml", (urls) => void setStores({ storeSources: urls }), "More stores"),
+    true,
+  );
+  flag(official, failed(true));
+  flag(added, failed(false));
+  return h("section", { class: "card store-sources" }, official, added);
 }
 
 /** Downloads a store plugin into the folder; it then shows above, off, like any file put there. */
@@ -816,6 +855,7 @@ function storeCards(): Node[] {
     return [h("p", { class: "lead" }, "Reading the store…")];
   }
   if (shelf.problem) return [h("p", { class: "note empty" }, "The store isn't available right now. Refresh to try again.")];
+  if (!settings.general.officialStore && !settings.general.storeSources.length) return [h("p", { class: "note empty" }, "No store is on: turn on the official store, or add one above.")];
   if (!shelf.offers.length) return [h("p", { class: "lead" }, "The store has no plugins yet.")];
   const files = found.plugins.map((p) => p.file);
   return shelf.offers.map((offer) => {
@@ -942,6 +982,7 @@ function pluginsSection(): Page {
       ...(list.length ? list : [h("p", { class: "note empty" }, "No plugins yet. Install one from the store below, or add .js files to the plugins folder.")]),
       h("h2", { class: "subhead" }, "Community store"),
       h("p", { class: "note" }, "Plugins made by others, downloaded from their repository. They are installed off: read the code, then turn them on above."),
+      sourcesCard(),
       ...storeCards(),
     ],
   };
@@ -1125,7 +1166,7 @@ const SEARCHABLE: Partial<Record<Section, readonly (readonly [label: string, hin
   ],
   plugins: [
     ["Plugins folder", "Where plugin files live", "extensions js"],
-    ["Community store", "Plugins made by others", "install download extensions"],
+    ["Community store", "Plugins made by others", "install download extensions sources url catalog official more stores"],
   ],
   about: [
     ["Updates", "Check for and install new versions", "version upgrade"],

@@ -23,7 +23,7 @@ import type { Line, Phase as Hearing } from "../features/transcript/service";
 import type { Output, Source } from "../features/volume/service";
 import type { PopupPort } from "../shell/commands";
 import type { CommandKind } from "../sdk/plugin";
-import type { CommunityPort, Offer } from "../shell/community";
+import type { CommunityPort, Offer, Shelf } from "../shell/community";
 import type { ExtensionsPort, Importer } from "../shell/extensions";
 import type { IslandHandle } from "../shell/host";
 import { memorySecrets } from "../shell/secrets";
@@ -37,6 +37,9 @@ import { perPlugin } from "../shell/extensions";
 vi.setConfig({ testTimeout: 20_000 });
 
 /** 9:41 on a weekday: the clock shows "09:41". */
+/** The official store's address in tests. */
+export const OFFICIAL_STORE = "https://store.test/store.yaml";
+
 export const NOW = new Date(2026, 9, 16, 9, 41, 0).getTime();
 
 /** A value services push to whoever watches it, now and on every change. */
@@ -208,16 +211,33 @@ export function system() {
   const offers = new Map<string, { offer: Offer; def: Definition }>();
   /** Why the store can't be read or a download fails, while set; a download waits for `held`. */
   const outage: { store: string | null; install: string | null; held: Promise<void> | null } = { store: null, install: null, held: null };
+  /** Stores that can't be read, by URL, and why. */
+  const brokenSources = new Map<string, string>();
   const reposOpened: string[] = [];
+  // As the backend does: the stores the saved settings name, the first to list an id winning.
+  const shelf = async (): Promise<Shelf> => {
+    const { general } = await read();
+    const sources = [...(general.officialStore ? [OFFICIAL_STORE] : []), ...general.storeSources].map((url) => ({
+      url,
+      official: url === OFFICIAL_STORE,
+      problem: brokenSources.get(url) ?? null,
+    }));
+    if (sources.length && sources.every((s) => s.problem)) throw new Error(sources.map((s) => s.problem).join("; "));
+    const readable = new Set(sources.filter((s) => !s.problem).map((s) => s.url));
+    const plugins = sources.flatMap((s) => [...offers.values()].map((o) => o.offer).filter((o) => o.source === s.url && readable.has(s.url)));
+    return { sources, plugins: plugins.filter((o, i) => plugins.findIndex((p) => p.id === o.id) === i) };
+  };
   const community: CommunityPort = {
     catalog: async () => {
       if (outage.store) throw new Error(outage.store);
-      return { url: "https://store.test/store.yaml", plugins: [...offers.values()].map((o) => o.offer) };
+      return shelf();
     },
     install: async (id) => {
       await outage.held;
       if (outage.install) throw new Error(outage.install);
-      const listed = offers.get(id);
+      // Looked up again, as the backend does: from the stores the settings name.
+      const offer = (await shelf()).plugins.find((o) => o.id === id);
+      const listed = [...offers.values()].find((o) => o.offer === offer);
       if (!listed) throw new Error(`"${id}" is no longer in the store`);
       files.set(listed.offer.file, listed.def);
       return listed.offer.file;
@@ -230,6 +250,12 @@ export function system() {
 
   const store = memorySettings();
   const fallback = defaults(layout);
+  const read = async (): Promise<Settings> => {
+    let raw: unknown = null;
+    const stop = await store.watch((r) => (raw = r));
+    stop();
+    return parseSettings(raw, fallback);
+  };
   // The clock's default format follows the machine's locale ("09:41" or "09:41 AM"): pin it, so
   // the tests read the same everywhere. A test that changes it still can.
   void store.save({ ...fallback, options: { clock: { format: "24" } } });
@@ -265,11 +291,13 @@ export function system() {
     hardware: (h: { width: number; height: number; hasNotch: boolean }) => void (hardware = h),
     /** Puts a plugin file in the folder (it runs only once turned on in the settings). */
     addFile: (file: string, def: Definition) => void files.set(file, def),
-    /** Lists a plugin in the community store; installing it adds its file to the folder. */
-    addOffer: (offer: Omit<Offer, "file" | "problem" | "options"> & Partial<Offer>, def: Definition) =>
-      void offers.set(offer.id, { offer: { file: `${offer.id}/index.js`, problem: null, options: null, ...offer }, def }),
+    /** Lists a plugin in a community store (the official one unless `source` says); installing it adds its file to the folder. */
+    addOffer: (offer: Omit<Offer, "file" | "problem" | "options" | "source"> & Partial<Offer>, def: Definition) =>
+      void offers.set(`${offer.source ?? OFFICIAL_STORE} ${offer.id}`, { offer: { file: `${offer.id}/index.js`, problem: null, options: null, source: OFFICIAL_STORE, ...offer }, def }),
     /** Makes reading the store, or downloading from it, fail with `message`; `null` mends it. */
     breakStore: (part: "store" | "install", message: string | null) => void (outage[part] = message),
+    /** Makes reading one store fail with `message` while the others still read; `null` mends it. */
+    breakSource: (url: string, message: string | null) => void (message === null ? brokenSources.delete(url) : brokenSources.set(url, message)),
     /** Holds downloads from the store until the returned function is called. */
     holdInstalls: () => {
       let release = () => {};
@@ -282,12 +310,7 @@ export function system() {
     /** The store plugins whose repository was opened, by id. */
     reposOpened,
     /** The stored settings, read back as the island would read them. */
-    settings: async (): Promise<Settings> => {
-      let raw: unknown = null;
-      const stop = await store.watch((r) => (raw = r));
-      stop();
-      return parseSettings(raw, fallback);
-    },
+    settings: () => read(),
     /** Saves settings changed from the defaults (or from what is stored), as the settings page would. */
     save: async (change: (s: Settings) => Settings) => {
       let raw: unknown = null;

@@ -7,7 +7,7 @@ everything in one folder (a portable install). Unset or blank means the default.
 
 | Variable | Default | What it changes |
 | --- | --- | --- |
-| `AIN_STORE_URL` | `https://raw.githubusercontent.com/Satcomx00-x00/AiN/store/store.yaml` | The community plugin store's catalog. |
+| `AIN_STORE_URL` | `https://raw.githubusercontent.com/Satcomx00-x00/AiN/store/store.yaml` | The official community plugin store's catalog. More stores are added in Settings → Plugins ([more stores](plugins.md#more-stores)). |
 | `AIN_GITHUB_RAW_URL` | `https://raw.githubusercontent.com` | Where store plugins are downloaded from (`{base}/{owner}/{repo}/{ref}/{entry}`). |
 | `AIN_GITHUB_URL` | `https://github.com` | GitHub, for the releases page and their `latest.json`. |
 | `AIN_REPO` | `Satcomx00-x00/AiN` | The repository whose releases the updater follows. |

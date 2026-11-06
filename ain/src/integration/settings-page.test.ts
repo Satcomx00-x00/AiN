@@ -335,6 +335,72 @@ describe("Settings → Plugins → Community store", () => {
     expect(storeCards(page.page).map((c) => c.querySelector("h2")?.textContent)).toEqual(["Orbit clock"]);
   });
 
+  const MINE = "https://stores.example/store.yaml";
+  const addStore = async (page: { page: ParentNode }, url: string) => {
+    const input = page.page.querySelector<HTMLInputElement>(".store-sources .chip-input")!;
+    input.value = url;
+    input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter" }));
+    await advance(0);
+  };
+
+  it("adds a store of the user's, saves it, and lists its plugins after the official one's", async () => {
+    environment();
+    const sys = system();
+    sys.addOffer(orbit, orbitPlugin);
+    sys.addOffer({ ...orbit, id: "weather", name: "Weather", source: MINE }, orbitPlugin);
+    sys.addOffer({ ...orbit, name: "Orbit clock (mine)", source: MINE }, orbitPlugin);
+    const page = await startSettings(sys, "plugins");
+    expect(storeCards(page.page).map((c) => c.querySelector("h2")?.textContent)).toEqual(["Orbit clock"]);
+
+    await addStore(page, ` ${MINE} `);
+    expect((await sys.settings()).general.storeSources).toEqual([MINE]);
+    // The official store lists orbit-clock first: the user's copy of it is left out.
+    expect(storeCards(page.page).map((c) => c.querySelector("h2")?.textContent)).toEqual(["Orbit clock", "Weather"]);
+    press(offer(page.page, "Weather"), "Install");
+    await advance(0);
+    expect(fileCard(page.page, "weather/index.js")).toBeDefined();
+  });
+
+  it("refuses a store that isn't an http(s) address", async () => {
+    environment();
+    const sys = system();
+    const page = await startSettings(sys, "plugins");
+    await addStore(page, "ftp://stores.example/store.yaml");
+    expect((await sys.settings()).general.storeSources).toEqual([]);
+    expect(toasts().at(-1)).toBe("[] A store is an http(s) address of a store.yaml file: ");
+    expect(page.page.querySelectorAll(".store-sources .chip")).toHaveLength(0);
+  });
+
+  it("turns the official store off, and lists only the user's", async () => {
+    environment();
+    const sys = system();
+    sys.addOffer(orbit, orbitPlugin);
+    sys.addOffer({ ...orbit, id: "weather", name: "Weather", source: MINE }, orbitPlugin);
+    const page = await startSettings(sys, "plugins");
+    await addStore(page, MINE);
+    page.page.querySelector<HTMLButtonElement>(".store-sources [aria-label='Official store']")!.click();
+    await advance(0);
+    expect((await sys.settings()).general.officialStore).toBe(false);
+    expect(storeCards(page.page).map((c) => c.querySelector("h2")?.textContent)).toEqual(["Weather"]);
+
+    page.page.querySelector<HTMLButtonElement>(`.store-sources [aria-label='Remove ${MINE}']`)!.click();
+    await advance(0);
+    expect(page.page.textContent).toContain("No store is on: turn on the official store, or add one above.");
+  });
+
+  it("still lists the stores that read when one doesn't, and says which", async () => {
+    environment();
+    const sys = system();
+    sys.addOffer(orbit, orbitPlugin);
+    sys.breakSource(MINE, `couldn't reach ${MINE}`);
+    const page = await startSettings(sys, "plugins");
+    await addStore(page, MINE);
+    expect(storeCards(page.page).map((c) => c.querySelector("h2")?.textContent)).toEqual(["Orbit clock"]);
+    expect(toasts().at(-1)).toBe(`[STORE_READ] Couldn't read the store ${MINE}: couldn't reach ${MINE}`);
+    expect(page.field("More stores")?.querySelector(".field-error")?.textContent).toBe(`${MINE}: couldn't reach ${MINE}`);
+    expect(page.field("Official store")?.querySelector(".field-error")).toBeNull();
+  });
+
   it("names a plugin that's off by its store listing, or by its file, and shows the file", async () => {
     environment();
     const sys = system();
