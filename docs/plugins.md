@@ -446,6 +446,21 @@ repository's `store` branch. AiN reads it from
 `https://raw.githubusercontent.com/Satcomx00-x00/AiN/store/store.yaml` each time **Settings → Plugins**
 opens; it isn't built into the app.
 
+### More stores
+
+A store is any `store.yaml` laid out like this one, served over `http(s)`: a fork's, a company's, one
+on a closed network. Add its address under **Settings → Plugins → Community store → More stores**
+(press Enter); turn **Official store** off to read only yours. They are saved in `settings.json`:
+
+```json
+{ "general": { "officialStore": true, "storeSources": ["https://example.com/store.yaml"] } }
+```
+
+Stores are read in that order, the official one first, and all at once; one that can't be read is
+flagged in Settings while the others are still listed. When two stores list the same `id`, the
+first one wins: that is the one shown and installed from. Up to 16 stores of your own are read.
+`AIN_STORE_URL` still replaces the official store's address ([configuration](configuration.md)).
+
 1. Start from the [`plugin-template`](https://github.com/Satcomx00-x00/AiN/tree/plugin-template)
    branch: a complete plugin (an analog clock) in one `index.js`, in its own GitHub repository.
 2. Open a pull request against the `store` branch adding an entry:

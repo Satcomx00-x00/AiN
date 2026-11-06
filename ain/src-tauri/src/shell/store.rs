@@ -1,19 +1,28 @@
-//! The community plugin store: a `store.yaml` kept on the repository's `store` branch and read over
-//! the internet, never bundled, so plugins can be listed without a new release. Each entry names a
-//! plugin and the git repository it lives in; installing downloads its entry file from GitHub into
-//! the plugins folder, where it shows up off, like any plugin the user drops there.
+//! The community plugin store: `store.yaml` catalogs read over the internet, never bundled, so
+//! plugins can be listed without a new release. The official one is kept on the repository's
+//! `store` branch (`AIN_STORE_URL` replaces it); users add their own in Settings → Plugins
+//! (`general.storeSources`) and can turn the official one off (`general.officialStore`). Each entry
+//! names a plugin and the git repository it lives in; installing downloads its entry file from
+//! GitHub into the plugins folder, where it shows up off, like any plugin the user drops there.
+//! When two stores list the same id, the first one read wins: the official store, then the user's
+//! in their order.
 
-use std::{fs, path::Path};
+use std::{collections::HashSet, fs, path::Path, thread};
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use specta::Type;
 use tauri::{AppHandle, Wry, async_runtime::spawn_blocking, plugin::TauriPlugin};
 
-use crate::{Error, Res, config, shell::extensions};
+use crate::{
+    Error, Res, config,
+    shell::{extensions, settings},
+};
 
 /// The store and the plugins it lists are small text files.
 const MAX_BYTES: u64 = 1024 * 1024;
+/// More stores of the user's than this are ignored: each one is a request every time the store is read.
+pub const MAX_SOURCES: usize = 16;
 
 /// One plugin as written in `store.yaml`.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -56,12 +65,24 @@ pub struct Offer {
     /// Its options as the store declares them (`null` for none); the settings page checks them.
     #[specta(type = Option<specta_typescript::Unknown>)]
     pub options: Value,
+    /// The store that lists it.
+    pub source: String,
 }
 
-/// What the store offers, or why it couldn't be read.
+/// One store that was read, and why it couldn't be, if so.
+#[derive(Debug, Clone, PartialEq, Serialize, Type)]
+pub struct Source {
+    pub url: String,
+    /// Whether it's the official store, rather than one the user added.
+    pub official: bool,
+    /// Why it couldn't be read; `None` if it was.
+    pub problem: Option<String>,
+}
+
+/// What the stores offer, and how reading each one went.
 #[derive(Debug, Clone, PartialEq, Serialize, Type)]
 pub struct Shelf {
-    pub url: String,
+    pub sources: Vec<Source>,
     pub plugins: Vec<Offer>,
 }
 
@@ -111,7 +132,7 @@ impl Listed {
         Ok(format!("{}/{owner}/{name}/{git_ref}/{entry}", config::base(config::GITHUB_RAW_URL)))
     }
 
-    fn offer(&self) -> Offer {
+    fn offer(&self, source: &str) -> Offer {
         Offer {
             id: self.id.clone(),
             name: self.name.clone(),
@@ -120,6 +141,7 @@ impl Listed {
             file: self.file(),
             problem: self.download_url().err(),
             options: self.options.clone(),
+            source: source.to_owned(),
         }
     }
 }
@@ -130,7 +152,7 @@ fn parse(yaml: &str) -> Res<Vec<Listed>> {
     if catalog.version != 1 {
         return Err(Error::msg("the store needs a newer version of AiN"));
     }
-    let mut seen = std::collections::HashSet::new();
+    let mut seen = HashSet::new();
     Ok(catalog.plugins.into_iter().filter(|p| valid_id(&p.id) && p.repo.starts_with("https://") && seen.insert(p.id.clone())).collect())
 }
 
@@ -139,17 +161,78 @@ fn get(url: &str) -> Res<String> {
     response.body_mut().with_config().limit(MAX_BYTES).read_to_string().map_err(|e| Error::msg(format!("couldn't read {url}: {e}")))
 }
 
-async fn fetch() -> Res<Vec<Listed>> {
-    spawn_blocking(|| parse(&get(&config::STORE_URL.get())?)).await.map_err(|_| Error::WorkerGone)?
+/// A store's address as typed: trimmed, and only `http(s)`.
+fn store_url(url: &str) -> Option<String> {
+    let url = url.trim();
+    (url.starts_with("https://") || url.starts_with("http://")).then(|| url.to_owned())
 }
 
-/// The store's entry for `id`.
-fn find(plugins: Vec<Listed>, id: &str) -> Res<Listed> {
-    plugins.into_iter().find(|p| p.id == id).ok_or_else(|| Error::msg(format!("\"{id}\" is no longer in the store")))
+/// The stores to read, in order, from the saved settings: the official one unless turned off, then
+/// at most `MAX_SOURCES` of the user's, without blanks, repeats, or anything but `http(s)`.
+fn sources(settings: &Value) -> Vec<(String, bool)> {
+    let general = |key| settings.get("general").and_then(|g| g.get(key));
+    let official = general("officialStore").and_then(Value::as_bool).unwrap_or(true).then(|| config::STORE_URL.get());
+    let mut seen: HashSet<String> = official.iter().cloned().collect();
+    let added = general("storeSources").and_then(Value::as_array).into_iter().flatten().filter_map(Value::as_str).filter_map(store_url);
+    let added: Vec<String> = added.filter(|url| seen.insert(url.clone())).take(MAX_SOURCES).collect();
+    official.into_iter().map(|url| (url, true)).chain(added.into_iter().map(|url| (url, false))).collect()
 }
 
-async fn listed(id: &str) -> Res<Listed> {
-    find(fetch().await?, id)
+/// A store, read and parsed.
+struct Read {
+    source: Source,
+    plugins: Vec<Listed>,
+}
+
+/// Reads one store; a failure is kept as its problem.
+fn read(url: String, official: bool) -> Read {
+    let (plugins, problem) = match get(&url).and_then(|yaml| parse(&yaml)) {
+        Ok(plugins) => (plugins, None),
+        Err(e) => (vec![], Some(e.to_string())),
+    };
+    Read { source: Source { url, official, problem }, plugins }
+}
+
+/// Reads every store at once; one that fails doesn't keep the others from being listed.
+fn read_all(sources: Vec<(String, bool)>) -> Vec<Read> {
+    thread::scope(|scope| {
+        let reads: Vec<_> = sources.into_iter().map(|(url, official)| scope.spawn(move || read(url, official))).collect();
+        reads.into_iter().map(|r| r.join().unwrap_or_else(|panic| std::panic::resume_unwind(panic))).collect()
+    })
+}
+
+/// The plugins of every store read, each with its store's URL; the first store listing an id wins.
+type Listing = (Vec<Source>, Vec<(Listed, String)>);
+
+/// What the stores offer; an error only when there were stores and none could be read.
+fn merge(reads: Vec<Read>) -> Res<Listing> {
+    if !reads.is_empty() && reads.iter().all(|r| r.source.problem.is_some()) {
+        return Err(Error::msg(reads.iter().filter_map(|r| r.source.problem.as_deref()).collect::<Vec<_>>().join("; ")));
+    }
+    let mut seen = HashSet::new();
+    let mut plugins = vec![];
+    let sources = reads
+        .into_iter()
+        .map(|Read { source, plugins: listed }| {
+            plugins.extend(listed.into_iter().filter(|p| seen.insert(p.id.clone())).map(|p| (p, source.url.clone())));
+            source
+        })
+        .collect();
+    Ok((sources, plugins))
+}
+
+async fn fetch(app: &AppHandle) -> Res<Listing> {
+    let sources = sources(&settings::current(app));
+    spawn_blocking(move || merge(read_all(sources))).await.map_err(|_| Error::WorkerGone)?
+}
+
+/// The stores' entry for `id`.
+fn find(plugins: Vec<(Listed, String)>, id: &str) -> Res<Listed> {
+    plugins.into_iter().map(|(p, _)| p).find(|p| p.id == id).ok_or_else(|| Error::msg(format!("\"{id}\" is no longer in the store")))
+}
+
+async fn listed(app: &AppHandle, id: &str) -> Res<Listed> {
+    find(fetch(app).await?.1, id)
 }
 
 /// Writes a downloaded plugin into the plugins folder `dir`, replacing an older copy; returns its file.
@@ -163,8 +246,9 @@ fn save(dir: &Path, plugin: &Listed, source: &str) -> Res<String> {
 /// The plugins the store offers, read afresh.
 #[tauri::command]
 #[specta::specta]
-async fn catalog() -> Res<Shelf> {
-    Ok(Shelf { url: config::STORE_URL.get(), plugins: fetch().await?.iter().map(Listed::offer).collect() })
+async fn catalog(app: AppHandle) -> Res<Shelf> {
+    let (sources, plugins) = fetch(&app).await?;
+    Ok(Shelf { sources, plugins: plugins.iter().map(|(p, source)| p.offer(source)).collect() })
 }
 
 /// Downloads a store plugin into the plugins folder (replacing an older copy), and returns its file.
@@ -173,7 +257,7 @@ async fn catalog() -> Res<Shelf> {
 #[specta::specta]
 async fn install(app: AppHandle, id: String) -> Res<String> {
     // Looked up again rather than trusting a URL from the page.
-    let plugin = listed(&id).await?;
+    let plugin = listed(&app, &id).await?;
     let url = plugin.download_url().map_err(Error::msg)?;
     let source = spawn_blocking(move || get(&url)).await.map_err(|_| Error::WorkerGone)??;
     save(&extensions::dir(&app)?, &plugin, &source)
@@ -182,8 +266,8 @@ async fn install(app: AppHandle, id: String) -> Res<String> {
 /// Opens a store plugin's repository in the browser.
 #[tauri::command]
 #[specta::specta]
-async fn open_repo(id: String) -> Res<()> {
-    let plugin = listed(&id).await?;
+async fn open_repo(app: AppHandle, id: String) -> Res<()> {
+    let plugin = listed(&app, &id).await?;
     crate::platform::open_url(&plugin.repo)?;
     Ok(())
 }
@@ -226,8 +310,8 @@ plugins:
         let ids: Vec<&str> = plugins.iter().map(|p| p.id.as_str()).collect();
         assert_eq!(ids, ["orbit-clock", "elsewhere"]);
         assert_eq!(plugins[0].download_url().unwrap(), "https://raw.githubusercontent.com/Satcomx00-x00/AiN/plugin-template/index.js");
-        assert_eq!(plugins[0].offer().file, "orbit-clock/index.js");
-        assert!(plugins[1].offer().problem.is_some());
+        assert_eq!(plugins[0].offer("s").file, "orbit-clock/index.js");
+        assert!(plugins[1].offer("s").problem.is_some());
     }
 
     #[test]
@@ -249,8 +333,9 @@ plugins:
 
     #[test]
     fn finds_a_plugin_by_id_or_says_it_is_gone() {
-        assert_eq!(find(parse(STORE).unwrap(), "elsewhere").unwrap().name, "Elsewhere");
-        let gone = find(parse(STORE).unwrap(), "removed").unwrap_err().to_string();
+        let listed = || parse(STORE).unwrap().into_iter().map(|p| (p, String::new())).collect::<Vec<_>>();
+        assert_eq!(find(listed(), "elsewhere").unwrap().name, "Elsewhere");
+        let gone = find(listed(), "removed").unwrap_err().to_string();
         assert_eq!(gone, "\"removed\" is no longer in the store");
     }
 
@@ -288,7 +373,7 @@ plugins:
       city: { kind: text, label: City, default: Paris, required: true }
       apiKey: { kind: secret, label: API key, default: '' }
   - { id: ab, name: A, description: B, repo: https://github.com/o/r }";
-        let offers: Vec<Offer> = parse(yaml).unwrap().iter().map(Listed::offer).collect();
+        let offers: Vec<Offer> = parse(yaml).unwrap().iter().map(|p| p.offer("s")).collect();
         assert_eq!(offers[0].options["city"]["label"], "City");
         assert_eq!(offers[0].options["city"]["required"], true);
         assert_eq!(offers[0].options["apiKey"]["kind"], "secret");
@@ -317,6 +402,47 @@ plugins:
             let source = get(&plugin.download_url().unwrap()).unwrap();
             assert!(source.contains("export default"), "{} isn't a plugin", plugin.id);
         }
+    }
+
+    fn read_ok(url: &str, official: bool, yaml: &str) -> Read {
+        Read { source: Source { url: url.into(), official, problem: None }, plugins: parse(yaml).unwrap() }
+    }
+
+    fn read_failed(url: &str) -> Read {
+        Read { source: Source { url: url.into(), official: false, problem: Some(format!("couldn't reach {url}")) }, plugins: vec![] }
+    }
+
+    #[test]
+    fn reads_the_official_store_then_the_users_once_each() {
+        let official = config::STORE_URL.get();
+        let settings = serde_json::json!({ "general": { "storeSources": [" https://a/store.yaml ", "ftp://b", "", 3, "https://a/store.yaml", official, "http://c/s.yaml"] } });
+        assert_eq!(
+            sources(&settings),
+            [(official.clone(), true), ("https://a/store.yaml".into(), false), ("http://c/s.yaml".into(), false)]
+        );
+        assert_eq!(sources(&Value::Null), [(official, true)]);
+        let off = serde_json::json!({ "general": { "officialStore": false, "storeSources": ["https://a/store.yaml"] } });
+        assert_eq!(sources(&off), [("https://a/store.yaml".to_owned(), false)]);
+        let many: Vec<String> = (0..40).map(|i| format!("https://s{i}/store.yaml")).collect();
+        assert_eq!(sources(&serde_json::json!({ "general": { "officialStore": false, "storeSources": many } })).len(), MAX_SOURCES);
+    }
+
+    #[test]
+    fn merges_stores_the_first_to_list_an_id_winning() {
+        let first = "version: 1\nplugins:\n  - { id: ab, name: First, description: B, repo: https://github.com/o/r }";
+        let second = "version: 1\nplugins:\n  - { id: ab, name: Second, description: B, repo: https://github.com/o/r }\n  - { id: cd, name: C, description: D, repo: https://github.com/o/r }";
+        let (sources, plugins) =
+            merge(vec![read_ok("https://one", true, first), read_failed("https://down"), read_ok("https://two", false, second)]).unwrap();
+        let listed: Vec<(&str, &str, &str)> = plugins.iter().map(|(p, s)| (p.id.as_str(), p.name.as_str(), s.as_str())).collect();
+        assert_eq!(listed, [("ab", "First", "https://one"), ("cd", "C", "https://two")]);
+        assert_eq!(sources.iter().map(|s| s.problem.is_some()).collect::<Vec<_>>(), [false, true, false]);
+    }
+
+    #[test]
+    fn fails_only_when_no_store_could_be_read() {
+        let err = merge(vec![read_failed("https://a"), read_failed("https://b")]).unwrap_err().to_string();
+        assert_eq!(err, "couldn't reach https://a; couldn't reach https://b");
+        assert_eq!(merge(vec![]).unwrap(), (vec![], vec![]));
     }
 
     #[test]
