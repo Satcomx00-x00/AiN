@@ -372,6 +372,14 @@ open_island() {
       sleep 0.06
     done
     wait_for 8 "is_open $w" && return 0
+    # A click focuses the window and opens the island (its click listener). On a desktop that
+    # doesn't deliver hover to an unfocused web view, this is what a user does to make it answer.
+    if pointer_ready; then
+      pointer_move "$cx" "$cy"
+      sleep 0.2
+    fi
+    click
+    wait_for 5 "is_open $w" && return 0
     # Still folded: a last nudge, then the shape has a little more time to follow.
     if pointer_ready; then
       pointer_move $((cx + 4)) "$cy"
