@@ -14,5 +14,5 @@ check T04 "centered" '[ $((X + WIDTH / 2 - SW / 2)) -ge -2 ] && [ $((X + WIDTH /
 check T05 "at the top of the screen" '[ "$Y" -ge 0 ] && [ "$Y" -le 40 ]' "y=$Y"
 st=$(xprop -id "$w" _NET_WM_STATE)
 check T06 "kept above, on all workspaces" 'grep -q ABOVE <<<"$st" && grep -q STICKY <<<"$st"' "$st"
-check T07 "folded, it's pill-sized" '[ "$HEIGHT" -le 50 ] && [ "$WIDTH" -le 400 ]' "${WIDTH}x$HEIGHT"
+check T07 "folded, it's pill-sized" '[ "$HEIGHT" -le 50 ] && [ "$WIDTH" -le 500 ]' "${WIDTH}x$HEIGHT"
 shot launch

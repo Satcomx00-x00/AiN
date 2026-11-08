@@ -13,12 +13,22 @@ export interface Check {
   readonly shot?: string;
 }
 
+/** A number a test measured (memory, file descriptors, timings), for the run's history. */
+export interface Metric {
+  readonly file: string;
+  readonly id: string;
+  readonly name: string;
+  readonly value: string;
+}
+
 export interface TargetResult {
   readonly target: string;
   readonly ip?: string;
   /** Set when the target couldn't get as far as the tests: VM, delivery or build. */
   readonly error?: string;
   readonly checks: readonly Check[];
+  /** Measurements the tests reported with `metric` (see guest/lib.sh). */
+  readonly metrics?: readonly Metric[];
   readonly seconds: number;
 }
 
@@ -36,6 +46,12 @@ export function parseLine(file: string, line: string): Check | undefined {
     return l ? { file, id, what: l[1]!, status, shot: l[2]! } : { file, id, what: rest, status };
   }
   return { file, id, what: rest, status };
+}
+
+/** A `METRIC id name value` line from a test, or undefined for any other output. */
+export function parseMetric(file: string, line: string): Metric | undefined {
+  const m = /^METRIC (\S+) (\S+) (.*)$/.exec(line);
+  return m ? { file, id: m[1]!, name: m[2]!, value: m[3]! } : undefined;
 }
 
 const ICON: Record<Status, string> = { PASS: "✅", FAIL: "❌", LOOK: "👀", ERROR: "💥" };
@@ -61,6 +77,17 @@ export function writeReports(dir: string, title: string, results: readonly Targe
   md.push("", `| | ${results.map((r) => r.target).join(" | ")} |`, `|---|${results.map(() => ":---:").join("|")}|`);
   md.push(`| passed | ${results.map((r) => `${r.checks.filter((c) => c.status === "PASS").length}/${r.checks.length}`).join(" | ")} |`);
   md.push(`| time | ${results.map((r) => `${Math.round(r.seconds)} s`).join(" | ")} |`);
+
+  const metrics = results.flatMap((r) => r.metrics ?? []);
+  if (metrics.length) {
+    const keys: { id: string; name: string }[] = [];
+    for (const m of metrics) if (!keys.some((k) => k.id === m.id && k.name === m.name)) keys.push({ id: m.id, name: m.name });
+    md.push("", "## Metrics", "", `| | ${results.map((r) => r.target).join(" | ")} |`, `|---|${results.map(() => ":---:").join("|")}|`);
+    for (const { id, name } of keys) {
+      const cells = results.map((r) => r.metrics?.find((m) => m.id === id && m.name === name)?.value ?? "–");
+      md.push(`| \`${id}\` ${name} | ${cells.join(" | ")} |`);
+    }
+  }
 
   const problems = results.flatMap((r) => [
     ...(r.error ? [`- **${r.target}**: ${r.error.split("\n")[0]} (see \`${r.target}/run.log\`)`] : []),

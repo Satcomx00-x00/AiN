@@ -88,6 +88,24 @@ cargo test              # backend, this OS's backends
 cargo llvm-cov --open   # backend coverage, in the browser (needs cargo-llvm-cov)
 ```
 
+## On a real desktop (VM tests)
+
+`ain/vmtest` is the layer CI cannot run: the built app on real GNOME Wayland desktops in Proxmox,
+driven with the kernel's input device (`ydotool`) and read through XWayland. It covers what an
+Xvfb launch check cannot: hover and fold, tabs, click-through, clipboard between Wayland and X11,
+typing into a native Wayland app, window rules, and the desktop's global-shortcut portal. Its
+stability files soak the island and measure memory, file descriptors and threads over time; its
+shortcut file presses the real default shortcuts and checks the window or action each opens. See
+[ain/vmtest/README.md](../ain/vmtest/README.md) for the targets (Fedora 43/44 clones, and the
+Fedora 44 dev desktop tested in place), setup and the report's Metrics table.
+
+```sh
+cd ain
+bun run vmtest --targets f44dev --tests stability,rapid,restart,shortcuts
+```
+
+These need the Proxmox host and its VMs, so they run on demand, not in CI.
+
 ## Writing tests
 
 - Name tests after behavior: "reads the last text again, or stops a reading".

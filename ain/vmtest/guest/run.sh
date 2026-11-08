@@ -6,6 +6,9 @@ exec 3<&0 0</dev/null
 cd "$(dirname "$0")" || exit 1
 # shellcheck source=lib.sh disable=SC1091  # checked on its own
 source ./lib.sh
+# An absolute pointer, when the helper can be built and started (see lib.sh); otherwise the tests
+# use ydotool's relative pointer.
+start_pointer || true
 # shellcheck disable=SC1090
 source "$1"
 # Results are the PASS/FAIL/LOOK lines, not the status of whatever command came last.

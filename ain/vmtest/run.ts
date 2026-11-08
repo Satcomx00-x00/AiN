@@ -4,15 +4,15 @@
  *
  *   bun run vmtest [--targets f43,f44] [--tests hover,tabs] [--ref <commit>] [--no-build] [--fresh] [--stop] [--list]
  */
-import { appendFileSync, mkdirSync, readdirSync } from "node:fs";
+import { appendFileSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
-import { build, ensureCmake, framesHelperDied, quietDesktop, REMOTE, reboot, sendGuestScripts, sendSource, syncVendor, waitDesktop } from "./lib/deliver.ts";
+import { build, backupState, ensureCmake, framesHelperDied, quietDesktop, REMOTE, reboot, restoreState, screenLocked, sendGuestScripts, sendSource, sendTestSettings, syncVendor, waitDesktop } from "./lib/deliver.ts";
 import { Guest } from "./lib/guest.ts";
 import { sleep } from "./lib/proc.ts";
 import { loadCa, loadToken, Pve } from "./lib/pve.ts";
-import { type Check, failed, parseLine, type TargetResult, writeReports } from "./lib/report.ts";
+import { type Check, failed, type Metric, parseLine, parseMetric, type TargetResult, writeReports } from "./lib/report.ts";
 import { Host, missingTools, type Stage, type Vendor } from "./lib/stage.ts";
 import { PROXMOX, type Target, TARGETS, VM_TAG } from "./targets.ts";
 
@@ -61,7 +61,7 @@ if (opt.help) {
 const targets = pick(TARGETS, opt.targets, (t) => t.name, true, "target");
 const tests = pick(allTests, opt.tests, (f) => f, false, "test");
 if (opt.list) {
-  for (const t of TARGETS) console.log(`target ${t.name}: VM ${t.vmid}, cloned from template ${t.template}`);
+  for (const t of TARGETS) console.log(t.direct ? `target ${t.name}: VM ${t.vmid} at ${t.address ?? "its address"} (direct)` : `target ${t.name}: VM ${t.vmid}, cloned from template ${t.template}`);
   for (const f of allTests) console.log(`test   ${f}`);
   process.exit(0);
 }
@@ -102,22 +102,45 @@ async function runTarget(t: Target): Promise<TargetResult> {
     appendFileSync(logFile, `${s}\n`);
   };
   const checks: Check[] = [];
+  const metrics: Metric[] = [];
   let ip: string | undefined;
   let error: string | undefined;
+  let state: string | undefined;
+  let guest: Guest | undefined;
   try {
     ip = await ensureVm(t, log);
     log(`VM ${t.vmid} up at ${ip}`);
-    const guest = new Guest(ip, join(host.cache, `known_hosts-${t.name}`));
+    guest = new Guest(ip, join(host.cache, `known_hosts-${t.name}`), t.user, !t.direct);
     await guest.waitSsh();
+    // A stopped run leaves its test script and app behind on the guest: they would hold the
+    // pointer FIFO, the app unit and the desktop's focus. Clear them before this run.
+    await guest.ok(
+      `pkill -f 'guest/run[.]sh' 2>/dev/null || true
+       systemctl --user stop vmtest-ain 2>/dev/null || true
+       systemctl --user reset-failed vmtest-ain 2>/dev/null || true
+       sudo -n systemctl stop vmtest-pointer 2>/dev/null || true
+       sudo -n systemctl reset-failed vmtest-pointer 2>/dev/null || true
+       rm -f /run/user/$(id -u)/ain-pointer.fifo 2>/dev/null || true
+       true`,
+      "cleaning a previous run",
+    );
+    if (t.direct) {
+      state = await backupState(guest);
+      log("app state saved: it will be put back after the run");
+    }
     await waitDesktop(guest);
     if (await quietDesktop(guest)) {
-      log("GNOME's notification banners turned off: restarting the session");
+      log("GNOME's notifications, lock and blanking turned off: restarting the session");
+      await reboot(guest);
+    } else if (await screenLocked(guest)) {
+      log("the session is locked: restarting it");
       await reboot(guest);
     } else if (await framesHelperDied(guest)) {
       log("GNOME's X11 title-bar helper died in this session: restarting it");
       await reboot(guest);
     }
     await sendGuestScripts(guest, app);
+    await sendTestSettings(guest, stage?.app ?? app);
     if (stage && vendor) {
       await ensureCmake(guest, host);
       const sent = await syncVendor(guest, host, vendor, t.name);
@@ -130,17 +153,42 @@ async function runTarget(t: Target): Promise<TargetResult> {
     } else {
       await guest.ok(`test -x ${REMOTE}/ain`, "no build on the VM yet (run once without --no-build)");
     }
-    for (const file of tests) checks.push(...(await runTest(t, guest, file, dir, log)));
+    for (const file of tests) checks.push(...(await runTest(t, guest, file, dir, log, metrics)));
+    if (state) {
+      await restoreState(guest, state).catch((e: unknown) => log(`restoring the app state failed: ${String(e)}`));
+      state = undefined;
+      log("app state restored");
+    }
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
     log(`ERROR ${error}`);
+  } finally {
+    if (state && guest) await restoreState(guest, state).catch((e: unknown) => log(`restoring the app state failed: ${String(e)}`));
+    // The pointer daemon is per run; leave no service of ours behind on any target.
+    if (guest) await guest.sh('sudo -n systemctl stop vmtest-pointer 2>/dev/null || true; sudo -n systemctl reset-failed vmtest-pointer 2>/dev/null || true; rm -f /run/user/$(id -u)/ain-pointer.fifo').catch(() => {});
   }
-  if (opt.stop) await pve.shutdown(t.vmid).catch((e: unknown) => log(`shutdown failed: ${String(e)}`));
-  return { target: t.name, ...(ip ? { ip } : {}), ...(error ? { error } : {}), checks, seconds: (Date.now() - started) / 1000 };
+  if (opt.stop && !t.direct) await pve.shutdown(t.vmid).catch((e: unknown) => log(`shutdown failed: ${String(e)}`));
+  return { target: t.name, ...(ip ? { ip } : {}), ...(error ? { error } : {}), checks, metrics, seconds: (Date.now() - started) / 1000 };
 }
 
 /** The target's test VM, running: created from its template if needed. Returns its address. */
 async function ensureVm(t: Target, log: (s: string) => void): Promise<string> {
+  if (t.direct) {
+    if (opt.fresh) throw new Error(`${t.name} is a direct VM: --fresh would destroy it`);
+    const vm = await pve.vm(t.vmid);
+    if (!vm) throw new Error(`direct VM ${t.vmid} isn't in Proxmox`);
+    if (vm.status !== "running") {
+      log(`starting VM ${t.vmid}`);
+      await pve.start(t.vmid);
+    }
+    if (t.address) return t.address;
+    for (let i = 0; i < 90; i++) {
+      const ip = await pve.ip(t.vmid);
+      if (ip) return ip;
+      await sleep(2000);
+    }
+    throw new Error(`VM ${t.vmid}: no address from its guest agent after 180 s`);
+  }
   let vm = await pve.vm(t.vmid);
   const ours = (tags?: string) => (tags ?? "").split(/[;,\s]/).includes(VM_TAG);
   if (vm && !ours(vm.tags)) throw new Error(`VM ${t.vmid} (${vm.name}) isn't one of ours (no "${VM_TAG}" tag): pick another vmid in targets.ts`);
@@ -170,10 +218,13 @@ async function ensureVm(t: Target, log: (s: string) => void): Promise<string> {
 }
 
 /** Runs one test file, taking the screenshots it asks for. */
-async function runTest(t: Target, guest: Guest, file: string, dir: string, log: (s: string) => void): Promise<Check[]> {
+async function runTest(t: Target, guest: Guest, file: string, dir: string, log: (s: string) => void, metrics: Metric[]): Promise<Check[]> {
   const checks: Check[] = [];
   let shots = Promise.resolve();
-  const r = await guest.exec(`timeout 300 bash ${REMOTE}/guest/run.sh tests/${file}`, {
+  // A file may ask for longer than the default when it runs a soak: `# timeout: 900` at its top.
+  const asked = Number(/^#\s*timeout:\s*(\d+)\s*$/m.exec(readFileSync(join(here, "guest", "tests", file), "utf8"))?.[1]);
+  const timeout = Number.isFinite(asked) && asked > 0 ? asked : 300;
+  const r = await guest.exec(`timeout ${timeout} bash ${REMOTE}/guest/run.sh tests/${file}`, {
     onLine: (line, child) => {
       appendFileSync(join(dir, "run.log"), `${file}: ${line}\n`);
       const shot = /^@@shot (\S+)$/.exec(line)?.[1];
@@ -184,6 +235,12 @@ async function runTest(t: Target, guest: Guest, file: string, dir: string, log: 
           .then(() => void child.stdin?.write("\n"));
         return;
       }
+      const metric = parseMetric(file, line);
+      if (metric) {
+        metrics.push(metric);
+        log(`METRIC ${metric.id} ${metric.name} ${metric.value}`);
+        return;
+      }
       const c = parseLine(file, line);
       if (!c) return;
       checks.push(c);
@@ -192,7 +249,7 @@ async function runTest(t: Target, guest: Guest, file: string, dir: string, log: 
   });
   await shots;
   if (r.code !== 0 || checks.length === 0) {
-    const why = r.code === 124 ? "timed out after 300 s" : `exited with ${r.code}`;
+    const why = r.code === 124 ? `timed out after ${timeout} s` : `exited with ${r.code}`;
     const tail = r.stderr.trim().split("\n").slice(-3).join(" | ");
     checks.push({ file, id: file.replace(/\.sh$/, ""), what: "test file ran to the end", status: "ERROR", detail: `${checks.length ? why : `${why}, no results`}${tail ? `: ${tail}` : ""}` });
     log(`ERROR ${file}: ${why}${tail ? `: ${tail}` : ""}`);

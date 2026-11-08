@@ -8,12 +8,14 @@ export class Guest {
   readonly #ssh: readonly string[];
 
   /**
-   * `knownHosts`: this target's own file, emptied here. Clones regenerate their host keys, often on
-   * an address a previous clone had: the key is learnt on first contact, then held for the run.
+   * `knownHosts`: this target's own file, emptied here unless `freshHostKey` is false. Clones
+   * regenerate their host keys, often on an address a previous clone had: the key is learnt on
+   * first contact, then held for the run. A direct VM keeps its key between runs, so a changed one
+   * is reported rather than accepted.
    */
-  constructor(ip: string, knownHosts: string) {
+  constructor(ip: string, knownHosts: string, user = GUEST_USER, freshHostKey = true) {
     this.ip = ip;
-    writeFileSync(knownHosts, "");
+    if (freshHostKey) writeFileSync(knownHosts, "");
     this.#ssh = [
       "-o", "BatchMode=yes",
       "-o", "StrictHostKeyChecking=accept-new",
@@ -21,7 +23,7 @@ export class Guest {
       "-o", "ConnectTimeout=10",
       "-o", "ServerAliveInterval=15",
       "-o", "LogLevel=ERROR",
-      `${GUEST_USER}@${ip}`,
+      `${user}@${ip}`,
     ];
   }
 
