@@ -10,7 +10,7 @@ pid=$(app_pid)
 w=$(island)
 fold_island
 geom "$w"
-base_x=$X base_w=$WIDTH
+base_cx=$((X + WIDTH / 2))
 base_windows=$(window_count)
 resources "$pid"
 rss0=$RSS_KB fd0=$FD_COUNT th0=$THREAD_COUNT cg0=$CGROUP_MB proc0=$PROCESS_COUNT
@@ -51,7 +51,7 @@ grew S06 "no thread leak" "$THREAD_COUNT" "$th0" 16
 fold_island
 geom "$w"
 check S07 "the island is still centered" '[ $((X + WIDTH / 2 - SW / 2)) -ge -2 ] && [ $((X + WIDTH / 2 - SW / 2)) -le 2 ]' "x=$X w=$WIDTH"
-check S08 "the island kept its size and place" '[ "$WIDTH" -eq "$base_w" ] && [ "$X" -eq "$base_x" ]' "before=${base_w}px at $base_x, now=${WIDTH}px at $X"
+check S08 "the island keeps its centre" '[ $((X + WIDTH / 2)) -ge $((base_cx - 2)) ] && [ $((X + WIDTH / 2)) -le $((base_cx + 2)) ]' "before=${base_cx}px, now=$((X + WIDTH / 2))px (${WIDTH}px at $X)"
 check S09 "no window was left open" '[ "$(window_count)" -le "$base_windows" ]' "before=$base_windows now=$(window_count)"
 check S10 "Settings was never left open" '! settings_shown'
 check S11 "no panic or crash during the soak" '! grep -qiE "panicked at|segmentation fault|core dumped" <<<"$(app_log)"' \

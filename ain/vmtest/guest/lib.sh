@@ -108,6 +108,14 @@ leave_overview() {
   wait_for 5 '! overview_active'
 }
 
+# focus_island: makes the app window the active/focused one. GNOME doesn't always hand focus to
+# a window the runner's synthetic input created; an unfocused web view can keep drawing while
+# ignoring pointer events, so the click/hover never reaches its page.
+focus_island() {
+  local w
+  w=$(island) || return 1
+  xdotool windowactivate --sync "$w" 2>/dev/null || xdotool windowfocus "$w" 2>/dev/null || true
+}
 # Starts the app as the user's session would, and waits for the island to be laid out: folded to the
 # pill (before the frontend runs, the window has a default size).
 launch_app() {
@@ -116,6 +124,7 @@ launch_app() {
   # The frontend attaches its pointer listeners after the startup animation (2.3 s for "hello",
   # with a 6 s limit): on a software-rendered VM that lands later than the folded window does.
   wait_for 60 'w=$(island) && [ -n "$w" ] && is_folded "$w"' && sleep 5
+  focus_island
   answer_shortcuts_dialog
 }
 # answer_shortcuts_dialog: the GlobalShortcuts portal shows gnome-control-center's "Add Keyboard
@@ -345,7 +354,9 @@ hover_click() {
 }
 
 is_open() { geom "$1" && [ "$HEIGHT" -gt 100 ]; }
-is_folded() { geom "$1" && [ "$HEIGHT" -le 50 ]; }
+# The folded pill is ~48 logical px plus the 8 px input margin; the open panel is >200. The exact
+# boundary depends on the pill size and style, so anything under 100 px is folded.
+is_folded() { geom "$1" && [ "$HEIGHT" -lt 100 ]; }
 # The pointer on the island, which opens; true once it has. The web view may still be attaching
 # its listeners, and the input shape follows the open animation, which is slow on software
 # rendering: keep the pointer on the pill and give each attempt time.

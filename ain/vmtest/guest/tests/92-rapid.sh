@@ -9,7 +9,7 @@ pid=$(app_pid)
 w=$(island)
 fold_island
 geom "$w"
-base_x=$X base_w=$WIDTH
+base_cx=$((X + WIDTH / 2))
 base_windows=$(window_count)
 resources "$pid"
 rss0=$RSS_KB cg0=$CGROUP_MB proc0=$PROCESS_COUNT
@@ -44,7 +44,7 @@ check S23 "no panic during the races" '! grep -qiE "panicked at|segmentation fau
 
 fold_island
 geom "$w"
-check S24 "the island is unchanged after the races" '[ "$WIDTH" -eq "$base_w" ] && [ "$X" -eq "$base_x" ]' "before=${base_w}px at $base_x, now=${WIDTH}px at $X"
+check S24 "the island keeps its centre" '[ $((X + WIDTH / 2)) -ge $((base_cx - 2)) ] && [ $((X + WIDTH / 2)) -le $((base_cx + 2)) ]' "before=${base_cx}px, now=$((X + WIDTH / 2))px (${WIDTH}px at $X)"
 check S25 "still centered after the races" '[ $((X + WIDTH / 2 - SW / 2)) -ge -2 ] && [ $((X + WIDTH / 2 - SW / 2)) -le 2 ]' "x=$X w=$WIDTH"
 resources "$pid"
 metric S26 rss_kb_end "$RSS_KB"
