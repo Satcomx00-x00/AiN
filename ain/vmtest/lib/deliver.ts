@@ -123,7 +123,8 @@ export async function backupState(guest: Guest): Promise<string> {
   const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
   const dir = `${REMOTE}/state-${stamp}`;
   await guest.ok(
-    `mkdir -p ${dir}
+    `export XDG_RUNTIME_DIR=/run/user/$(id -u) DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus
+     mkdir -p ${dir}
      for d in ${STATE_DIRS.join(" ")}; do [ -e "$HOME/$d" ] && echo "$d"; done > ${dir}/dirs
      [ -s ${dir}/dirs ] && tar -C "$HOME" --warning=no-file-ignored --exclude='.local/share/dev.satcom.ain/models' -cf ${dir}/state.tar -T ${dir}/dirs || : > ${dir}/state.tar
      dconf dump /org/gnome/settings-daemon/global-shortcuts/ > ${dir}/shortcuts.dconf 2>/dev/null || : > ${dir}/shortcuts.dconf
@@ -136,7 +137,8 @@ export async function backupState(guest: Guest): Promise<string> {
 /** Puts a direct VM back as it was: the app stopped, its folders and permissions restored. */
 export async function restoreState(guest: Guest, dir: string): Promise<void> {
   await guest.ok(
-    `systemctl --user stop vmtest-ain 2>/dev/null || true
+    `export XDG_RUNTIME_DIR=/run/user/$(id -u) DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus
+     systemctl --user stop vmtest-ain 2>/dev/null || true
      sudo -n systemctl stop vmtest-pointer 2>/dev/null || true
      sudo -n systemctl reset-failed vmtest-pointer 2>/dev/null || true
      rm -f /run/user/$(id -u)/ain-pointer.fifo 2>/dev/null || true
