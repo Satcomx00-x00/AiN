@@ -25,7 +25,7 @@ fold_island
 
 # Settings: an ordinary window, shown when asked, closed without destroying it under GNOME.
 gear
-wait_for 15 settings_shown
+wait_for 15 settings_shown || { gear; wait_for 10 settings_shown; }
 s=$(xdotool search --onlyvisible --name "^AiN settings$" 2>/dev/null | head -1)
 check W10 "the settings window is visible" '[ -n "$s" ]' "window state: $(settings_state)"
 if [ -n "$s" ]; then

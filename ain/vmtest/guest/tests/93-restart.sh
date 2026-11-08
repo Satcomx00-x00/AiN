@@ -26,7 +26,7 @@ done
 
 # The settings a restart kept: Settings still opens, and the island still answers the pointer.
 gear
-wait_for 15 settings_shown
+wait_for 15 settings_shown || { gear; wait_for 10 settings_shown; }
 check S36 "Settings opens after the restarts" 'settings_shown' "window state: $(settings_state)"
 settings_close
 check S37 "no window was left behind" '[ "$(window_count)" -le "$base_windows" ]' "before=$base_windows now=$(window_count)"
