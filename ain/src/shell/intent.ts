@@ -10,6 +10,8 @@ export interface Intent {
   leave(): void;
   /** Applies a state right away, cancelling anything pending. */
   set(open: boolean): void;
+  /** Cancels a change still waiting (the pointer came back before the close delay ran). */
+  cancel(): void;
 }
 
 /** Debounces open/close requests; only the latest request wins. Delays are read on each request. */
@@ -26,5 +28,6 @@ export function intent(apply: (open: boolean) => void, isOpen: () => boolean, de
       clearTimeout(pending);
       apply(open);
     },
+    cancel: () => clearTimeout(pending),
   };
 }

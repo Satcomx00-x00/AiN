@@ -98,20 +98,31 @@ fn put_on<R: Runtime>(_: &Window<R>, _: usize) -> Res<()> {
     Ok(())
 }
 
-/// The part of the window at `canvas` that takes input: `region`, centered at the top. Clicks
-/// anywhere else go through to what's under the window, which keeps its size and place.
+/// Extra logical pixels around the pill or panel that still take input. On GNOME/XWayland the
+/// compositor only sends pointer events inside the shaped input region, so a shape flush with the
+/// visible edge makes the page's pointerenter/pointerleave fire as the pointer crosses a one-pixel
+/// boundary; this band is the hysteresis: the pointer can leave the visible edge before the
+/// window turns click-through, and come back without the island folding.
+pub const INPUT_MARGIN: f64 = 8.0;
+
+/// The part of the window at `canvas` that takes input: `region`, centered at the top, plus
+/// `INPUT_MARGIN` on the sides and below. Clicks anywhere else go through to what's under the
+/// window, which keeps its size and place.
 #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 pub fn input_rect(canvas: LogicalSize<f64>, region: LogicalSize<f64>) -> (i32, i32, i32, i32) {
-    let (width, height) = (region.width.min(canvas.width).ceil(), region.height.min(canvas.height).ceil());
+    let width = (region.width + 2.0 * INPUT_MARGIN).min(canvas.width).ceil();
+    let height = (region.height + INPUT_MARGIN).min(canvas.height).ceil();
     (((canvas.width - width) / 2.0).floor() as i32, 0, width as i32, height as i32)
 }
 
 /// An `area` (x, y, width, height, logical px) of the window at `canvas`, in whole pixels and
-/// within it; none when nothing of it is left.
+/// within it, with the same `INPUT_MARGIN` around it; none when nothing of it is left.
 #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 pub fn area_rect(canvas: LogicalSize<f64>, (x, y, width, height): (f64, f64, f64, f64)) -> Option<(i32, i32, i32, i32)> {
-    let (left, top) = (x.max(0.0).floor(), y.max(0.0).floor());
-    let (right, bottom) = ((x + width).min(canvas.width).ceil(), (y + height).min(canvas.height).ceil());
+    let left = (x - INPUT_MARGIN).max(0.0).floor();
+    let top = (y - INPUT_MARGIN).max(0.0).floor();
+    let right = ((x + width + INPUT_MARGIN).min(canvas.width)).ceil();
+    let bottom = ((y + height + INPUT_MARGIN).min(canvas.height)).ceil();
     (right > left && bottom > top).then_some((left as i32, top as i32, (right - left) as i32, (bottom - top) as i32))
 }
 
@@ -188,16 +199,17 @@ mod tests {
 
     #[test]
     fn input_is_top_centered_in_the_canvas() {
-        assert_eq!(input_rect(LogicalSize::new(472.0, 384.0), LogicalSize::new(220.0, 32.0)), (126, 0, 220, 32));
-        assert_eq!(input_rect(LogicalSize::new(472.0, 384.0), LogicalSize::new(219.5, 31.2)), (126, 0, 220, 32));
+        // The shaped region carries INPUT_MARGIN on each side and below the pill.
+        assert_eq!(input_rect(LogicalSize::new(472.0, 384.0), LogicalSize::new(220.0, 32.0)), (118, 0, 236, 40));
+        assert_eq!(input_rect(LogicalSize::new(472.0, 384.0), LogicalSize::new(219.5, 31.2)), (118, 0, 236, 40));
         assert_eq!(input_rect(LogicalSize::new(200.0, 32.0), LogicalSize::new(472.0, 384.0)), (0, 0, 200, 32));
     }
 
     #[test]
     fn areas_are_whole_pixels_within_the_canvas() {
         let canvas = LogicalSize::new(1000.0, 400.0);
-        assert_eq!(area_rect(canvas, (10.4, 2.6, 340.2, 100.0)), Some((10, 2, 341, 101)));
-        assert_eq!(area_rect(canvas, (900.0, 300.0, 340.0, 200.0)), Some((900, 300, 100, 100)));
+        assert_eq!(area_rect(canvas, (10.4, 2.6, 340.2, 100.0)), Some((2, 0, 357, 111)));
+        assert_eq!(area_rect(canvas, (900.0, 300.0, 340.0, 200.0)), Some((892, 292, 108, 108)));
         assert_eq!(area_rect(canvas, (1200.0, 0.0, 40.0, 40.0)), None);
     }
 

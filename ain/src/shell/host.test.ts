@@ -43,7 +43,10 @@ function controlled(id: string) {
 /** Lets every pending promise chain run. */
 const settleAll = () => new Promise((r) => setTimeout(r, 0));
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.useRealTimers();
+});
 
 /** A style that records what it is asked to draw. */
 function recording(id: string, extra: Partial<AnyStyle> = {}) {
@@ -856,6 +859,55 @@ describe("opening and closing", () => {
     el.dispatchEvent(Object.assign(new Event("transitionend"), { propertyName: "height" }));
     expect(win.regions).toEqual(regions);
     expect(el.dataset.open).toBe("true");
+  });
+
+  it("keeps the island open when the pointer moves inside during the close delay", async () => {
+    const { el } = await startSpy();
+    await open(el);
+    vi.useFakeTimers();
+    el.dispatchEvent(new MouseEvent("pointerleave"));
+    el.dispatchEvent(new MouseEvent("pointermove"));
+    await vi.advanceTimersByTimeAsync(400);
+    expect(el.dataset.open).toBe("true");
+  });
+
+  it("re-opens when the pointer moves inside while the island folds", async () => {
+    vi.spyOn(window, "getComputedStyle").mockReturnValue({ transitionDuration: "0.5s" } as CSSStyleDeclaration);
+    const { el } = await startSpy();
+    // A move while folded and not folding does nothing (the enter delay still applies).
+    el.dispatchEvent(new MouseEvent("pointermove"));
+    await open(el);
+    el.dispatchEvent(new MouseEvent("pointermove"));
+    window.dispatchEvent(new Event("blur"));
+    await settleAll();
+    expect(el.dataset.open).toBe("false");
+    el.dispatchEvent(new MouseEvent("pointermove"));
+    await settleAll();
+    expect(el.dataset.open).toBe("true");
+  });
+
+  it("shrinks the input region after a fold even when no transitionend arrives", async () => {
+    vi.spyOn(window, "getComputedStyle").mockReturnValue({ transitionDuration: "0.5s" } as CSSStyleDeclaration);
+    const { el } = await startSpy();
+    await open(el);
+    vi.useFakeTimers();
+    window.dispatchEvent(new Event("blur"));
+    await vi.advanceTimersByTimeAsync(0);
+    const before = win.regions.length;
+    await vi.advanceTimersByTimeAsync(700);
+    expect(win.regions.length).toBeGreaterThan(before);
+    expect(win.regions.at(-1)).toMatchObject({ height: 32 });
+    expect(el.dataset.animating).toBeUndefined();
+  });
+
+  it("keeps the compositor hint only while the size animates", async () => {
+    const { el } = await startSpy();
+    vi.useFakeTimers();
+    el.dispatchEvent(new MouseEvent("click"));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(el.dataset.animating).toBe("true");
+    await vi.advanceTimersByTimeAsync(700);
+    expect(el.dataset.animating).toBeUndefined();
   });
 
   it("resizes the open island when the settings change", async () => {

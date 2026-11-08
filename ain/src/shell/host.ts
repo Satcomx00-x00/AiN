@@ -28,6 +28,9 @@ const colorsOf = (s: Settings): { fg: string; accent: string } => ({ fg: palette
 
 /** How long the open island takes to fold back (its 0.5 s size transition), in ms. */
 const CLOSING = 500;
+/** A fold's input region shrinks after the height transition; if that event never comes (the
+ * transition was interrupted, replaced, or the page coalesced it), shrink it anyway. */
+const CLOSING_FALLBACK = 700;
 
 /** Lucide's "settings" cog (ISC), drawn on a 24 grid and scaled into our 16 px icons. */
 const GEAR = `<g transform="scale(0.6667)" stroke-width="2.25"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></g>`;
@@ -509,13 +512,26 @@ export async function mount<S>(
   configure(initial);
 
   // Grow the input region before the pill animates out; shrink it only after the pill has animated in.
+  // `fold`/`folding` make an interrupted fold harmless: a re-open invalidates the fold's finish, and a
+  // pointer still inside brings the panel back instead of leaving the old input region behind.
+  let fold = 0;
+  let folding = false;
+  let foldTimer: ReturnType<typeof setTimeout> | undefined;
+  let animateTimer: ReturnType<typeof setTimeout> | undefined;
+  const animating = (on: boolean) => {
+    if (on) el.dataset.animating = "true";
+    else delete el.dataset.animating;
+  };
   const toggle = async (next: boolean) => {
     // Not while a startup animation plays: it drives the pill's size.
     if (next === open || (next && !ready)) return;
+    const token = ++fold;
     open = next;
     noted.setOpen(open);
     emit("open", () => open);
     if (open) {
+      folding = false;
+      clearTimeout(foldTimer);
       // Opening on an alerting tab: the island opens to that tab's panel.
       const alert = alerting(Date.now());
       if (alert && placement.tabs.includes(alert) && alert.plugin.id !== view?.active()) view?.select(alert.plugin.id, false);
@@ -523,23 +539,44 @@ export async function mount<S>(
       fitPanel();
       const s = sized(true, wide);
       await win.layout(canvas, frame(s, true, pill.scale), extra);
-      if (!open) return;
+      if (!open || token !== fold) return;
       el.dataset.open = "true";
+      animating(true);
       apply(s);
       beat.now();
+      // The compositor may keep the layer hint only while the size transitions; drop it after.
+      clearTimeout(animateTimer);
+      animateTimer = setTimeout(() => {
+        if (open && token === fold) animating(false);
+      }, CLOSING_FALLBACK);
       return;
     }
+    folding = true;
     const s = sized(false, wide);
     el.dataset.open = "false";
+    animating(true);
     apply(s);
-    if (!animates(getComputedStyle(el).transitionDuration)) return win.layout(canvas, frame(s, false, pill.scale), extra);
+    let finished = false;
+    const finish = () => {
+      if (finished || open || token !== fold) return;
+      finished = true;
+      clearTimeout(foldTimer);
+      folding = false;
+      animating(false);
+      void win.layout(canvas, frame(sized(false, wide), false, pill.scale), extra);
+    };
+    if (!animates(getComputedStyle(el).transitionDuration)) return finish();
     const onEnd = (e: TransitionEvent) => {
       if (e.target !== el || e.propertyName !== "height") return;
       el.removeEventListener("transitionend", onEnd);
-      // The size may have changed while it folded (a new style or pill size): use the current one.
-      if (!open) void win.layout(canvas, frame(sized(false, wide), false, pill.scale), extra);
+      finish();
     };
     el.addEventListener("transitionend", onEnd);
+    clearTimeout(foldTimer);
+    foldTimer = setTimeout(() => {
+      el.removeEventListener("transitionend", onEnd);
+      finish();
+    }, CLOSING_FALLBACK);
   };
 
   const hover = intent(
@@ -564,6 +601,13 @@ export async function mount<S>(
     autoHide();
     el.addEventListener("pointerenter", hover.enter);
     el.addEventListener("pointerleave", hover.leave);
+    // A pointer move inside is the last word on a leave: the shaped input's edge, a window move or
+    // a compositor hiccup can report a leave while the pointer is still over the island. Coming back
+    // during the close delay cancels it; moving during the fold itself re-opens at once.
+    el.addEventListener("pointermove", () => {
+      if (open) hover.cancel();
+      else if (folding) hover.set(true);
+    });
     el.addEventListener("click", () => hover.set(true));
     document.documentElement.addEventListener("mouseleave", hover.leave);
     window.addEventListener("blur", () => hover.set(false));

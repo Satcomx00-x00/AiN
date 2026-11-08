@@ -122,6 +122,17 @@ body {
   transition-timing-function: var(--spring);
 }
 
+/* The size transition is the one that repaints the panel; keep it on its own layer while it runs,
+   and drop the hint once it ends (data-animating, set by host.ts). */
+#island[data-animating="true"] {
+  will-change: width, height, border-radius;
+}
+
+#island[data-animating="true"] .panel,
+#island[data-animating="true"] .glance {
+  will-change: opacity, transform, filter, flex-basis;
+}
+
 /* Inverted top corners that melt into the screen edge. */
 #island::before,
 #island::after {
@@ -352,10 +363,10 @@ body {
   transform-origin: top center;
   filter: blur(6px);
   transition:
-    opacity 0.16s,
-    transform 0.16s,
-    filter 0.16s,
-    visibility 0s 0.16s;
+    opacity 0.24s var(--ease-out),
+    transform 0.24s var(--ease-out),
+    filter 0.24s var(--ease-out),
+    visibility 0s 0.24s;
 }
 
 #island[data-open="true"] .panel {

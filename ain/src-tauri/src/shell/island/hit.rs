@@ -16,8 +16,9 @@ use crate::Res;
 pub const POLL: Duration = Duration::from_millis(16);
 
 /// Extra logical pixels around the pill that still count as inside, so the page always sees
-/// the pointer leave the pill before the window turns click-through.
-pub const MARGIN: f64 = 6.0;
+/// the pointer leave the pill before the window turns click-through. The input shape on Wayland
+/// uses the same margin (`window::INPUT_MARGIN`).
+pub const MARGIN: f64 = super::window::INPUT_MARGIN;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Rect {
