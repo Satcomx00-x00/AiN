@@ -3,6 +3,19 @@
 All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.20.0](https://github.com/Satcomx00-x00/AiN/compare/v0.19.0..v0.20.0) - 2026-11-08
+
+### Features
+
+- **store:** Add custom plugin store sources in Settings ([#56](https://github.com/Satcomx00-x00/AiN/pull/56)) ([ac3482e](https://github.com/Satcomx00-x00/AiN/commit/ac3482e091a1f52dae5c16adff1254f7f8a38e41))
+
+### Build
+
+- Take sherpa-onnx's libraries from the repository, not GitHub ([#52](https://github.com/Satcomx00-x00/AiN/pull/52)) ([da7e610](https://github.com/Satcomx00-x00/AiN/commit/da7e61012ab39d72784151163415f2c3a988de8e))
+
+### CI
+
+- Bump taiki-e/install-action ([#54](https://github.com/Satcomx00-x00/AiN/pull/54)) ([9936393](https://github.com/Satcomx00-x00/AiN/commit/9936393257a38be7ead140d72e99c1c8cb2c5f27))
 ## [0.19.0](https://github.com/Satcomx00-x00/AiN/compare/v0.18.0..v0.19.0) - 2026-10-29
 
 ### Features
