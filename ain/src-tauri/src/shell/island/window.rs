@@ -53,67 +53,25 @@ pub struct Placement {
 
 /// Places the window flush top-center on the screen `screens::pick` chooses for `wanted`.
 pub fn place<R: Runtime>(w: &Window<R>, size: LogicalSize<f64>, wanted: Option<&str>) -> Res<Placement> {
+    if is_wayland() {
+        // GTK sizes a non-resizable window to at least its content's natural size, 200×200 for the
+        // webview, which left an invisible strip under the folded pill taking clicks. Resizable,
+        // with min = max, it takes the size asked for and still can't be resized by hand.
+        w.set_resizable(true)?;
+        w.set_max_size(None::<LogicalSize<f64>>)?;
+        w.set_min_size(Some(size))?;
+        w.set_max_size(Some(size))?;
+    }
+    w.set_size(size)?;
     let monitors = w.available_monitors()?;
     let index = screens::pick(&screens::describe(&monitors, w.primary_monitor()?.as_ref()), wanted)
         .ok_or_else(|| Error::msg("no monitor available"))?;
     let m = &monitors[index];
     let (scale, physical) = (m.scale_factor(), size.to_physical(m.scale_factor()));
     let origin = top_center(*m.position(), *m.size(), physical);
-
-    // The `layout` command is async so it doesn't deadlock WebView2's IPC callback, which runs on
-    // the main thread. On Linux the GTK window calls below are just as dangerous: made from that
-    // async thread they wait on the GTK main loop, and while WebKit is drawing (the open, unfold
-    // transition) that wait does not come back — the island stayed folded with its pointer
-    // listeners attached. Queue them on the main thread and return the placement at once, as
-    // `take_input` does; the window follows a frame later, and nothing here depends on it yet.
-    #[cfg(target_os = "linux")]
-    {
-        if is_wayland() {
-            // GTK sizes a non-resizable window to at least its content's natural size, 200×200 for
-            // the webview, which left an invisible strip under the folded pill taking clicks.
-            // Resizable, with min = max, it takes the size asked for and still can't be resized by
-            // hand.
-            let window = w.clone();
-            w.run_on_main_thread(move || {
-                let _ = window.set_resizable(true);
-                let _ = window.set_max_size(None::<LogicalSize<f64>>);
-                let _ = window.set_min_size(Some(size));
-                let _ = window.set_max_size(Some(size));
-                let _ = window.set_size(size);
-            })?;
-        } else {
-            let window = w.clone();
-            w.run_on_main_thread(move || {
-                if let Err(e) = window.set_size(size) {
-                    eprintln!("island: could not size the window: {e}");
-                }
-            })?;
-        }
-        match is_wayland_surface() {
-            true => put_on(w, index)?,
-            false => {
-                let window = w.clone();
-                w.run_on_main_thread(move || {
-                    if let Err(e) = window.set_position(origin) {
-                        eprintln!("island: could not place the window: {e}");
-                    }
-                })?;
-            }
-        }
-    }
-    #[cfg(not(target_os = "linux"))]
-    {
-        if is_wayland() {
-            w.set_resizable(true)?;
-            w.set_max_size(None::<LogicalSize<f64>>)?;
-            w.set_min_size(Some(size))?;
-            w.set_max_size(Some(size))?;
-        }
-        w.set_size(size)?;
-        match is_wayland_surface() {
-            true => put_on(w, index)?,
-            false => w.set_position(origin)?,
-        }
+    match is_wayland_surface() {
+        true => put_on(w, index)?,
+        false => w.set_position(origin)?,
     }
     Ok(Placement { origin, size: physical, scale })
 }
