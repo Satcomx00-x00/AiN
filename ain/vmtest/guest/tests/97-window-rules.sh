@@ -4,7 +4,7 @@
 # and out of the task switcher, the settings window is an ordinary window, and only the island's
 # input follows the pill (its window stays one size, shaped instead of resized).
 
-ensure_app
+start_app
 w=$(island)
 fold_island
 state=$(xprop -id "$w" _NET_WM_STATE)

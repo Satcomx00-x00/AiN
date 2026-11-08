@@ -368,6 +368,9 @@ open_island() {
   w=$(island) || return 1
   [ -n "$w" ] || return 1
   is_open "$w" && return 0
+  # The soak clicks and folds many times; GNOME may have moved the focus. The page ignores pointer
+  # events while unfocused, so focus the window before asking it to open.
+  focus_island >/dev/null 2>&1 || true
   for _ in 1 2 3; do
     geom "$w" || return 1
     cx=$((X + WIDTH / 2)) cy=$((Y + HEIGHT / 2))
@@ -595,11 +598,17 @@ wait_window_gone() {
 # dialog (a Wayland window xdotool cannot see) by keyboard: Enter, then Tab+Enter, until the
 # shortcut works. shortcuts_granted reports the portal permission store entry, when GNOME keeps one.
 shortcut_popup() {
-  snapshot_windows
-  chord "$KEY_B" "$KEY_SUPER" "$KEY_SHIFT"
-  wait_new_window 8 || return 1
-  SHORTCUT_WINDOW=$NEW_WINDOW
-  [ "$(window_title "$NEW_WINDOW")" = "AiN" ] && [ "$(window_width "$NEW_WINDOW")" -ge 300 ]
+  for _ in 1 2; do
+    snapshot_windows
+    chord "$KEY_B" "$KEY_SUPER" "$KEY_SHIFT"
+    wait_new_window 8 || continue
+    SHORTCUT_WINDOW=$NEW_WINDOW
+    if [ "$(window_title "$NEW_WINDOW")" = "AiN" ] && [ "$(window_width "$NEW_WINDOW")" -ge 300 ]; then
+      return 0
+    fi
+    SHORTCUT_WINDOW=
+  done
+  return 1
 }
 close_shortcut_popup() {
   [ -n "$SHORTCUT_WINDOW" ] || return 0
