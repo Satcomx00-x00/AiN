@@ -219,16 +219,22 @@
           "markdownDescription": "Denies the is_enabled command without any pre-configured scope."
         },
         {
-          "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-latest`\n- `allow-save-png`",
+          "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-latest`\n- `allow-problem`\n- `allow-save-png`",
           "type": "string",
           "const": "capture:default",
-          "markdownDescription": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-latest`\n- `allow-save-png`"
+          "markdownDescription": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-latest`\n- `allow-problem`\n- `allow-save-png`"
         },
         {
           "description": "Enables the latest command without any pre-configured scope.",
           "type": "string",
           "const": "capture:allow-latest",
           "markdownDescription": "Enables the latest command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the problem command without any pre-configured scope.",
+          "type": "string",
+          "const": "capture:allow-problem",
+          "markdownDescription": "Enables the problem command without any pre-configured scope."
         },
         {
           "description": "Enables the save_png command without any pre-configured scope.",
@@ -243,16 +249,22 @@
           "markdownDescription": "Denies the latest command without any pre-configured scope."
         },
         {
+          "description": "Denies the problem command without any pre-configured scope.",
+          "type": "string",
+          "const": "capture:deny-problem",
+          "markdownDescription": "Denies the problem command without any pre-configured scope."
+        },
+        {
           "description": "Denies the save_png command without any pre-configured scope.",
           "type": "string",
           "const": "capture:deny-save-png",
           "markdownDescription": "Denies the save_png command without any pre-configured scope."
         },
         {
-          "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-history`\n- `allow-copy`\n- `allow-clear`\n- `allow-copy-image`",
+          "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-history`\n- `allow-copy`\n- `allow-restore`\n- `allow-clear`\n- `allow-copy-image`",
           "type": "string",
           "const": "clipboard:default",
-          "markdownDescription": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-history`\n- `allow-copy`\n- `allow-clear`\n- `allow-copy-image`"
+          "markdownDescription": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-history`\n- `allow-copy`\n- `allow-restore`\n- `allow-clear`\n- `allow-copy-image`"
         },
         {
           "description": "Enables the clear command without any pre-configured scope.",
@@ -279,6 +291,12 @@
           "markdownDescription": "Enables the history command without any pre-configured scope."
         },
         {
+          "description": "Enables the restore command without any pre-configured scope.",
+          "type": "string",
+          "const": "clipboard:allow-restore",
+          "markdownDescription": "Enables the restore command without any pre-configured scope."
+        },
+        {
           "description": "Denies the clear command without any pre-configured scope.",
           "type": "string",
           "const": "clipboard:deny-clear",
@@ -301,6 +319,12 @@
           "type": "string",
           "const": "clipboard:deny-history",
           "markdownDescription": "Denies the history command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the restore command without any pre-configured scope.",
+          "type": "string",
+          "const": "clipboard:deny-restore",
+          "markdownDescription": "Denies the restore command without any pre-configured scope."
         },
         {
           "description": "Default core plugins set.\n#### This default permission set includes:\n\n- `core:path:default`\n- `core:event:default`\n- `core:window:default`\n- `core:webview:default`\n- `core:app:default`\n- `core:image:default`\n- `core:resources:default`\n- `core:menu:default`\n- `core:tray:default`",
@@ -2595,10 +2619,10 @@
           "markdownDescription": "Denies the unregister_all command without any pre-configured scope."
         },
         {
-          "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-info`\n- `allow-layout`\n- `allow-auto-hide`",
+          "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-info`\n- `allow-layout`\n- `allow-auto-hide`\n- `allow-screens`",
           "type": "string",
           "const": "island:default",
-          "markdownDescription": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-info`\n- `allow-layout`\n- `allow-auto-hide`"
+          "markdownDescription": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-info`\n- `allow-layout`\n- `allow-auto-hide`\n- `allow-screens`"
         },
         {
           "description": "Enables the auto_hide command without any pre-configured scope.",
@@ -2619,6 +2643,12 @@
           "markdownDescription": "Enables the layout command without any pre-configured scope."
         },
         {
+          "description": "Enables the screens command without any pre-configured scope.",
+          "type": "string",
+          "const": "island:allow-screens",
+          "markdownDescription": "Enables the screens command without any pre-configured scope."
+        },
+        {
           "description": "Denies the auto_hide command without any pre-configured scope.",
           "type": "string",
           "const": "island:deny-auto-hide",
@@ -2635,6 +2665,12 @@
           "type": "string",
           "const": "island:deny-layout",
           "markdownDescription": "Denies the layout command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the screens command without any pre-configured scope.",
+          "type": "string",
+          "const": "island:deny-screens",
+          "markdownDescription": "Denies the screens command without any pre-configured scope."
         },
         {
           "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-state`\n- `allow-artwork`\n- `allow-control`",
@@ -2847,6 +2883,132 @@
           "markdownDescription": "Denies the system command without any pre-configured scope."
         },
         {
+          "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-state`\n- `allow-control`\n- `allow-local-status`\n- `allow-install-local`\n- `allow-download-model`\n- `allow-cancel-download`\n- `allow-test-local`\n- `allow-stop-test`\n- `allow-remove-local`\n- `allow-open-local-dir`",
+          "type": "string",
+          "const": "persona:default",
+          "markdownDescription": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-state`\n- `allow-control`\n- `allow-local-status`\n- `allow-install-local`\n- `allow-download-model`\n- `allow-cancel-download`\n- `allow-test-local`\n- `allow-stop-test`\n- `allow-remove-local`\n- `allow-open-local-dir`"
+        },
+        {
+          "description": "Enables the cancel_download command without any pre-configured scope.",
+          "type": "string",
+          "const": "persona:allow-cancel-download",
+          "markdownDescription": "Enables the cancel_download command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the control command without any pre-configured scope.",
+          "type": "string",
+          "const": "persona:allow-control",
+          "markdownDescription": "Enables the control command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the download_model command without any pre-configured scope.",
+          "type": "string",
+          "const": "persona:allow-download-model",
+          "markdownDescription": "Enables the download_model command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the install_local command without any pre-configured scope.",
+          "type": "string",
+          "const": "persona:allow-install-local",
+          "markdownDescription": "Enables the install_local command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the local_status command without any pre-configured scope.",
+          "type": "string",
+          "const": "persona:allow-local-status",
+          "markdownDescription": "Enables the local_status command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the open_local_dir command without any pre-configured scope.",
+          "type": "string",
+          "const": "persona:allow-open-local-dir",
+          "markdownDescription": "Enables the open_local_dir command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the remove_local command without any pre-configured scope.",
+          "type": "string",
+          "const": "persona:allow-remove-local",
+          "markdownDescription": "Enables the remove_local command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the state command without any pre-configured scope.",
+          "type": "string",
+          "const": "persona:allow-state",
+          "markdownDescription": "Enables the state command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the stop_test command without any pre-configured scope.",
+          "type": "string",
+          "const": "persona:allow-stop-test",
+          "markdownDescription": "Enables the stop_test command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the test_local command without any pre-configured scope.",
+          "type": "string",
+          "const": "persona:allow-test-local",
+          "markdownDescription": "Enables the test_local command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the cancel_download command without any pre-configured scope.",
+          "type": "string",
+          "const": "persona:deny-cancel-download",
+          "markdownDescription": "Denies the cancel_download command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the control command without any pre-configured scope.",
+          "type": "string",
+          "const": "persona:deny-control",
+          "markdownDescription": "Denies the control command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the download_model command without any pre-configured scope.",
+          "type": "string",
+          "const": "persona:deny-download-model",
+          "markdownDescription": "Denies the download_model command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the install_local command without any pre-configured scope.",
+          "type": "string",
+          "const": "persona:deny-install-local",
+          "markdownDescription": "Denies the install_local command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the local_status command without any pre-configured scope.",
+          "type": "string",
+          "const": "persona:deny-local-status",
+          "markdownDescription": "Denies the local_status command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the open_local_dir command without any pre-configured scope.",
+          "type": "string",
+          "const": "persona:deny-open-local-dir",
+          "markdownDescription": "Denies the open_local_dir command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the remove_local command without any pre-configured scope.",
+          "type": "string",
+          "const": "persona:deny-remove-local",
+          "markdownDescription": "Denies the remove_local command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the state command without any pre-configured scope.",
+          "type": "string",
+          "const": "persona:deny-state",
+          "markdownDescription": "Denies the state command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the stop_test command without any pre-configured scope.",
+          "type": "string",
+          "const": "persona:deny-stop-test",
+          "markdownDescription": "Denies the stop_test command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the test_local command without any pre-configured scope.",
+          "type": "string",
+          "const": "persona:deny-test-local",
+          "markdownDescription": "Denies the test_local command without any pre-configured scope."
+        },
+        {
           "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-bind`\n- `allow-failures`\n- `allow-open`\n- `allow-hide`\n- `allow-paste`",
           "type": "string",
           "const": "popup:default",
@@ -2931,10 +3093,16 @@
           "markdownDescription": "Denies the state command without any pre-configured scope."
         },
         {
-          "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-models`\n- `allow-preset-urls`",
+          "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-models`\n- `allow-preset-urls`\n- `allow-ask`",
           "type": "string",
           "const": "providers:default",
-          "markdownDescription": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-models`\n- `allow-preset-urls`"
+          "markdownDescription": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-models`\n- `allow-preset-urls`\n- `allow-ask`"
+        },
+        {
+          "description": "Enables the ask command without any pre-configured scope.",
+          "type": "string",
+          "const": "providers:allow-ask",
+          "markdownDescription": "Enables the ask command without any pre-configured scope."
         },
         {
           "description": "Enables the models command without any pre-configured scope.",
@@ -2947,6 +3115,12 @@
           "type": "string",
           "const": "providers:allow-preset-urls",
           "markdownDescription": "Enables the preset_urls command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the ask command without any pre-configured scope.",
+          "type": "string",
+          "const": "providers:deny-ask",
+          "markdownDescription": "Denies the ask command without any pre-configured scope."
         },
         {
           "description": "Denies the models command without any pre-configured scope.",
@@ -3003,10 +3177,10 @@
           "markdownDescription": "Denies the set command without any pre-configured scope."
         },
         {
-          "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-get`\n- `allow-set`\n- `allow-open`\n- `allow-quit`\n- `allow-autostart`\n- `allow-set-autostart`\n- `allow-play-greeting`",
+          "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-get`\n- `allow-set`\n- `allow-open`\n- `allow-quit`\n- `allow-autostart`\n- `allow-set-autostart`\n- `allow-play-greeting`\n- `allow-test-notification`",
           "type": "string",
           "const": "settings:default",
-          "markdownDescription": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-get`\n- `allow-set`\n- `allow-open`\n- `allow-quit`\n- `allow-autostart`\n- `allow-set-autostart`\n- `allow-play-greeting`"
+          "markdownDescription": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-get`\n- `allow-set`\n- `allow-open`\n- `allow-quit`\n- `allow-autostart`\n- `allow-set-autostart`\n- `allow-play-greeting`\n- `allow-test-notification`"
         },
         {
           "description": "Enables the autostart command without any pre-configured scope.",
@@ -3051,6 +3225,12 @@
           "markdownDescription": "Enables the set_autostart command without any pre-configured scope."
         },
         {
+          "description": "Enables the test_notification command without any pre-configured scope.",
+          "type": "string",
+          "const": "settings:allow-test-notification",
+          "markdownDescription": "Enables the test_notification command without any pre-configured scope."
+        },
+        {
           "description": "Denies the autostart command without any pre-configured scope.",
           "type": "string",
           "const": "settings:deny-autostart",
@@ -3091,6 +3271,12 @@
           "type": "string",
           "const": "settings:deny-set-autostart",
           "markdownDescription": "Denies the set_autostart command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the test_notification command without any pre-configured scope.",
+          "type": "string",
+          "const": "settings:deny-test-notification",
+          "markdownDescription": "Denies the test_notification command without any pre-configured scope."
         },
         {
           "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-state`\n- `allow-model-status`\n- `allow-fix`\n- `allow-check`\n- `allow-download-model`\n- `allow-delete-model`\n- `allow-open-model-dir`",
@@ -3241,6 +3427,36 @@
           "type": "string",
           "const": "store:deny-open-repo",
           "markdownDescription": "Denies the open_repo command without any pre-configured scope."
+        },
+        {
+          "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-ensure`\n- `allow-place`",
+          "type": "string",
+          "const": "toasts:default",
+          "markdownDescription": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-ensure`\n- `allow-place`"
+        },
+        {
+          "description": "Enables the ensure command without any pre-configured scope.",
+          "type": "string",
+          "const": "toasts:allow-ensure",
+          "markdownDescription": "Enables the ensure command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the place command without any pre-configured scope.",
+          "type": "string",
+          "const": "toasts:allow-place",
+          "markdownDescription": "Enables the place command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the ensure command without any pre-configured scope.",
+          "type": "string",
+          "const": "toasts:deny-ensure",
+          "markdownDescription": "Denies the ensure command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the place command without any pre-configured scope.",
+          "type": "string",
+          "const": "toasts:deny-place",
+          "markdownDescription": "Denies the place command without any pre-configured scope."
         },
         {
           "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-state`\n- `allow-lines`\n- `allow-control`",
