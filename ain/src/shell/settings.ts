@@ -36,6 +36,10 @@ export interface General {
   readonly acceptAnyCertificate: boolean;
   /** A folder or URL laid out like the models folder, to get models from without internet; "" for the internet. */
   readonly modelsSource: string;
+  /** Read the official community store (`AIN_STORE_URL`, or AiN's own); off to use only `storeSources`. */
+  readonly officialStore: boolean;
+  /** More community stores: http(s) addresses of `store.yaml` catalogs, read after the official one. */
+  readonly storeSources: readonly string[];
 }
 
 /** How the collapsed pill dresses its glances (Settings → Pill). */
@@ -96,7 +100,7 @@ export function adopt(layout: Layout, fallback: Layout, seen: readonly string[])
   };
 }
 
-export const DEFAULT_GENERAL: General = { openDelay: 140, closeDelay: 260, pillWidth: 400, pillSize: "normal", style: "pill", pillCurve: 100, theme: "island", pillColor: "#000000", accentColor: "#0a84ff", greeting: "hello", revealDelay: 500, acceptAnyCertificate: false, modelsSource: "", screen: null };
+export const DEFAULT_GENERAL: General = { openDelay: 140, closeDelay: 260, pillWidth: 400, pillSize: "normal", style: "pill", pillCurve: 100, theme: "island", pillColor: "#000000", accentColor: "#0a84ff", greeting: "hello", revealDelay: 500, acceptAnyCertificate: false, modelsSource: "", officialStore: true, storeSources: [], screen: null };
 export const PILL_SIZE_IDS = ["low", "normal", "large"] as const satisfies readonly PillSize[];
 /** The style that keeps the pill hidden until the cursor rests on its spot. */
 export const HIDDEN_STYLE = "hidden";
@@ -111,6 +115,19 @@ export const defaults = (layout: Layout): Settings => ({ version: 1, layout, pil
 
 const ids = z.array(z.string()).transform((list) => [...new Set(list)]);
 const ID = /^[a-z][a-z0-9-]{1,31}$/;
+
+/** More added stores than this are ignored, as the backend ignores them: each is a request on every read. */
+export const MAX_STORE_SOURCES = 16;
+
+/** A community store's address as typed, trimmed; null unless it is an http(s) URL. */
+export const storeUrl = (text: string): string | null => {
+  const url = text.trim();
+  return /^https?:\/\/[^\s/]+/.test(url) && URL.canParse(url) ? url : null;
+};
+
+/** Added stores as saved: http(s) addresses only, each once, at most `MAX_STORE_SOURCES`. */
+export const storeSources = (raw: readonly unknown[]): string[] =>
+  [...new Set(raw.flatMap((v) => (typeof v === "string" ? (storeUrl(v) ?? []) : [])))].slice(0, MAX_STORE_SOURCES);
 const within = (range: { min: number; max: number }) => (fallback: number) => z.number().int().min(range.min).max(range.max).catch(fallback);
 const delay = within(DELAY_RANGE);
 const color = (fallback: string) =>
@@ -153,8 +170,10 @@ export function parseSettings(raw: unknown, fallback: Settings): Settings {
         screen: z.string().min(1).max(256).nullable().catch(fallback.general.screen),
         acceptAnyCertificate: z.boolean().catch(fallback.general.acceptAnyCertificate),
         modelsSource: z.string().trim().catch(fallback.general.modelsSource),
+        officialStore: z.boolean().catch(fallback.general.officialStore),
+        storeSources: z.array(z.unknown()).transform(storeSources).catch([...fallback.general.storeSources]),
       })
-      .catch(fallback.general),
+      .catch(() => ({ ...fallback.general, storeSources: [...fallback.general.storeSources] })),
     options: z.record(z.string(), z.record(z.string(), z.unknown())).catch(fallback.options),
     shortcuts: z.record(z.string(), z.string().min(1).nullable()).catch(fallback.shortcuts),
     seen: ids.optional().catch(undefined),

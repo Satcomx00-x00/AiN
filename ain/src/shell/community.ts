@@ -1,10 +1,10 @@
-import { commands, type Offer, type Shelf } from "./bindings/store";
+import { commands, type Offer, type Shelf, type Source } from "./bindings/store";
 
-export type { Offer, Shelf };
+export type { Offer, Shelf, Source };
 
-/** The community plugin store, read over the internet by the app's backend. */
+/** The community plugin stores (the official one and the user's), read over the internet by the app's backend. */
 export interface CommunityPort {
-  /** The plugins the store offers, read afresh. */
+  /** The plugins the stores offer, read afresh, and how reading each store went. */
   catalog(): Promise<Shelf>;
   /** Downloads a plugin into the plugins folder, off; resolves with its file there. */
   install(id: string): Promise<string>;

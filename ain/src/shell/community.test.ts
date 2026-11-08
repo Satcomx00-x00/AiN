@@ -5,7 +5,7 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke }));
 
 const { noCommunity, offerState, tauriCommunity } = await import("./community");
 
-const offer = { id: "orbit-clock", name: "Orbit clock", description: "", repo: "https://github.com/o/r", file: "orbit-clock/index.js", problem: null, options: null };
+const offer = { id: "orbit-clock", name: "Orbit clock", description: "", repo: "https://github.com/o/r", file: "orbit-clock/index.js", problem: null, options: null, source: "https://store.test/store.yaml" };
 
 describe("the community store", () => {
   it("offers to install a plugin, to update one already in the folder, or neither when it can't be installed", () => {

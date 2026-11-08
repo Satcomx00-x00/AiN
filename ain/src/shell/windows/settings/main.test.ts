@@ -710,7 +710,7 @@ describe("Settings → Plugins", () => {
     environment();
     const sys = system();
     let answer: () => void = () => {};
-    const catalog = vi.fn(() => new Promise<{ url: string; plugins: [] }>((r) => (answer = () => r({ url: "", plugins: [] }))));
+    const catalog = vi.fn(() => new Promise<{ sources: []; plugins: [] }>((r) => (answer = () => r({ sources: [], plugins: [] }))));
     const page = await load(sys, "plugins", { community: { ...sys.community, catalog } });
     expect(page.page.textContent).toContain("Reading the store…");
     await page.open("Plugins");

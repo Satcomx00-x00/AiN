@@ -31,11 +31,22 @@ export type Offer = {
 	problem: string | null,
 	/**  Its options as the store declares them (`null` for none); the settings page checks them. */
 	options: unknown | null,
+	/**  The store that lists it. */
+	source: string,
 };
 
-/**  What the store offers, or why it couldn't be read. */
+/**  What the stores offer, and how reading each one went. */
 export type Shelf = {
-	url: string,
+	sources: Source[],
 	plugins: Offer[],
+};
+
+/**  One store that was read, and why it couldn't be, if so. */
+export type Source = {
+	url: string,
+	/**  Whether it's the official store, rather than one the user added. */
+	official: boolean,
+	/**  Why it couldn't be read; `None` if it was. */
+	problem: string | null,
 };
 

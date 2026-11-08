@@ -4,7 +4,7 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn() }));
 
 const { choice, folder, list, number, resolve, toggle } = await import("../sdk/options");
-const { DEFAULT_GENERAL, defaults, memorySettings, parseSettings } = await import("./settings");
+const { DEFAULT_GENERAL, MAX_STORE_SOURCES, defaults, memorySettings, parseSettings } = await import("./settings");
 const { move } = await import("./windows/settings/slots");
 
 const layout = { glance: { left: ["clock"], right: ["media", "stats"] }, tabs: ["media", "clock"] };
@@ -101,6 +101,18 @@ describe("settings", () => {
     expect(DEFAULT_GENERAL.screen).toBeNull();
     expect(parseSettings({ general: { screen: "DELL U2720Q #2" } }, fallback).general.screen).toBe("DELL U2720Q #2");
     for (const bad of ["", 3, "x".repeat(257), undefined]) expect(parseSettings({ general: { screen: bad } }, fallback).general.screen).toBeNull();
+  });
+
+  it("reads the official store, and keeps the user's stores as http(s) addresses, each once", () => {
+    expect(DEFAULT_GENERAL).toMatchObject({ officialStore: true, storeSources: [] });
+    const general = (g: unknown) => parseSettings({ general: g }, fallback).general;
+    expect(general({ officialStore: false, storeSources: [" https://a.example/store.yaml ", "ftp://b", "", 3, "https://a.example/store.yaml", "http://c.example/s.yaml"] })).toMatchObject({
+      officialStore: false,
+      storeSources: ["https://a.example/store.yaml", "http://c.example/s.yaml"],
+    });
+    expect(general({ officialStore: "no", storeSources: "https://a.example" })).toMatchObject({ officialStore: true, storeSources: [] });
+    const many = Array.from({ length: 40 }, (_, i) => `https://s${i}.example/store.yaml`);
+    expect(general({ storeSources: many }).storeSources).toHaveLength(MAX_STORE_SOURCES);
   });
 
   it("removes duplicate ids in a placement", () =>

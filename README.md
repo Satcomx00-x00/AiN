@@ -164,7 +164,8 @@ every OS. None ship with it: install them from the **community store** at the bo
 in the folder yourself.
 
 The store is [`store.yaml`](https://github.com/Satcomx00-x00/AiN/blob/store/store.yaml) on the `store` branch, read
-over the internet, so new plugins show up without a new release. To write one, start from the
+over the internet, so new plugins show up without a new release. Other stores (a fork's, a company's) can be added next to it, in
+**Settings → Plugins** ([more stores](docs/plugins.md#more-stores)). To write one, start from the
 [`plugin-template`](https://github.com/Satcomx00-x00/AiN/tree/plugin-template) branch (a clock), or
 [`plugin-template-calendar`](https://github.com/Satcomx00-x00/AiN/tree/plugin-template-calendar) for one that signs in
 to an online account (Google Calendar), read
