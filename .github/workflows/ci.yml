@@ -298,6 +298,16 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
           cargo llvm-cov report --target ${{ matrix.target }} --summary-only --fail-under-lines ${{ matrix.min_lines }} > /dev/null
+      # tauri-build regenerates this OS's permission schemas while compiling: a diff means the
+      # committed ones are stale; rebuild and commit them in the same change.
+      - name: Generated schemas are committed
+        working-directory: .
+        shell: bash
+        run: |
+          if ! git diff --exit-code -- ain/src-tauri/gen/schemas; then
+            echo "::error::ain/src-tauri/gen/schemas is stale; rebuild and commit the regenerated files."
+            exit 1
+          fi
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: rust-coverage-${{ matrix.target }}
