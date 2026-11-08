@@ -37,7 +37,7 @@ rustls-platform-verifier = "0.7"
 base64 = "0.23"
 # Speech recognition for dictation and speech synthesis for read aloud, from prebuilt static
 # libraries (Windows and Linux x64).
-sherpa-onnx = "1.13.8"
+sherpa-onnx = "2.0.1"
 sha2 = "0.11.1"
 # Read aloud's voices come as .tar.bz2 archives (bzip2 in pure Rust: no C toolchain needed).
 tar = "0.4.46"
@@ -71,7 +71,7 @@ ashpd = { version = "0.13", default-features = false, features = ["tokio", "remo
 # Now playing, from MPRIS players over D-Bus.
 mpris = "2.1"
 # Zones: the pointer and other apps' windows, through the X server…
-x11rb = "0.13"
+x11rb = "0.14"
 # …or, on GNOME's Wayland, through AiN's GNOME Shell extension; and global shortcuts through the
 # desktop portal (the same D-Bus library as mpris).
 dbus = "0.9"
