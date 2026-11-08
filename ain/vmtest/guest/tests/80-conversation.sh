@@ -5,7 +5,8 @@
 # work here says why, in a notification; the app lives through all of it.
 alive() { app_running && [ -n "$(island)" ]; }
 # In the open island's window: the tab's round Talk button (left) and its Settings chip (right).
-TALK_X=64 TALK_Y=104 CHIP_FROM_RIGHT=82
+# Both are measured from the shaped input region, which includes the pointer margin (8 px a side).
+TALK_X=72 TALK_Y=104 CHIP_FROM_RIGHT=90
 
 start_app
 tab persona

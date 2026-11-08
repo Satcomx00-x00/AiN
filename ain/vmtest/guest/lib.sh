@@ -421,11 +421,12 @@ fold_island() {
 # The open island's tab bar, left to right; settings.test.json puts these first, in this order.
 # Update it when the default layout changes; 30-tabs' screenshots show what each click opened.
 TABS=(media clock timer volume clipboard stats privacy dictation tts persona)
-# Where they are in the open island's input area (472 wide, the panel and its shadow): the first
-# tab's centre, the gap between tabs in tenths of a pixel, the bar's height, the settings gear
-# (measured on the Fedora 44 / GNOME 50 desktop; re-measure if the panel's width changes).
+# Where they are in the open island's input area: the input region carries the pointer margin
+# (window.rs INPUT_MARGIN, 8 logical px on each side), so the visible panel starts 8 px in and the
+# measured centres shift by it. First tab's centre, the gap in tenths of a pixel, the bar's height,
+# the settings gear from the right. Re-measure if the panel's width or the margin changes.
 # shellcheck disable=SC2034  # used by the tests
-TAB_X=44 TAB_DX10=300 BAR_Y=42 GEAR_FROM_RIGHT=98
+TAB_X=52 TAB_DX10=300 BAR_Y=42 GEAR_FROM_RIGHT=106
 
 # tab NAME: opens the island and clicks that tab.
 tab() {
