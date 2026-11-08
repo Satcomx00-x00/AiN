@@ -120,24 +120,50 @@ launch_app() {
 }
 # answer_shortcuts_dialog: the GlobalShortcuts portal shows gnome-control-center's "Add Keyboard
 # Shortcuts" dialog on the first bind of shortcuts the desktop hasn't stored yet. It is a Wayland
-# window, so xdotool can't see it, and it keeps the keyboard focus until answered: its _Add
-# button's mnemonic does. Once stored, later binds have no new shortcuts and no dialog.
+# window, so xdotool can't see it; it covers the island until answered. Its _Add button's mnemonic
+# works here, but not on every gnome-control-center: then click the header's right end. Once the
+# shortcuts are stored the dialog doesn't come back (until reset_shortcut_grant forgets them).
 answer_shortcuts_dialog() {
-  local i
-  dconf dump /org/gnome/settings-daemon/global-shortcuts/dev.satcom.ain/ 2>/dev/null | grep -q . && return 0
-  for i in 1 2 3 4; do
+  local i x y top
+  grant_dconf && return 0
+  for i in 1 2 3; do
     chord "$KEY_A" "$KEY_ALT"
-    sleep 0.8
-    dconf dump /org/gnome/settings-daemon/global-shortcuts/dev.satcom.ain/ 2>/dev/null | grep -q . && return 0
+    sleep 1.2
+    grant_dconf && return 0
+    keys "$KEY_ENTER"
+    sleep 1.2
+    grant_dconf && return 0
+    keys "$KEY_TAB"; sleep 0.2; keys "$KEY_ENTER"
+    sleep 1.2
+    grant_dconf && return 0
   done
+  # No portal at all: the app logged why, and there is no dialog to click.
+  app_log | grep -q "island: shortcuts:" && return 1
+  if pointer_ready; then
+    for top in 20 40 60 80 $((SH / 2 - 370)) $((SH / 2 - 350)) $((SH / 2 - 330)) $((SH / 2 - 310)); do
+      [ "$top" -lt 0 ] && continue
+      for x in $((SW / 2 + 200)) $((SW / 2 + 225)) $((SW / 2 + 250)) $((SW / 2 + 275)) $((SW / 2 + 300)); do
+        pointer_move "$x" "$top"
+        sleep 0.15
+        pointer_click
+        sleep 0.8
+        grant_dconf && return 0
+      done
+    done
+  fi
   return 1
 }
 # The GlobalShortcuts grant. A remembered grant makes the portal answer BindShortcuts without its
-# dialog; on the Fedora 44 desktop that path leaves the island's web view inert (it draws, but
-# pointer events never reach the page). Forgetting it makes every start take the dialog path, where
-# the island is interactive. The runner restores the desktop's own grant after the run.
+# dialog. That is what the tests want: the dialog is a Wayland window above the island, covering it
+# until someone clicks Add, and its mnemonics/position vary with gnome-control-center. guest/
+# shortcuts.dconf holds the defaults this build binds, so the provider sees nothing new and the
+# portal binds them straight away. The runner restores the desktop's own grant after the run.
 reset_shortcut_grant() {
   dconf reset -f /org/gnome/settings-daemon/global-shortcuts/ 2>/dev/null || true
+}
+seed_shortcut_grant() {
+  reset_shortcut_grant
+  [ -f ~/vmtest/guest/shortcuts.dconf ] && dconf load /org/gnome/settings-daemon/global-shortcuts/ < ~/vmtest/guest/shortcuts.dconf 2>/dev/null
 }
 stop_app() {
   systemctl --user stop "$UNIT" 2>/dev/null
@@ -151,7 +177,7 @@ start_app() {
   keys "$KEY_ESC"
   sleep 0.3
   stop_app
-  reset_shortcut_grant
+  seed_shortcut_grant
   rm -rf ~/.config/dev.satcom.ain ~/.cache/dev.satcom.ain
   # The defaults with the startup animation off: its listeners attach after a promise that can stall
   # on a software-rendered VM, leaving the island inert. The runner generates this from the source.
@@ -172,13 +198,13 @@ ensure_interactive() {
       return 0
     }
     stop_app
-    reset_shortcut_grant
+    seed_shortcut_grant
     launch_app
   done
   return 1
 }
 # restart_app: the app again with the settings it has, as a user would (no wipe).
-restart_app() { stop_app; reset_shortcut_grant; launch_app; ensure_interactive; }
+restart_app() { stop_app; seed_shortcut_grant; launch_app; ensure_interactive; }
 ensure_app() { { app_running && [ -n "$(island)" ]; } || start_app; }
 app_alive() { app_running && [ -n "$(island)" ]; }
 
@@ -560,21 +586,13 @@ close_shortcut_popup() {
 }
 allow_shortcuts_dialog() {
   shortcut_popup && { close_shortcut_popup; return 0; }
-  local i
-  for i in 1 2 3 4; do
-    # gnome-control-center's dialog ("Add Keyboard Shortcuts") has an _Add button: its mnemonic
-    # is the reliable way in, whatever has the focus. Enter and Tab+Enter cover other layouts.
-    chord "$KEY_A" "$KEY_ALT"
-    sleep 1.5
-    shortcut_popup && { close_shortcut_popup; return 0; }
-    keys "$KEY_ENTER"
-    sleep 1.5
-    shortcut_popup && { close_shortcut_popup; return 0; }
-    keys "$KEY_TAB"; sleep 0.3; keys "$KEY_ENTER"
-    sleep 1.5
-    shortcut_popup && { close_shortcut_popup; return 0; }
-  done
+  answer_shortcuts_dialog || return 1
+  shortcut_popup && { close_shortcut_popup; return 0; }
   return 1
+}
+# grant_dconf: the shortcuts GNOME's provider stored for this app.
+grant_dconf() {
+  dconf dump /org/gnome/settings-daemon/global-shortcuts/dev.satcom.ain/ 2>/dev/null | grep -q .
 }
 # shortcuts_granted: whether the portal's permission store has an entry for this app (GNOME 50
 # answers through the Shell instead, so this is a diagnostic, not the gate).

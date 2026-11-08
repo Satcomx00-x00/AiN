@@ -1,0 +1,5 @@
+[/]
+applications=['dev.satcom.ain']
+
+[dev.satcom.ain]
+shortcuts=[('clipboard.history', {'shortcuts': <['<Shift><Super>b']>, 'description': <'Clipboard history'>}), ('dictation.toggle', {'shortcuts': <['<Control><Alt>d']>, 'description': <'Dictate'>}), ('palette.open', {'shortcuts': <['<Alt><Super>space']>, 'description': <'Command palette'>}), ('persona.talk', {'shortcuts': <['<Control><Alt>t']>, 'description': <'Talk'>}), ('screenshot.capture', {'shortcuts': <['<Alt><Super>s']>, 'description': <'Annotate a screenshot'>}), ('spelling.fix', {'shortcuts': <['<Control><Alt>o']>, 'description': <'Correct spelling'>}), ('transcript.toggle', {'shortcuts': <['<Control><Alt>h']>, 'description': <"Transcribe the computer's sound">}), ('tts.read', {'shortcuts': <['<Control><Alt>r']>, 'description': <'Read aloud'>}), ('zones.next', {'shortcuts': <['<Control><Alt><Super>Right']>, 'description': <'Move to the next zone'>}), ('zones.pick', {'shortcuts': <['<Control><Alt><Super>z']>, 'description': <'Snap to a zone'>}), ('zones.previous', {'shortcuts': <['<Control><Alt><Super>Left']>, 'description': <'Move to the previous zone'>})]

@@ -129,13 +129,12 @@ animation is off because the island attaches its pointer listeners after the ani
 on a software-rendered VM that promise can stall (WebKit pauses the animation while the window has
 no focus), and the pill is drawn but inert. The animation has its own frontend tests.
 
-The **GlobalShortcuts grant** is forgotten before each start (`reset_shortcut_grant`). With a
-remembered grant, GNOME 50's portal answers `BindShortcuts` without its dialog, and on this desktop
-that path leaves the web view inert (the window takes focus, but pointer events never reach the
-page). Forgetting the grant makes every start take the dialog path, where the island is
-interactive; `answer_shortcuts_dialog` answers it, and the runner restores the desktop's own grant
-after the run. This is a workaround for an app/portal interaction: remove it when the app handles
-the remembered-grant path.
+The **GlobalShortcuts grant** is seeded before each start from `guest/shortcuts.dconf`, the
+defaults the build binds. The portal then binds them without showing its "Add Keyboard Shortcuts"
+dialog — a Wayland window above the island that would take its clicks, and whose Add button's
+mnemonic and position vary with gnome-control-center. `answer_shortcuts_dialog` still handles the
+dialog (keyboard first, then clicking the header's Add) when the fixture no longer matches, e.g.
+after a shortcut is added. The runner backs up and restores the desktop's own grant after the run.
 
 ## Stability and shortcuts
 
