@@ -175,7 +175,7 @@ export async function sendTestSettings(guest: Guest, app: string): Promise<void>
   // The tab order the tests click (lib.sh TABS): the defaults carry more widgets than the bar
   // shows, and the tests need each one at a known position.
   const script = 'import { defaults } from "./src/shell/settings.ts"; import { layout } from "./src/features/layout.ts"; const s = defaults(layout); s.general.greeting = "none"; s.layout.tabs = ["media", "clock", "timer", "volume", "clipboard", "stats", "privacy", "dictation", "tts", "persona", "transcript", "spelling", "notifications"]; process.stdout.write(JSON.stringify(s, null, 2));';
-  const json = await check("bun", ["-e", script], { cwd: app });
+  const json = await check("bun", ["-e", script], { cwd: app, timeoutMs: 60_000 });
   JSON.parse(json);
   const r = await guest.exec(`cat > ${REMOTE}/guest/settings.test.json`, { input: json });
   if (r.code !== 0) throw new Error(`sending the test settings failed: ${r.stderr.trim()}`);

@@ -14,6 +14,8 @@ export interface RunOptions {
   readonly input?: string | Buffer | Readable;
   /** Each line of output, stdout and stderr, as it comes. Keeps stdin open for the caller to write to. */
   readonly onLine?: (line: string, child: ChildProcess) => void;
+  /** Kills the process after this long, so a stuck tool can't hang the runner. */
+  readonly timeoutMs?: number;
 }
 
 /** Runs a program to the end. Never throws on a failing exit code: callers decide (see `check`). */
@@ -21,6 +23,7 @@ export function run(cmd: string, args: readonly string[], opts: RunOptions = {})
   return new Promise((resolve, reject) => {
     const stdin = opts.input !== undefined || opts.onLine ? "pipe" : "ignore";
     const child = spawn(cmd, args, { cwd: opts.cwd, env: opts.env ?? process.env, stdio: [stdin, "pipe", "pipe"] });
+    const timer = opts.timeoutMs ? setTimeout(() => child.kill("SIGKILL"), opts.timeoutMs) : undefined;
     const out: Buffer[] = [];
     let err = "";
     const lines = (chunk: Buffer, rest: { s: string }) => {
@@ -42,6 +45,7 @@ export function run(cmd: string, args: readonly string[], opts: RunOptions = {})
     });
     child.on("error", reject);
     child.on("close", (code) => {
+      if (timer) clearTimeout(timer);
       for (const rest of [restOut, restErr]) if (rest.s && opts.onLine) opts.onLine(rest.s, child);
       resolve({ code: code ?? 1, stdout: Buffer.concat(out), stderr: err });
     });
