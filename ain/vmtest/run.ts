@@ -116,6 +116,7 @@ async function runTarget(t: Target): Promise<TargetResult> {
     // pointer FIFO, the app unit and the desktop's focus. Clear them before this run.
     await guest.ok(
       `pkill -f 'guest/run[.]sh' 2>/dev/null || true
+       pkill -f 'xdotool windowactivate' 2>/dev/null || true
        systemctl --user stop vmtest-ain 2>/dev/null || true
        systemctl --user reset-failed vmtest-ain 2>/dev/null || true
        sudo -n systemctl stop vmtest-pointer 2>/dev/null || true

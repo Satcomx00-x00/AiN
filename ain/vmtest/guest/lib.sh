@@ -114,7 +114,10 @@ leave_overview() {
 focus_island() {
   local w
   w=$(island) || return 1
-  xdotool windowactivate --sync "$w" 2>/dev/null || xdotool windowfocus "$w" 2>/dev/null || true
+  # No --sync: mutter can ignore an activation for a skip-taskbar window, and xdotool would wait
+  # for the property forever. Set the X11 input focus too, so the web view is the focused client.
+  xdotool windowactivate "$w" 2>/dev/null || true
+  xdotool windowfocus "$w" 2>/dev/null || true
 }
 # Starts the app as the user's session would, and waits for the island to be laid out: folded to the
 # pill (before the frontend runs, the window has a default size).
