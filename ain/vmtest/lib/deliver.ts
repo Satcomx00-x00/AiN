@@ -117,19 +117,24 @@ const STATE_DIRS = [
  * the folder to pass to `restoreState`.
  */
 export async function backupState(guest: Guest): Promise<string> {
-  const dir = `${REMOTE}/state`;
+  // One folder per run, never reused: a run that is killed before restoring (or two runs that
+  // overlap) must not overwrite the backup that still holds the desktop's real state. The five
+  // most recent are kept.
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+  const dir = `${REMOTE}/state-${stamp}`;
   await guest.ok(
-    `rm -rf ${dir} && mkdir -p ${dir}
+    `mkdir -p ${dir}
      for d in ${STATE_DIRS.join(" ")}; do [ -e "$HOME/$d" ] && echo "$d"; done > ${dir}/dirs
      [ -s ${dir}/dirs ] && tar -C "$HOME" --warning=no-file-ignored --exclude='.local/share/dev.satcom.ain/models' -cf ${dir}/state.tar -T ${dir}/dirs || : > ${dir}/state.tar
-     dconf dump /org/gnome/settings-daemon/global-shortcuts/ > ${dir}/shortcuts.dconf 2>/dev/null || : > ${dir}/shortcuts.dconf`,
+     dconf dump /org/gnome/settings-daemon/global-shortcuts/ > ${dir}/shortcuts.dconf 2>/dev/null || : > ${dir}/shortcuts.dconf
+     ls -1dt ${REMOTE}/state-* 2>/dev/null | tail -n +6 | xargs -r rm -rf`,
     "backing up the app state",
   );
   return dir;
 }
 
 /** Puts a direct VM back as it was: the app stopped, its folders and permissions restored. */
-export async function restoreState(guest: Guest, dir = `${REMOTE}/state`): Promise<void> {
+export async function restoreState(guest: Guest, dir: string): Promise<void> {
   await guest.ok(
     `systemctl --user stop vmtest-ain 2>/dev/null || true
      sudo -n systemctl stop vmtest-pointer 2>/dev/null || true

@@ -43,9 +43,12 @@ as a real long-lived machine. The runner never clones, recreates or shuts it dow
 refused, `--stop` skips it), keeps its SSH host key between runs, and backs up the app's folders
 and the desktop's portal permissions before the first test, restoring them after the last — every
 test starts the app from its default settings, so the dev desktop's own state would otherwise be
-lost. Models are never copied (they are gigabytes) or removed. A direct target needs a desktop
-user reachable over SSH (here `satcom`), a GNOME Wayland session on seat0, and `ydotool`'s daemon
-with its socket in that user's runtime folder; see [A direct VM](#a-direct-vm).
+lost. Each run writes its own timestamped backup (`~/vmtest/state-<time>`), and the five most recent
+are kept: a run killed before it restores, or two runs that overlap, can't overwrite the backup that
+holds the desktop's real state. Models are never copied (they are gigabytes) or removed. A direct
+target needs a desktop user reachable over SSH (here `satcom`), a GNOME Wayland session on seat0,
+and `ydotool`'s daemon with its socket in that user's runtime folder; see
+[A direct VM](#a-direct-vm).
 
 The templates are Silverblue desktops prepared for AiN: auto-login, no lock screen, the build and
 runtime libraries, Rust through mise, `ydotool` usable by the user. Their Proxmox notes say how.
