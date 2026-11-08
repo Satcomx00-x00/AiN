@@ -1,4 +1,5 @@
 # shellcheck shell=bash disable=SC2016  # check/wait_for evaluate their single-quoted conditions later
+# timeout: 600
 # Conversation on a computer without PersonaPlex (no NVIDIA GPU, no internet): the tab says why it
 # can't talk instead of failing silently, Settings offers the install, and an install that can't
 # work here says why, in a notification; the app lives through all of it.

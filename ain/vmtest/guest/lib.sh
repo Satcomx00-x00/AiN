@@ -371,7 +371,7 @@ open_island() {
       fi
       sleep 0.06
     done
-    wait_for 8 "is_open $w" && return 0
+    wait_for 2 "is_open $w" && return 0
     # A click focuses the window and opens the island (its click listener). On a desktop that
     # doesn't deliver hover to an unfocused web view, this is what a user does to make it answer.
     if pointer_ready; then
@@ -379,14 +379,14 @@ open_island() {
       sleep 0.2
     fi
     click
-    wait_for 5 "is_open $w" && return 0
+    wait_for 4 "is_open $w" && return 0
     # Still folded: a last nudge, then the shape has a little more time to follow.
     if pointer_ready; then
       pointer_move $((cx + 4)) "$cy"
       sleep 0.05
       pointer_move "$cx" "$cy"
     fi
-    wait_for 5 "is_open $w" && return 0
+    wait_for 3 "is_open $w" && return 0
   done
   return 1
 }
@@ -619,7 +619,8 @@ editor_open() {
     systemd-run --user --unit=vmtest-editor --collect flatpak run org.gnome.TextEditor >/dev/null 2>&1
   else
     # The distribution's own build (the dev VM has it; the templates use the flatpak).
-    rm -rf ~/.config/gnome-text-editor ~/.local/share/gnome-text-editor
+    rm -rf ~/.config/gnome-text-editor ~/.local/share/gnome-text-editor ~/.cache/gnome-text-editor \
+      ~/.config/org.gnome.TextEditor ~/.local/share/org.gnome.TextEditor ~/.cache/org.gnome.TextEditor
     systemd-run --user --unit=vmtest-editor --collect gnome-text-editor >/dev/null 2>&1
   fi
   # A Wayland window, out of xdotool's sight: its process (comm, cut to 15 characters), then time to draw.
@@ -628,5 +629,6 @@ editor_open() {
 editor_close() {
   systemctl --user stop vmtest-editor 2>/dev/null
   flatpak kill org.gnome.TextEditor 2>/dev/null
-  rm -rf ~/.var/app/org.gnome.TextEditor/data ~/.config/gnome-text-editor ~/.local/share/gnome-text-editor
+  rm -rf ~/.var/app/org.gnome.TextEditor/data ~/.config/gnome-text-editor ~/.local/share/gnome-text-editor \
+    ~/.cache/gnome-text-editor ~/.config/org.gnome.TextEditor ~/.local/share/org.gnome.TextEditor ~/.cache/org.gnome.TextEditor
 }

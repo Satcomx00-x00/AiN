@@ -1,5 +1,5 @@
 # shellcheck shell=bash disable=SC2016  # check/wait_for evaluate their single-quoted conditions later
-# timeout: 900
+# timeout: 1800
 # A soak of the island's main loop: hover, open, click every tab, fold, again and again. The app
 # must stay alive and responsive, keep its geometry, keep one window, and not leak memory, file
 # descriptors or threads. The numbers go in the run's Metrics table, so a regression shows as a
