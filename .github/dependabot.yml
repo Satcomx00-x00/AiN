@@ -1,4 +1,6 @@
 version: 2
+# Groups take minor and patch updates together; a major opens its own PR, so a breaking one fails
+# alone instead of blocking the group's fixes (including its security updates).
 updates:
   - package-ecosystem: github-actions
     directory: /
@@ -13,6 +15,7 @@ updates:
     groups:
       actions:
         patterns: ["*"]
+        update-types: ["minor", "patch"]
 
   - package-ecosystem: bun
     directories: [/ain, /npm]
@@ -27,6 +30,7 @@ updates:
     groups:
       frontend:
         patterns: ["*"]
+        update-types: ["minor", "patch"]
 
   - package-ecosystem: cargo
     directory: /ain/src-tauri
@@ -41,3 +45,4 @@ updates:
     groups:
       rust:
         patterns: ["*"]
+        update-types: ["minor", "patch"]

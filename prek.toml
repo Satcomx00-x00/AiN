@@ -200,11 +200,12 @@ priority = "check"
 # Conventional Commits, checked by the frontend's commitlint (`commitlint --edit <file>`): run from
 # ain for its config and dependencies, given the message file Git hands the hook.
 # Lives here, not in ain/prek.toml, because commitlint resolves that path from the
-# repository root, which is how prek passes it to root hooks.
+# repository root, which is how prek passes it to root hooks. The wrapper explains a missing
+# `bun install` rather than letting bun report a missing commitlint binary.
 id = "commitlint"
 name = "commitlint"
 language = "system"
-entry = "bun run --cwd ain commitlint"
+entry = "bash ain/scripts/commitlint.sh"
 stages = ["commit-msg"]
 
 # ---------- shell scripts ----------
