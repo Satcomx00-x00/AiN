@@ -33,7 +33,7 @@ check E31 "the desktop's shortcut list is the one AiN writes to" \
 
 check E40 "the app binary is executable" '[ -x "$BIN" ]' "$BIN"
 check E41 "the app is running and has its island" 'app_alive' "$(app_log | tail -3 | tr '\n' ' ')"
-check E42 "the app's stored data folder is writable" '[ -w "$(dirname "$HOME")" ]'
+check E42 "the app's stored data folder is writable" '[ -w "$HOME" ]' "$HOME"
 
 metric E50 screen_width "$SW"
 metric E50 screen_height "$SH"

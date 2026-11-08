@@ -24,12 +24,9 @@ cycles=10
 started=$SECONDS
 opened=0
 for ((i = 1; i <= cycles; i++)); do
-  snapshot_windows
-  chord "$KEY_B" "$KEY_SUPER" "$KEY_SHIFT"
-  if wait_new_window 8; then
+  if shortcut_popup; then
     opened=$((opened + 1))
-    keys "$KEY_ESC"
-    wait_window_gone 5 "$NEW_WINDOW" || true
+    close_shortcut_popup
   fi
 done
 elapsed=$((SECONDS - started))

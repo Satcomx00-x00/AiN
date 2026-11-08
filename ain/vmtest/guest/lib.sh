@@ -80,10 +80,11 @@ app_log() { journalctl --user --no-pager -o cat _SYSTEMD_INVOCATION_ID="$(system
 # The island: the app's visible X11 window that isn't one of its other windows. A window can be
 # briefly unmapped while GNOME switches views (the overview hides it): wait a moment for it.
 island() {
-  local w i
+  local w i name
   for i in 1 2 3 4 5; do
     for w in $(xdotool search --onlyvisible --pid "$(app_pid)" 2>/dev/null); do
-      case "$(xdotool getwindowname "$w")" in "AiN settings" | "AiN" | "AiN capture") continue ;; esac
+      name=$(xdotool getwindowname "$w" 2>/dev/null)
+      case "$name" in "AiN settings" | "AiN notifications" | "AiN" | "AiN capture") continue ;; esac
       echo "$w"
       return 0
     done
@@ -554,9 +555,12 @@ KEY_LEFT=105 KEY_RIGHT=106 KEY_ENTER=28 KEY_TAB=15
 # ---------- the app's windows ----------
 # app_windows: one line per visible window of the app: id, then its title.
 app_windows() {
-  local w
+  local w name
   for w in $(xdotool search --onlyvisible --pid "$(app_pid)" 2>/dev/null); do
-    printf '%s\t%s\n' "$w" "$(xdotool getwindowname "$w" 2>/dev/null)"
+    name=$(xdotool getwindowname "$w" 2>/dev/null)
+    # The notification surface is a transparent always-mapped web view, not a window a test opened.
+    case "$name" in "AiN notifications") continue ;; esac
+    printf '%s\t%s\n' "$w" "$name"
   done
 }
 # window_count: how many visible windows the app has.
@@ -598,6 +602,9 @@ wait_window_gone() {
 # dialog (a Wayland window xdotool cannot see) by keyboard: Enter, then Tab+Enter, until the
 # shortcut works. shortcuts_granted reports the portal permission store entry, when GNOME keeps one.
 shortcut_popup() {
+  # The portal delivers a shortcut to the app, but the popup it shows needs the app focused to map
+  # and take the pointer; after another shortcut's Escape the focus may have moved.
+  focus_island >/dev/null 2>&1 || true
   for _ in 1 2; do
     snapshot_windows
     chord "$KEY_B" "$KEY_SUPER" "$KEY_SHIFT"

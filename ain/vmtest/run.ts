@@ -154,7 +154,15 @@ async function runTarget(t: Target): Promise<TargetResult> {
     } else {
       await guest.ok(`test -x ${REMOTE}/ain`, "no build on the VM yet (run once without --no-build)");
     }
-    for (const file of tests) checks.push(...(await runTest(t, guest, file, dir, log, metrics)));
+    for (const file of tests) {
+      checks.push(...(await runTest(t, guest, file, dir, log, metrics)));
+      // An X11 client that goes away can take GNOME's title-bar helper with it on an X error;
+      // every decorated X11 window, Settings included, then stays hidden for the whole session.
+      if (await framesHelperDied(guest)) {
+        log("GNOME's X11 title-bar helper died: restarting the session");
+        await reboot(guest);
+      }
+    }
     if (state) {
       await restoreState(guest, state).catch((e: unknown) => log(`restoring the app state failed: ${String(e)}`));
       state = undefined;

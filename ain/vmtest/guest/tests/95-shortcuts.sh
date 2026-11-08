@@ -20,15 +20,19 @@ base_windows=$(window_count)
 
 # popup_shortcut ID WHAT KEYCODE MODIFIER...: the chord opens the shortcut popup; Escape closes it.
 popup_shortcut() {
-  local id=$1 what=$2 key=$3
+  local id=$1 what=$2 key=$3 w=
   shift 3
-  snapshot_windows
-  chord "$key" "$@"
-  if ! wait_new_window 8; then
+  for _ in 1 2; do
+    focus_island >/dev/null 2>&1 || true
+    snapshot_windows
+    NEW_WINDOW=
+    chord "$key" "$@"
+    if wait_new_window 8; then w=$NEW_WINDOW; break; fi
+  done
+  if [ -z "$w" ]; then
     check "$id" "$what" 'false' "no visible popup after the shortcut"
     return 1
   fi
-  local w=$NEW_WINDOW
   check "$id" "$what" '[ "$(window_title "$w")" = "AiN" ] && [ "$(window_width "$w")" -ge 300 ]' \
     "title=$(window_title "$w") size=$(window_width "$w")x$(window_height "$w")"
   keys "$KEY_ESC"
@@ -40,10 +44,15 @@ popup_shortcut X10 "Super+Shift+B opens the clipboard history" "$KEY_B" "$KEY_SU
 popup_shortcut X11 "Super+Alt+Space opens the command palette" "$KEY_SPACE" "$KEY_SUPER" "$KEY_ALT"
 
 # The zones overlay covers the screen; Esc cancels the picker.
-snapshot_windows
-chord "$KEY_Z" "$KEY_CTRL" "$KEY_ALT" "$KEY_SUPER"
-if wait_new_window 8; then
-  z=$NEW_WINDOW
+z=
+for _ in 1 2; do
+  focus_island >/dev/null 2>&1 || true
+  snapshot_windows
+  NEW_WINDOW=
+  chord "$KEY_Z" "$KEY_CTRL" "$KEY_ALT" "$KEY_SUPER"
+  if wait_new_window 8; then z=$NEW_WINDOW; break; fi
+done
+if [ -n "$z" ]; then
   geom "$z"
   check X12 "Ctrl+Alt+Super+Z opens the zones picker" '[ "$(window_title "$z")" = "AiN zones" ]' "title=$(window_title "$z")"
   check X13 "the zones picker covers the screen" '[ "$WIDTH" -ge $((SW - 2)) ] && [ "$HEIGHT" -ge $((SH - 2)) ]' "${WIDTH}x$HEIGHT on ${SW}x${SH}"
@@ -56,10 +65,15 @@ fi
 
 # Capture needs the desktop's screenshot permission (the portal already holds one on a desktop
 # that used it); the overlay is "AiN capture", full screen.
-snapshot_windows
-chord "$KEY_S" "$KEY_SUPER" "$KEY_ALT"
-if wait_new_window 12; then
-  c=$NEW_WINDOW
+c=
+for _ in 1 2; do
+  focus_island >/dev/null 2>&1 || true
+  snapshot_windows
+  NEW_WINDOW=
+  chord "$KEY_S" "$KEY_SUPER" "$KEY_ALT"
+  if wait_new_window 12; then c=$NEW_WINDOW; break; fi
+done
+if [ -n "$c" ]; then
   geom "$c"
   check X15 "Super+Alt+S opens the capture overlay" '[ "$(window_title "$c")" = "AiN capture" ] && [ "$HEIGHT" -gt 200 ]' \
     "title=$(window_title "$c") ${WIDTH}x$HEIGHT"
